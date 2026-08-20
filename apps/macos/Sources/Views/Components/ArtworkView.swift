@@ -24,6 +24,7 @@ struct ArtworkView: View {
                         )
                         .loadDiskFileSynchronously(false)
                         .fade(duration: 0.15)
+                        .startLoadingBeforeViewAppear()
                         // Finish off-screen requests so scrolling warms the disk cache.
                         .cancelOnDisappear(false)
                         .reducePriorityOnDisappear(true)
