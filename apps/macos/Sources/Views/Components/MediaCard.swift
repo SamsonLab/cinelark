@@ -17,6 +17,15 @@ struct MediaCard: View {
                             .padding(8)
                     }
                 }
+                .overlay(alignment: .topTrailing) {
+                    if item.userState.favorite == true {
+                        Image(systemName: "heart.fill")
+                            .foregroundStyle(.orange)
+                            .padding(9)
+                            .background(.ultraThinMaterial, in: Circle())
+                            .padding(8)
+                    }
+                }
                 .shadow(color: .black.opacity(0.35), radius: 12, y: 6)
 
             Text(item.title)

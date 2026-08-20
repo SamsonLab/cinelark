@@ -21,6 +21,10 @@ Only synthetic fixtures belong in `fixtures/`.
   logging or telemetry.
 - Keep provider credentials in the core app; never send them to IINA or mpv.
 - Treat playback URLs as short-lived bearer capabilities.
+- Persist only recreatable metadata in the versioned Application Support cache;
+  never cache credentials, tokens, signed URLs, or playback descriptors.
+- Clear account-scoped metadata before a new provider sign-in and keep cache
+  directories/files restricted to the current user.
 - Authenticate every local bridge connection and message.
 - Protect Remote traffic with TLS, certificate pinning, explicit pairing, and
   revocable device-scoped credentials.

@@ -3,6 +3,9 @@ import CineLarkDomain
 
 private enum LibrarySelection: Hashable {
     case home
+    case movies
+    case series
+    case favorites
     case search
     case collection(String)
 }
@@ -17,6 +20,15 @@ struct LibraryView: View {
                 Section {
                     NavigationLink(value: LibrarySelection.home) {
                         Label("Home", systemImage: "house.fill")
+                    }
+                    NavigationLink(value: LibrarySelection.movies) {
+                        Label("Movies", systemImage: "film.stack.fill")
+                    }
+                    NavigationLink(value: LibrarySelection.series) {
+                        Label("TV Series", systemImage: "tv.fill")
+                    }
+                    NavigationLink(value: LibrarySelection.favorites) {
+                        Label("Favorites", systemImage: "heart.fill")
                     }
                     NavigationLink(value: LibrarySelection.search) {
                         Label("Search", systemImage: "magnifyingglass")
@@ -55,6 +67,9 @@ struct LibraryView: View {
                             playback: model.playback
                         )
                     }
+                    .navigationDestination(for: PersonCredit.self) { person in
+                        PersonDetailView(person: person, provider: model.provider)
+                    }
             }
         }
         .navigationSplitViewStyle(.balanced)
@@ -76,6 +91,12 @@ struct LibraryView: View {
         switch selection ?? .home {
         case .home:
             HomeView(model: model)
+        case .movies:
+            MediaCategoryView(kind: .movie, model: model)
+        case .series:
+            MediaCategoryView(kind: .series, model: model)
+        case .favorites:
+            FavoritesView(provider: model.provider)
         case .search:
             SearchView(model: model)
         case .collection(let id):

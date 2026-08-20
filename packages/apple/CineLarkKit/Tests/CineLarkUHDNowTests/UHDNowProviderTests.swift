@@ -219,6 +219,186 @@ struct UHDNowProviderTests {
         #expect(clearedSession == nil)
     }
 
+    @Test("person details and works use the observed people endpoints")
+    func personDetailsAndWorks() async throws {
+        let session = ProviderSession(
+            token: "synthetic-token",
+            expiresAt: Date(timeIntervalSince1970: 4_102_444_800)
+        )
+        let transport = StubTransport([
+            .json("""
+            {
+              "ok": true,
+              "data": {
+                "id": "person-synthetic",
+                "name": "Synthetic Performer",
+                "favorite": false,
+                "tmdb_id": 42,
+                "imdb_id": null
+              }
+            }
+            """),
+            .json("""
+            {
+              "ok": true,
+              "data": {
+                "page": 1,
+                "page_size": 60,
+                "total": 1,
+                "items": [{
+                  "id": "movie-synthetic",
+                  "type": "movie",
+                  "title": "Synthetic Feature"
+                }]
+              }
+            }
+            """)
+        ])
+        let provider = UHDNowProvider(
+            sessionStore: MemorySessionStore(session: session),
+            transport: transport
+        )
+        _ = try await provider.restoreSession()
+
+        let person = try await provider.person(id: "person-synthetic")
+        let works = try await provider.works(
+            forPersonID: person.id,
+            page: PageRequest(number: 1, size: 60),
+            sort: MediaSort(field: .rating, order: .ascending)
+        )
+
+        #expect(person.name == "Synthetic Performer")
+        #expect(person.tmdbID == "42")
+        #expect(works.items.first?.title == "Synthetic Feature")
+        let requests = await transport.requests
+        #expect(requests[0].url?.path == "/api/v1/stream/library/persons/person-synthetic")
+        #expect(requests[1].url?.path == "/api/v1/stream/library/persons/person-synthetic/works")
+        #expect(requests[1].url?.query?.contains("sort_by=rating") == true)
+        #expect(requests[1].url?.query?.contains("sort_order=asc") == true)
+    }
+
+    @Test("favorite lists map media and people without sharing response types")
+    func favoriteLists() async throws {
+        let session = ProviderSession(
+            token: "synthetic-token",
+            expiresAt: Date(timeIntervalSince1970: 4_102_444_800)
+        )
+        let transport = StubTransport([
+            .json("""
+            {
+              "ok": true,
+              "data": {
+                "page": 1,
+                "page_size": 60,
+                "total": 1,
+                "items": [{
+                  "id": "series-synthetic",
+                  "type": "tv",
+                  "title": "Synthetic Series",
+                  "user_state": { "favorite": true }
+                }]
+              }
+            }
+            """),
+            .json("""
+            {
+              "ok": true,
+              "data": {
+                "page": 1,
+                "page_size": 60,
+                "total": 1,
+                "items": [{
+                  "id": "person-synthetic",
+                  "name": "Synthetic Performer",
+                  "avatar_path": "/img/person-synthetic",
+                  "favorite": true
+                }]
+              }
+            }
+            """)
+        ])
+        let provider = UHDNowProvider(
+            sessionStore: MemorySessionStore(session: session),
+            transport: transport
+        )
+        _ = try await provider.restoreSession()
+
+        let series = try await provider.favoriteMedia(
+            kind: .series,
+            page: PageRequest(number: 1, size: 60)
+        )
+        let people = try await provider.favoritePeople(
+            page: PageRequest(number: 1, size: 60)
+        )
+
+        #expect(series.items.first?.kind == .series)
+        #expect(series.items.first?.userState.favorite == true)
+        #expect(people.items.first?.isFavorite == true)
+        let requests = await transport.requests
+        #expect(requests[0].url?.query?.contains("type=tv") == true)
+        #expect(requests[1].url?.query?.contains("type=person") == true)
+    }
+
+    @Test("favorite mutations only remove resource kinds with observed delete paths")
+    func favoriteMutations() async throws {
+        let session = ProviderSession(
+            token: "synthetic-token",
+            expiresAt: Date(timeIntervalSince1970: 4_102_444_800)
+        )
+        let transport = StubTransport([
+            .json("""
+            {
+              "ok": true,
+              "data": {
+                "favorite": true,
+                "item_id": "series-synthetic",
+                "item_type": "tv"
+              }
+            }
+            """),
+            .json("""
+            {
+              "ok": true,
+              "data": {
+                "favorite": false,
+                "item_id": "series-synthetic",
+                "item_type": "tv"
+              }
+            }
+            """)
+        ])
+        let provider = UHDNowProvider(
+            sessionStore: MemorySessionStore(session: session),
+            transport: transport
+        )
+        _ = try await provider.restoreSession()
+        let target = FavoriteTarget(id: "series-synthetic", kind: .series)
+
+        #expect(try await provider.setFavorite(true, target: target) == true)
+        #expect(try await provider.setFavorite(false, target: target) == false)
+        do {
+            _ = try await provider.setFavorite(
+                false,
+                target: FavoriteTarget(id: "movie-synthetic", kind: .movie)
+            )
+            Issue.record("Expected unobserved movie removal to stay unsupported.")
+        } catch let error as ProviderError {
+            #expect(error == .unsupported)
+        }
+
+        let requests = await transport.requests
+        #expect(requests[0].httpMethod == "POST")
+        let body = try #require(requests[0].httpBody)
+        let object = try #require(
+            JSONSerialization.jsonObject(with: body) as? [String: String]
+        )
+        #expect(object["item_id"] == "series-synthetic")
+        #expect(object["item_type"] == "tv")
+        #expect(requests[1].httpMethod == "DELETE")
+        #expect(requests[1].url?.path == "/api/v1/stream/me/favorites/tv/series-synthetic")
+        #expect(requests.count == 2)
+    }
+
     @Test("seconds and UHDNow ticks round trip")
     func ticksRoundTrip() {
         let ticks = UHDNowTime.ticks(fromSeconds: 123.5)

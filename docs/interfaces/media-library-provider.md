@@ -61,8 +61,9 @@ protocol MediaLibraryProvider: Sendable {
     func person(id: PersonID) async throws -> PersonDetail
     func works(personID: PersonID, page: PageRequest, sort: MediaSort?) async throws -> Page<MediaSummary>
 
-    func favorites(kind: FavoriteKind, page: PageRequest) async throws -> Page<MediaSummary>
-    func setFavorite(_ favorite: Bool, item: FavoritableID) async throws -> FavoriteState
+    func favoriteMedia(kind: MediaKind, page: PageRequest) async throws -> Page<MediaSummary>
+    func favoritePeople(page: PageRequest) async throws -> Page<PersonDetail>
+    func setFavorite(_ favorite: Bool, target: FavoriteTarget) async throws -> FavoriteState
 
     func playbackState(for item: PlayableID) async throws -> ItemPlaybackState
     func playbackStates(limit: Int) async throws -> PlaybackShelf

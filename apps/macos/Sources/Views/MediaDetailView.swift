@@ -29,8 +29,8 @@ struct MediaDetailView: View {
                     seriesContent
                 }
 
-                if let detail = model.detail, !detail.cast.isEmpty {
-                    cast(detail.cast)
+                if let detail = model.detail, !credits(in: detail).isEmpty {
+                    cast(credits(in: detail))
                 }
             }
             .padding(.bottom, 48)
@@ -59,6 +59,12 @@ struct MediaDetailView: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: 430)
                 .clipped()
+                .overlay {
+                    Rectangle()
+                        .fill(.ultraThinMaterial)
+                        .opacity(0.32)
+                        .allowsHitTesting(false)
+                }
                 .overlay {
                     LinearGradient(
                         colors: [.clear, .black.opacity(0.92)],
@@ -108,6 +114,26 @@ struct MediaDetailView: View {
                             .lineLimit(5)
                             .frame(maxWidth: 720, alignment: .leading)
                     }
+
+                    Button {
+                        Task { await model.toggleFavorite() }
+                    } label: {
+                        if model.isUpdatingFavorite {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Label(
+                                model.isFavorite ? "Favorited" : "Add to Favorites",
+                                systemImage: model.isFavorite ? "heart.fill" : "heart"
+                            )
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
+                    .tint(model.isFavorite ? .orange : .accentColor)
+                    .disabled(
+                        model.isUpdatingFavorite ||
+                        (model.isFavorite && !model.canRemoveFavorite)
+                    )
                 }
                 .padding(.bottom, 8)
             }
@@ -188,33 +214,44 @@ struct MediaDetailView: View {
 
     private func cast(_ people: [PersonCredit]) -> some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Cast")
+            Text("Cast & Crew")
                 .font(.title2.bold())
 
             ScrollView(.horizontal) {
                 LazyHStack(alignment: .top, spacing: 20) {
-                    ForEach(Array(people.prefix(24))) { person in
-                        VStack(spacing: 9) {
-                            ArtworkView(url: person.avatarURL)
+                    ForEach(Array(people.prefix(36))) { person in
+                        NavigationLink(value: person) {
+                            VStack(spacing: 9) {
+                                ArtworkView(
+                                    url: person.avatarURL,
+                                    placeholderSystemImage: "person.fill"
+                                )
                                 .frame(width: 104, height: 104)
                                 .clipShape(Circle())
-                            Text(person.name)
-                                .font(.callout.weight(.medium))
-                                .lineLimit(1)
-                            if let character = person.character, !character.isEmpty {
-                                Text(character)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                Text(person.name)
+                                    .font(.callout.weight(.medium))
                                     .lineLimit(1)
+                                if let character = person.character, !character.isEmpty {
+                                    Text(character)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
                             }
+                            .frame(width: 130)
                         }
-                        .frame(width: 130)
+                        .buttonStyle(.plain)
                     }
                 }
             }
             .scrollIndicators(.hidden)
         }
         .padding(.horizontal, 40)
+    }
+
+    private func credits(in detail: MediaDetail) -> [PersonCredit] {
+        var seen: Set<String> = []
+        return (detail.directors + detail.cast).filter { seen.insert($0.id).inserted }
     }
 }
 

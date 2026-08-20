@@ -50,12 +50,14 @@ public struct Page<Element: Sendable>: Sendable {
     }
 }
 
-public enum MediaKind: String, Sendable, Hashable {
+extension Page: Codable where Element: Codable {}
+
+public enum MediaKind: String, Codable, Sendable, Hashable {
     case movie
     case series
 }
 
-public struct UserPlaybackState: Sendable, Hashable {
+public struct UserPlaybackState: Codable, Sendable, Hashable {
     public let played: Bool
     public let favorite: Bool?
     public let positionSeconds: Double
@@ -83,7 +85,7 @@ public struct UserPlaybackState: Sendable, Hashable {
     )
 }
 
-public struct Genre: Sendable, Hashable, Identifiable {
+public struct Genre: Codable, Sendable, Hashable, Identifiable {
     public let id: Int
     public let name: String
     public let slug: String
@@ -95,7 +97,7 @@ public struct Genre: Sendable, Hashable, Identifiable {
     }
 }
 
-public struct MediaSummary: Sendable, Hashable, Identifiable {
+public struct MediaSummary: Codable, Sendable, Hashable, Identifiable {
     public let id: String
     public let kind: MediaKind
     public let title: String
@@ -147,7 +149,7 @@ public struct MediaSummary: Sendable, Hashable, Identifiable {
     }
 }
 
-public struct MediaCollection: Sendable, Hashable, Identifiable {
+public struct MediaCollection: Codable, Sendable, Hashable, Identifiable {
     public let id: String
     public let name: String
     public let mediaKind: MediaKind?
@@ -163,7 +165,7 @@ public struct MediaCollection: Sendable, Hashable, Identifiable {
     }
 }
 
-public struct PersonCredit: Sendable, Hashable, Identifiable {
+public struct PersonCredit: Codable, Sendable, Hashable, Identifiable {
     public let id: String
     public let name: String
     public let character: String?
@@ -179,7 +181,48 @@ public struct PersonCredit: Sendable, Hashable, Identifiable {
     }
 }
 
-public struct MediaDetail: Sendable, Hashable {
+public struct PersonDetail: Codable, Sendable, Hashable, Identifiable {
+    public let id: String
+    public let name: String
+    public let avatarURL: URL?
+    public let isFavorite: Bool
+    public let tmdbID: String?
+    public let imdbID: String?
+
+    public init(
+        id: String,
+        name: String,
+        avatarURL: URL? = nil,
+        isFavorite: Bool,
+        tmdbID: String? = nil,
+        imdbID: String? = nil
+    ) {
+        self.id = id
+        self.name = name
+        self.avatarURL = avatarURL
+        self.isFavorite = isFavorite
+        self.tmdbID = tmdbID
+        self.imdbID = imdbID
+    }
+}
+
+public enum FavoriteKind: String, Codable, Sendable, Hashable {
+    case movie
+    case series
+    case person
+}
+
+public struct FavoriteTarget: Codable, Sendable, Hashable {
+    public let id: String
+    public let kind: FavoriteKind
+
+    public init(id: String, kind: FavoriteKind) {
+        self.id = id
+        self.kind = kind
+    }
+}
+
+public struct MediaDetail: Codable, Sendable, Hashable {
     public let summary: MediaSummary
     public let directors: [PersonCredit]
     public let cast: [PersonCredit]
@@ -201,7 +244,7 @@ public struct MediaDetail: Sendable, Hashable {
     }
 }
 
-public struct Season: Sendable, Hashable, Identifiable {
+public struct Season: Codable, Sendable, Hashable, Identifiable {
     public let id: String
     public let seriesID: String
     public let number: Int
@@ -229,7 +272,7 @@ public struct Season: Sendable, Hashable, Identifiable {
     }
 }
 
-public struct Episode: Sendable, Hashable, Identifiable {
+public struct Episode: Codable, Sendable, Hashable, Identifiable {
     public let id: String
     public let seriesID: String
     public let seasonID: String
@@ -269,12 +312,12 @@ public struct Episode: Sendable, Hashable, Identifiable {
     }
 }
 
-public enum PlayableKind: String, Sendable, Hashable {
+public enum PlayableKind: String, Codable, Sendable, Hashable {
     case movie
     case episode
 }
 
-public struct PlayableItem: Sendable, Hashable {
+public struct PlayableItem: Codable, Sendable, Hashable {
     public let id: String
     public let kind: PlayableKind
 
@@ -284,7 +327,7 @@ public struct PlayableItem: Sendable, Hashable {
     }
 }
 
-public struct AudioTrack: Sendable, Hashable, Identifiable {
+public struct AudioTrack: Codable, Sendable, Hashable, Identifiable {
     public let index: Int
     public let codec: String?
     public let bitRate: Int64?
@@ -320,7 +363,7 @@ public struct AudioTrack: Sendable, Hashable, Identifiable {
     }
 }
 
-public struct SubtitleTrack: Sendable, Hashable, Identifiable {
+public struct SubtitleTrack: Codable, Sendable, Hashable, Identifiable {
     public let index: Int
     public let codec: String?
     public let language: String?
@@ -338,7 +381,7 @@ public struct SubtitleTrack: Sendable, Hashable, Identifiable {
     }
 }
 
-public struct MediaAsset: Sendable, Hashable, Identifiable {
+public struct MediaAsset: Codable, Sendable, Hashable, Identifiable {
     public let id: String
     public let mediaID: String
     public let episodeID: String?
@@ -417,7 +460,7 @@ public struct MediaAsset: Sendable, Hashable, Identifiable {
     }
 }
 
-public struct ContinueWatchingItem: Sendable, Hashable, Identifiable {
+public struct ContinueWatchingItem: Codable, Sendable, Hashable, Identifiable {
     public let id: String
     public let item: PlayableItem
     public let mediaID: String
@@ -451,7 +494,7 @@ public struct ContinueWatchingItem: Sendable, Hashable, Identifiable {
     }
 }
 
-public struct PlaybackShelf: Sendable {
+public struct PlaybackShelf: Codable, Sendable {
     public let resume: [ContinueWatchingItem]
     public let nextUp: [ContinueWatchingItem]
 

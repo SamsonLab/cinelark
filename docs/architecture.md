@@ -89,12 +89,22 @@ Owns:
 
 Raw DTOs stay internal to this package.
 
-### 3.4 `CineLarkApplication`
+### 3.4 `PersistentMetadataCache`
+
+An actor-isolated, bounded file store for recreatable domain metadata. A
+provider-neutral read-through decorator applies per-resource TTLs, stale outage
+fallback, tagged invalidation, schema resets, and account-lifecycle clearing.
+Playback descriptors and provider capabilities are never persisted. Artwork
+uses a separate bounded Kingfisher memory/disk pipeline.
+
+See [`interfaces/metadata-cache.md`](interfaces/metadata-cache.md).
+
+### 3.5 `CineLarkApplication`
 
 Coordinates use cases and state machines. It depends on domain protocols, not
 concrete provider or bridge implementations.
 
-### 3.5 `PlaybackCoordinator`
+### 3.6 `PlaybackCoordinator`
 
 Maintains one logical playback session:
 
@@ -109,7 +119,7 @@ Maintains one logical playback session:
 
 A new `play` supersedes the previous logical session and finalizes it first.
 
-### 3.6 `RustBridgeHelper`
+### 3.7 `RustBridgeHelper`
 
 A self-contained native helper bundled and signed inside CineLark.app. The Mac
 supervises it as a child process and exchanges framed JSON over stdio. It exposes
@@ -117,20 +127,20 @@ an authenticated loopback-only HTTP/long-poll endpoint to the IINA plugin,
 validates bridge envelopes, orders sessions, and contains no provider logic or
 persistent daemon behavior.
 
-### 3.7 `IINABridgePlugin`
+### 3.8 `IINABridgePlugin`
 
 A minimal JavaScript/TypeScript package with no provider dependency. It polls
 the Rust helper for commands, posts sanitized events, and maps the bridge
 protocol to IINA public plugin APIs and mpv properties/events.
 
-### 3.8 `RemoteGateway`
+### 3.9 `RemoteGateway`
 
 A native Mac service that publishes sanitized app/player snapshots and accepts
 capability-checked semantic commands. It owns Bonjour discovery, secure pairing,
 device revocation, protocol negotiation, and the TLS endpoint. It never exposes
 provider DTOs, credentials, or playback URLs.
 
-### 3.9 `CineLarkRemote`
+### 3.10 `CineLarkRemote`
 
 A Flutter application for iOS and Android. It mirrors only the state required by
 the companion experience and sends semantic navigation/playback commands to the
@@ -142,10 +152,13 @@ behind Flutter infrastructure adapters or narrowly scoped platform channels.
 ### 4.1 Browse
 
 ```text
-View → Use Case → MediaLibraryProvider → Provider API
-     ← View State ← Domain Models       ← DTO mapping
+View → Use Case → CachedMediaLibraryProvider → fresh metadata cache
+                           │
+                           └→ Provider API → cache replacement
+View ← View State ← Domain Models ← cached or mapped provider data
 ```
 
+Expired metadata falls back to stale data only for transient provider failures.
 Views never depend on provider DTOs.
 
 ### 4.2 Play and resume

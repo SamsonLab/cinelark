@@ -89,6 +89,26 @@ struct PersonCreditDTO: Decodable {
     let sortOrder: Int?
 }
 
+struct PersonDetailDTO: Decodable {
+    let id: String
+    let name: String
+    let avatarPath: String?
+    let favorite: Bool?
+    let tmdbId: FlexibleString?
+    let imdbId: String?
+}
+
+struct FavoriteMutationRequest: Encodable {
+    let itemId: String
+    let itemType: String
+}
+
+struct FavoriteMutationResponseDTO: Decodable {
+    let favorite: Bool
+    let itemId: String
+    let itemType: String
+}
+
 struct MediaDetailDTO: Decodable {
     let id: String
     let type: String

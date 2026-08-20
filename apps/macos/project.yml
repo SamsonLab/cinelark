@@ -6,6 +6,9 @@ options:
 packages:
   CineLarkKit:
     path: ../../packages/apple/CineLarkKit
+  Kingfisher:
+    url: https://github.com/onevcat/Kingfisher.git
+    from: 8.11.0
 settings:
   base:
     SWIFT_VERSION: "6.0"
@@ -30,6 +33,8 @@ targets:
         product: CineLarkPersistence
       - package: CineLarkKit
         product: CineLarkPlayback
+      - package: Kingfisher
+        product: Kingfisher
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.samsonlab.cinelark

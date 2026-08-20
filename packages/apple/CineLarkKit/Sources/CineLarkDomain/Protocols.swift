@@ -28,6 +28,17 @@ public protocol MediaLibraryProvider: Sendable {
         page: PageRequest
     ) async throws -> Page<Episode>
 
+    func person(id: String) async throws -> PersonDetail
+    func works(
+        forPersonID personID: String,
+        page: PageRequest,
+        sort: MediaSort?
+    ) async throws -> Page<MediaSummary>
+
+    func favoriteMedia(kind: MediaKind, page: PageRequest) async throws -> Page<MediaSummary>
+    func favoritePeople(page: PageRequest) async throws -> Page<PersonDetail>
+    func setFavorite(_ isFavorite: Bool, target: FavoriteTarget) async throws -> Bool
+
     func assets(for item: PlayableItem) async throws -> [MediaAsset]
     func playbackURL(for asset: MediaAsset) async throws -> URL
     func playbackShelf(limit: Int) async throws -> PlaybackShelf
@@ -36,8 +47,8 @@ public protocol MediaLibraryProvider: Sendable {
     func reportStopped(_ update: PlaybackUpdate) async throws -> UserPlaybackState
 }
 
-public struct MediaSort: Sendable, Equatable {
-    public enum Field: String, Sendable {
+public struct MediaSort: Codable, Sendable, Hashable {
+    public enum Field: String, Codable, CaseIterable, Sendable {
         case releaseDate = "release_date"
         case updatedAt = "updated_at"
         case assetUpdatedAt = "asset_updated_at"
@@ -46,7 +57,7 @@ public struct MediaSort: Sendable, Equatable {
         case popularity = "hot"
     }
 
-    public enum Order: String, Sendable {
+    public enum Order: String, Codable, CaseIterable, Sendable {
         case ascending = "asc"
         case descending = "desc"
     }

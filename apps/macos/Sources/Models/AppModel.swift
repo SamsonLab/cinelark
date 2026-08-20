@@ -6,6 +6,11 @@ import CineLarkPlayback
 @Observable
 @MainActor
 final class AppModel {
+    private struct CollectionQuery: Hashable {
+        let collectionID: String
+        let sort: MediaSort
+    }
+
     enum Phase {
         case launching
         case signedOut
@@ -16,10 +21,10 @@ final class AppModel {
     private(set) var hotItems: [MediaSummary] = []
     private(set) var continueWatching: [ContinueWatchingItem] = []
     private(set) var collections: [MediaCollection] = []
-    private(set) var collectionItems: [String: [MediaSummary]] = [:]
+    private var collectionItems: [CollectionQuery: [MediaSummary]] = [:]
+    private var loadingCollectionQueries: Set<CollectionQuery> = []
     private(set) var searchResults: [MediaSummary] = []
     private(set) var isLoadingHome = false
-    private(set) var loadingCollectionID: String?
     private(set) var isSearching = false
     private(set) var playingItemID: String?
     var errorMessage: String?
@@ -71,6 +76,7 @@ final class AppModel {
         continueWatching = []
         collections = []
         collectionItems = [:]
+        loadingCollectionQueries = []
         searchResults = []
         errorMessage = nil
         phase = .signedOut
@@ -104,20 +110,38 @@ final class AppModel {
         isLoadingHome = false
     }
 
-    func loadCollection(_ collection: MediaCollection) async {
-        guard collectionItems[collection.id] == nil else { return }
-        loadingCollectionID = collection.id
+    func items(in collection: MediaCollection, sort: MediaSort) -> [MediaSummary] {
+        collectionItems[CollectionQuery(collectionID: collection.id, sort: sort)] ?? []
+    }
+
+    func isLoading(_ collection: MediaCollection, sort: MediaSort) -> Bool {
+        loadingCollectionQueries.contains(
+            CollectionQuery(collectionID: collection.id, sort: sort)
+        )
+    }
+
+    func loadCollection(_ collection: MediaCollection, sort: MediaSort) async {
+        let query = CollectionQuery(collectionID: collection.id, sort: sort)
+        guard collectionItems[query] == nil,
+              !loadingCollectionQueries.contains(query) else {
+            return
+        }
+
+        loadingCollectionQueries.insert(query)
+        defer { loadingCollectionQueries.remove(query) }
         do {
             let page = try await provider.items(
                 in: collection.id,
                 page: PageRequest(number: 1, size: 60),
-                sort: .newest
+                sort: sort
             )
-            collectionItems[collection.id] = page.items
+            guard !Task.isCancelled else { return }
+            collectionItems[query] = page.items
+        } catch is CancellationError {
+            return
         } catch {
             handleAuthenticated(error)
         }
-        loadingCollectionID = nil
     }
 
     func search(_ query: String) async {
@@ -162,6 +186,7 @@ final class AppModel {
     }
 
     private func handleAuthenticated(_ error: Error) {
+        guard !(error is CancellationError) else { return }
         if error as? ProviderError == .sessionExpired ||
             error as? ProviderError == .unauthenticated {
             phase = .signedOut

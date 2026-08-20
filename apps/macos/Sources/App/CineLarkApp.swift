@@ -11,7 +11,13 @@ struct CineLarkApp: App {
 
     init() {
         let sessionStore = KeychainSessionStore()
-        let provider = UHDNowProvider(sessionStore: sessionStore)
+        let upstreamProvider = UHDNowProvider(sessionStore: sessionStore)
+        let metadataCache = PersistentMetadataCache()
+        let provider = CachedMediaLibraryProvider(
+            upstream: upstreamProvider,
+            cache: metadataCache,
+            namespace: "uhdnow-v1"
+        )
         let launcher = DirectIINAPlaybackLauncher()
         _model = State(
             initialValue: AppModel(provider: provider, launcher: launcher)

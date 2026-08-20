@@ -24,6 +24,7 @@ Documents use the following status labels:
 | Document | Status | Purpose |
 | --- | --- | --- |
 | [Media library provider](interfaces/media-library-provider.md) | Draft | Provider-neutral domain boundary |
+| [Metadata cache](interfaces/metadata-cache.md) | Accepted implementation | Durable metadata and artwork-cache boundaries |
 | [Playback bridge](interfaces/playback-bridge.md) | Draft, security blocked | Mac app ↔ IINA protocol |
 | [Remote protocol](interfaces/remote-protocol.md) | Draft | Flutter Remote ↔ Mac app protocol |
 | [`specs/common/playback.schema.json`](../specs/common/playback.schema.json) | Draft | Cross-language playback state types |

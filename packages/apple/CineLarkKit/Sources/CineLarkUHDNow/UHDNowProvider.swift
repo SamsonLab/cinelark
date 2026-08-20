@@ -212,6 +212,94 @@ public actor UHDNowProvider: MediaLibraryProvider {
         )
     }
 
+    public func person(id: String) async throws -> PersonDetail {
+        let data: PersonDetailDTO = try await request(
+            method: .get,
+            path: UHDNowRequestBuilder.path("stream", "library", "persons", id)
+        )
+        return mapPerson(data)
+    }
+
+    public func works(
+        forPersonID personID: String,
+        page: PageRequest,
+        sort: MediaSort? = .newest
+    ) async throws -> Page<MediaSummary> {
+        var query = paging(page)
+        if let sort {
+            query.append(URLQueryItem(name: "sort_by", value: sort.field.rawValue))
+            query.append(URLQueryItem(name: "sort_order", value: sort.order.rawValue))
+        }
+        let data: PagedDTO<MediaSummaryDTO> = try await request(
+            method: .get,
+            path: UHDNowRequestBuilder.path(
+                "stream", "library", "persons", personID, "works"
+            ),
+            queryItems: query
+        )
+        return mapPage(data)
+    }
+
+    public func favoriteMedia(
+        kind: MediaKind,
+        page: PageRequest
+    ) async throws -> Page<MediaSummary> {
+        let data: PagedDTO<MediaSummaryDTO> = try await request(
+            method: .get,
+            path: UHDNowRequestBuilder.path("stream", "me", "favorites"),
+            queryItems: [
+                URLQueryItem(name: "type", value: favoriteType(for: kind))
+            ] + paging(page)
+        )
+        return mapPage(data)
+    }
+
+    public func favoritePeople(page: PageRequest) async throws -> Page<PersonDetail> {
+        let data: PagedDTO<PersonDetailDTO> = try await request(
+            method: .get,
+            path: UHDNowRequestBuilder.path("stream", "me", "favorites"),
+            queryItems: [URLQueryItem(name: "type", value: "person")] + paging(page)
+        )
+        return Page(
+            number: data.page,
+            size: data.pageSize,
+            total: data.total,
+            items: data.items.map(mapPerson)
+        )
+    }
+
+    public func setFavorite(_ isFavorite: Bool, target: FavoriteTarget) async throws -> Bool {
+        let response: FavoriteMutationResponseDTO
+        if isFavorite {
+            let body = try encoder.encode(
+                FavoriteMutationRequest(
+                    itemId: target.id,
+                    itemType: favoriteType(for: target.kind)
+                )
+            )
+            response = try await request(
+                method: .post,
+                path: UHDNowRequestBuilder.path("stream", "me", "favorites"),
+                body: body
+            )
+        } else {
+            guard target.kind == .series else {
+                throw ProviderError.unsupported
+            }
+            response = try await request(
+                method: .delete,
+                path: UHDNowRequestBuilder.path(
+                    "stream", "me", "favorites", "tv", target.id
+                )
+            )
+        }
+        guard response.itemId == target.id,
+              response.itemType == favoriteType(for: target.kind) else {
+            throw ProviderError.invalidResponse
+        }
+        return response.favorite
+    }
+
     public func assets(for item: PlayableItem) async throws -> [MediaAsset] {
         let resource = item.kind == .movie ? "movies" : "episodes"
         let data: AssetsDataDTO = try await request(
@@ -490,6 +578,17 @@ public actor UHDNowProvider: MediaLibraryProvider {
         )
     }
 
+    private func mapPerson(_ value: PersonDetailDTO) -> PersonDetail {
+        PersonDetail(
+            id: value.id,
+            name: value.name,
+            avatarURL: imageURL(value.avatarPath),
+            isFavorite: value.favorite ?? false,
+            tmdbID: value.tmdbId?.value,
+            imdbID: value.imdbId
+        )
+    }
+
     private func mapAsset(_ value: VideoAssetDTO) -> MediaAsset {
         MediaAsset(
             id: value.assetId,
@@ -585,6 +684,18 @@ public actor UHDNowProvider: MediaLibraryProvider {
         case "movie": .movie
         case "episode": .episode
         default: nil
+        }
+    }
+
+    private func favoriteType(for kind: MediaKind) -> String {
+        kind == .movie ? "movie" : "tv"
+    }
+
+    private func favoriteType(for kind: FavoriteKind) -> String {
+        switch kind {
+        case .movie: "movie"
+        case .series: "tv"
+        case .person: "person"
         }
     }
 
