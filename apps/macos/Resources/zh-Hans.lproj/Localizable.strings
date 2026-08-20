@@ -60,6 +60,7 @@
 "detail.loading_episodes" = "正在载入剧集…";
 "detail.cast_crew" = "演职人员";
 "detail.overview" = "简介";
+"rating.accessibility" = "评分 %@，满分 10 分";
 "episode.number" = "第 %@ 集";
 "episode.version_one" = "%@ 个版本";
 "episode.version_many" = "%@ 个版本";

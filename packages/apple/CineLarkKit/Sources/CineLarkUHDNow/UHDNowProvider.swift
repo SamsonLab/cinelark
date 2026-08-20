@@ -533,7 +533,7 @@ public actor UHDNowProvider: MediaLibraryProvider {
             originalTitle: value.originTitle,
             synopsis: value.description,
             releaseYear: value.releaseYear,
-            rating: value.rating,
+            rating: normalizedRating(value.rating),
             durationSeconds: value.duration,
             posterURL: imageURL(value.posterPath),
             backdropURL: imageURL(value.fanartPath),
@@ -556,7 +556,7 @@ public actor UHDNowProvider: MediaLibraryProvider {
             originalTitle: value.originTitle,
             synopsis: value.description,
             releaseYear: value.releaseYear,
-            rating: value.rating,
+            rating: normalizedRating(value.rating),
             durationSeconds: value.duration,
             posterURL: imageURL(value.posterPath),
             backdropURL: imageURL(value.fanartPath),
@@ -568,6 +568,10 @@ public actor UHDNowProvider: MediaLibraryProvider {
             },
             userState: mapUserState(value.userState)
         )
+    }
+
+    private func normalizedRating(_ value: Double?) -> Double? {
+        value.map { min(max($0 / 10, 0), 10) }
     }
 
     private func mapCollection(_ value: CollectionDTO) -> MediaCollection {

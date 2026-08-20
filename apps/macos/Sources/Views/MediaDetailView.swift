@@ -118,9 +118,17 @@ struct MediaDetailView: View {
                     Text(String(year))
                 }
                 if let rating = model.item.rating {
-                    Label(
-                        rating.formatted(.number.precision(.fractionLength(1))),
-                        systemImage: "star.fill"
+                    HStack(spacing: 3) {
+                        Image(systemName: "star.fill")
+                            .accessibilityHidden(true)
+                        Text(rating.cineLarkRating)
+                    }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(
+                        language.localized(
+                            "rating.accessibility",
+                            rating.cineLarkRating
+                        )
                     )
                 }
                 if let duration = model.item.durationSeconds {

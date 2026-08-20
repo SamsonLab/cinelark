@@ -101,7 +101,7 @@ struct UHDNowProviderTests {
                   "title": "Synthetic Feature",
                   "origin_title": "Synthetic Feature",
                   "release_year": 2026,
-                  "rating": 8,
+                  "rating": 84,
                   "poster_path": "/img/i/poster/poster-synthetic",
                   "genres": [],
                   "user_state": {
@@ -124,6 +124,7 @@ struct UHDNowProviderTests {
         let page = try await provider.hot(page: PageRequest(number: 1, size: 20))
 
         #expect(page.items.first?.title == "Synthetic Feature")
+        #expect(page.items.first?.rating == 8.4)
         #expect(page.items.first?.userState.positionSeconds == 5)
         #expect(page.items.first?.userState.progress == 0.05)
 

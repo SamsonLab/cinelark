@@ -188,7 +188,7 @@ private struct MediaSortToolbar: ToolbarContent {
 
     var body: some ToolbarContent {
         ToolbarItem(placement: .primaryAction) {
-            HStack(spacing: 8) {
+            HStack(spacing: 4) {
                 SortFieldPickerButton(field: $field)
 
                 Button {
@@ -196,9 +196,10 @@ private struct MediaSortToolbar: ToolbarContent {
                 } label: {
                     Image(systemName: order == .ascending ? "arrow.up" : "arrow.down")
                         .font(.body.weight(.semibold))
-                        .frame(width: 40, height: 40)
+                        .frame(width: 36, height: 36)
                         .cineLarkHoverSurface(
-                            cornerRadius: 10,
+                            cornerRadius: 9,
+                            normalFillOpacity: 0,
                             normalStrokeOpacity: 0,
                             hoverStrokeOpacity: 0
                         )
@@ -219,6 +220,7 @@ private struct MediaSortToolbar: ToolbarContent {
                     )
                 )
             }
+            .padding(4)
             .fixedSize()
         }
     }
@@ -240,10 +242,11 @@ private struct SortFieldPickerButton: View {
                     .font(.caption.weight(.bold))
                     .foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 14)
-            .frame(width: 176, height: 40)
+            .padding(.horizontal, 12)
+            .frame(width: 176, height: 36)
             .cineLarkHoverSurface(
-                cornerRadius: 10,
+                cornerRadius: 9,
+                normalFillOpacity: 0,
                 normalStrokeOpacity: 0,
                 hoverStrokeOpacity: 0
             )

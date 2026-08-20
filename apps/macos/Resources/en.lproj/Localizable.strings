@@ -60,6 +60,7 @@
 "detail.loading_episodes" = "Loading episodes…";
 "detail.cast_crew" = "Cast & Crew";
 "detail.overview" = "Overview";
+"rating.accessibility" = "Rating %@ out of 10";
 "episode.number" = "Episode %@";
 "episode.version_one" = "%@ version";
 "episode.version_many" = "%@ versions";

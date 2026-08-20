@@ -66,6 +66,8 @@ CineLark should use the header, store the issued token in Keychain, honor
 - Dates/timestamps are strings and require tolerant ISO-8601 parsing.
 - `has_versions`, rating, and progress fields were observed as integers; do not
   reinterpret them as booleans without adapter-level normalization.
+- Ratings use a `0...100` provider scale and are normalized to the domain's
+  `0...10` scale at the adapter boundary.
 
 ## 2. Endpoint inventory
 

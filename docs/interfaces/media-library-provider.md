@@ -112,7 +112,7 @@ Provider adapters map external values such as UHDNow `tv` to the domain
 `MediaSummary` carries only list/grid data:
 
 - reference, title, original title
-- release date/year and rating
+- release date/year and rating normalized to a `0...10` scale
 - synopsis preview
 - poster, fanart, and logo image references
 - genres
