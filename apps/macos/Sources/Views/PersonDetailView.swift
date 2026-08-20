@@ -25,6 +25,7 @@ struct PersonDetailView: View {
                     systemImage: "person.crop.circle.badge.questionmark",
                     description: Text(language.localized("person.no_works_description"))
                 )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 VStack(alignment: .leading, spacing: 0) {
                     Text(language.localized("person.works", String(model.workCount)))
@@ -35,6 +36,7 @@ struct PersonDetailView: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color.black.opacity(0.94))
         .navigationTitle(model.name)
         .task {

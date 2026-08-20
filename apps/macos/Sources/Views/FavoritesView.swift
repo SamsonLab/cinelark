@@ -30,7 +30,9 @@ struct FavoritesView: View {
         VStack(spacing: 0) {
             header
             content
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color.black.opacity(0.92))
         .navigationTitle(language.localized("favorites.title"))
         .task {
