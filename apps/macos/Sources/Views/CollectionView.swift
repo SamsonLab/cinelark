@@ -288,7 +288,7 @@ private struct SortFieldPickerButton: View {
                             Text(option.displayName(language: language))
                             Spacer()
                         }
-                        .padding(.horizontal, 10)
+                        .padding(.horizontal, 8)
                         .frame(height: 40)
                         .contentShape(Rectangle())
                     }
