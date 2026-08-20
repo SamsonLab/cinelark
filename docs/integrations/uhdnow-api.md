@@ -230,20 +230,22 @@ The captured asset endpoint returns relative paths:
 /download/video/{assetID}
 ```
 
-A delivery host is obtained from the domain endpoints. Tokenized playback was
-verified with this shape:
+A delivery host is obtained from the domain endpoints. The playback URL was
+verified in IINA, and the current public web client applies the same token query
+to playback and download paths:
 
 ```text
 {resolvedDomain}/play/video/{assetID}?token={accessToken}
+{resolvedDomain}/download/video/{assetID}?token={accessToken}
 ```
 
-The resulting URL plays in IINA. It must be treated as a short-lived bearer
-capability:
+Both URLs are short-lived bearer capabilities:
 
-- construct immediately before playback
-- never persist or cache it
-- redact its query before logging
-- resolve a new URL after token/session changes
+- construct immediately before playback, copy, or browser download
+- never persist or cache them
+- expose them to the clipboard or browser only after an explicit user action
+- redact their queries before logging
+- resolve new URLs after token/session changes
 
 The observed image routes use relative forms such as
 `/img/i/poster/{id}`, `/img/i/fanart/{id}`, `/img/i/thumb/{id}`, and

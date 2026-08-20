@@ -282,6 +282,7 @@ public struct Episode: Codable, Sendable, Hashable, Identifiable {
     public let airDate: String?
     public let thumbnailURL: URL?
     public let durationSeconds: Double?
+    public let versionCount: Int
     public let hasMultipleVersions: Bool
     public let userState: UserPlaybackState
 
@@ -295,6 +296,7 @@ public struct Episode: Codable, Sendable, Hashable, Identifiable {
         airDate: String?,
         thumbnailURL: URL?,
         durationSeconds: Double?,
+        versionCount: Int = 0,
         hasMultipleVersions: Bool,
         userState: UserPlaybackState
     ) {
@@ -307,6 +309,7 @@ public struct Episode: Codable, Sendable, Hashable, Identifiable {
         self.airDate = airDate
         self.thumbnailURL = thumbnailURL
         self.durationSeconds = durationSeconds
+        self.versionCount = max(versionCount, 0)
         self.hasMultipleVersions = hasMultipleVersions
         self.userState = userState
     }
@@ -406,6 +409,7 @@ public struct MediaAsset: Codable, Sendable, Hashable, Identifiable {
     public let audioTracks: [AudioTrack]
     public let subtitleTracks: [SubtitleTrack]
     public let playPath: String
+    public let downloadPath: String?
 
     public init(
         id: String,
@@ -431,7 +435,8 @@ public struct MediaAsset: Codable, Sendable, Hashable, Identifiable {
         videoRange: String? = nil,
         audioTracks: [AudioTrack] = [],
         subtitleTracks: [SubtitleTrack] = [],
-        playPath: String
+        playPath: String,
+        downloadPath: String? = nil
     ) {
         self.id = id
         self.mediaID = mediaID
@@ -457,6 +462,7 @@ public struct MediaAsset: Codable, Sendable, Hashable, Identifiable {
         self.audioTracks = audioTracks
         self.subtitleTracks = subtitleTracks
         self.playPath = playPath
+        self.downloadPath = downloadPath
     }
 }
 

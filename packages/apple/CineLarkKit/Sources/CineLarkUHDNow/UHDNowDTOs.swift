@@ -206,6 +206,7 @@ struct VideoAssetDTO: Decodable {
     let audioTracks: [AudioTrackDTO]?
     let subtitleTracks: [SubtitleTrackDTO]?
     let playPath: String
+    let downloadPath: String?
 }
 
 struct AssetsDataDTO: Decodable {

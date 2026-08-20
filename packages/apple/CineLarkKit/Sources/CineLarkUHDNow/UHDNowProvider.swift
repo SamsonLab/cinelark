@@ -205,6 +205,7 @@ public actor UHDNowProvider: MediaLibraryProvider {
                     airDate: value.airDate,
                     thumbnailURL: imageURL(value.thumbPath),
                     durationSeconds: value.duration,
+                    versionCount: value.hasVersions ?? 0,
                     hasMultipleVersions: (value.hasVersions ?? 0) > 0,
                     userState: mapUserState(value.userState)
                 )
@@ -310,23 +311,14 @@ public actor UHDNowProvider: MediaLibraryProvider {
     }
 
     public func playbackURL(for asset: MediaAsset) async throws -> URL {
-        let current = try await authenticatedSession()
-        let deliveryURL = try await deliveryBaseURL()
-        guard let assetURL = URL(string: asset.playPath, relativeTo: deliveryURL)?.absoluteURL,
-              var components = URLComponents(
-                  url: assetURL,
-                  resolvingAgainstBaseURL: false
-              ) else {
-            throw ProviderError.invalidResponse
+        try await capabilityURL(path: asset.playPath)
+    }
+
+    public func downloadURL(for asset: MediaAsset) async throws -> URL {
+        guard let downloadPath = asset.downloadPath, !downloadPath.isEmpty else {
+            throw ProviderError.unsupported
         }
-        var queryItems = components.queryItems ?? []
-        queryItems.removeAll { $0.name.caseInsensitiveCompare("token") == .orderedSame }
-        queryItems.append(URLQueryItem(name: "token", value: current.token))
-        components.queryItems = queryItems
-        guard let url = components.url else {
-            throw ProviderError.invalidResponse
-        }
-        return url
+        return try await capabilityURL(path: downloadPath)
     }
 
     public func playbackShelf(limit: Int) async throws -> PlaybackShelf {
@@ -468,6 +460,26 @@ public actor UHDNowProvider: MediaLibraryProvider {
             throw ProviderError.sessionExpired
         }
         return session
+    }
+
+    private func capabilityURL(path: String) async throws -> URL {
+        let current = try await authenticatedSession()
+        let deliveryURL = try await deliveryBaseURL()
+        guard let assetURL = URL(string: path, relativeTo: deliveryURL)?.absoluteURL,
+              var components = URLComponents(
+                  url: assetURL,
+                  resolvingAgainstBaseURL: false
+              ) else {
+            throw ProviderError.invalidResponse
+        }
+        var queryItems = components.queryItems ?? []
+        queryItems.removeAll { $0.name.caseInsensitiveCompare("token") == .orderedSame }
+        queryItems.append(URLQueryItem(name: "token", value: current.token))
+        components.queryItems = queryItems
+        guard let url = components.url else {
+            throw ProviderError.invalidResponse
+        }
+        return url
     }
 
     private func deliveryBaseURL() async throws -> URL {
@@ -634,7 +646,8 @@ public actor UHDNowProvider: MediaLibraryProvider {
                     isDefault: track.isDefault ?? false
                 )
             },
-            playPath: value.playPath
+            playPath: value.playPath,
+            downloadPath: value.downloadPath
         )
     }
 

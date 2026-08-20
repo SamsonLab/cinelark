@@ -180,7 +180,17 @@ struct UHDNowProviderTests {
                 id: "asset-synthetic",
                 mediaID: "media-synthetic",
                 displayName: "Synthetic 4K",
-                playPath: "/play/video/asset-synthetic"
+                playPath: "/play/video/asset-synthetic",
+                downloadPath: "/download/video/asset-synthetic"
+            )
+        )
+        let downloadURL = try await provider.downloadURL(
+            for: MediaAsset(
+                id: "asset-synthetic",
+                mediaID: "media-synthetic",
+                displayName: "Synthetic 4K",
+                playPath: "/play/video/asset-synthetic",
+                downloadPath: "/download/video/asset-synthetic"
             )
         )
 
@@ -189,6 +199,74 @@ struct UHDNowProviderTests {
         #expect(url.path == "/play/video/asset-synthetic")
         let components = try #require(URLComponents(url: url, resolvingAgainstBaseURL: false))
         #expect(components.queryItems == [URLQueryItem(name: "token", value: "synthetic-token")])
+        #expect(downloadURL.host == "media.example")
+        #expect(downloadURL.path == "/download/video/asset-synthetic")
+        let downloadComponents = try #require(
+            URLComponents(url: downloadURL, resolvingAgainstBaseURL: false)
+        )
+        #expect(
+            downloadComponents.queryItems == [
+                URLQueryItem(name: "token", value: "synthetic-token")
+            ]
+        )
+    }
+
+    @Test("asset responses retain version and download metadata")
+    func assetVersionMetadata() async throws {
+        let session = ProviderSession(
+            token: "synthetic-token",
+            expiresAt: Date(timeIntervalSince1970: 4_102_444_800)
+        )
+        let transport = StubTransport([
+            .json("""
+            {
+              "ok": true,
+              "data": {
+                "videos": [{
+                  "asset_id": "asset-synthetic",
+                  "media_id": "media-synthetic",
+                  "name": "4K SDR HEVC",
+                  "display_name": "4K SDR HEVC",
+                  "container": "mkv",
+                  "duration": 2760,
+                  "file_size": 2147483648,
+                  "bit_rate": 5800000,
+                  "width": 3840,
+                  "height": 2160,
+                  "resolution": "2160p",
+                  "encoding": "hevc",
+                  "profile": "Main 10",
+                  "video_bit_rate": 5600000,
+                  "pix_fmt": "yuv420p10le",
+                  "frame_rate": "25",
+                  "video_range": "SDR",
+                  "audio_tracks": [],
+                  "subtitle_tracks": [],
+                  "play_path": "/play/video/asset-synthetic",
+                  "download_path": "/download/video/asset-synthetic"
+                }],
+                "subtitles": []
+              }
+            }
+            """)
+        ])
+        let provider = UHDNowProvider(
+            sessionStore: MemorySessionStore(session: session),
+            transport: transport
+        )
+        _ = try await provider.restoreSession()
+
+        let assets = try await provider.assets(
+            for: PlayableItem(id: "episode-synthetic", kind: .episode)
+        )
+        let asset = try #require(assets.first)
+        #expect(asset.displayName == "4K SDR HEVC")
+        #expect(asset.width == 3840)
+        #expect(asset.height == 2160)
+        #expect(asset.profile == "Main 10")
+        #expect(asset.downloadPath == "/download/video/asset-synthetic")
+        let request = try #require(await transport.requests.first)
+        #expect(request.url?.path == "/api/v1/stream/episodes/episode-synthetic/assets")
     }
 
     @Test("an unauthorized response clears the stored session")

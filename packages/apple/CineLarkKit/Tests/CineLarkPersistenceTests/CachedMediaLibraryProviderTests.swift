@@ -233,6 +233,10 @@ private actor StubProvider: MediaLibraryProvider {
         throw ProviderError.unsupported
     }
 
+    func downloadURL(for asset: MediaAsset) async throws -> URL {
+        throw ProviderError.unsupported
+    }
+
     func playbackShelf(limit: Int) async throws -> PlaybackShelf {
         throw ProviderError.unsupported
     }

@@ -31,6 +31,14 @@ final class PlaybackCoordinator {
         )
     }
 
+    func playbackURL(for asset: MediaAsset) async throws -> URL {
+        try await provider.playbackURL(for: asset)
+    }
+
+    func downloadURL(for asset: MediaAsset) async throws -> URL {
+        try await provider.downloadURL(for: asset)
+    }
+
     func play(
         asset: MediaAsset,
         title: String,

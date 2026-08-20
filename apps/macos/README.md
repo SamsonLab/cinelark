@@ -11,7 +11,8 @@ Native Swift 6 / SwiftUI client for the observed UHDNow API.
 - dedicated Movies, TV Series, and Favorites navigation
 - release/name/rating/update/asset-update/popularity sorting in both directions
 - movie/series details, cast and crew pages, seasons, and episodes
-- media-version and embedded-track metadata
+- movie/episode version chooser with expandable codec, color, track, and size metadata
+- explicit copy-playback-link, copy-download-link, and browser-download actions
 - persistent bounded metadata cache with stale outage fallback
 - Kingfisher artwork pipeline with bounded memory/disk caches and downsampling
 - tokenized playback URL construction and direct opening in IINA
@@ -22,8 +23,8 @@ Bridge Helper and thin IINA plugin.
 
 Metadata is persisted under `Application Support/CineLark/MetadataCache` and is
 cleared on account transitions. Artwork uses Kingfisher's separate cache under
-the system cache directory. Credentials, provider tokens, and tokenized
-playback URLs are excluded from both stores.
+the system cache directory. Credentials, provider tokens, and tokenized playback or
+download URLs are excluded from both stores.
 
 ## Open and build
 

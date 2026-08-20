@@ -261,6 +261,10 @@ public struct CachedMediaLibraryProvider: MediaLibraryProvider, Sendable {
         try await upstream.playbackURL(for: asset)
     }
 
+    public func downloadURL(for asset: MediaAsset) async throws -> URL {
+        try await upstream.downloadURL(for: asset)
+    }
+
     public func playbackShelf(limit: Int) async throws -> PlaybackShelf {
         try await cached(
             resource: "playback-shelf",

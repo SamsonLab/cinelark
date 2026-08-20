@@ -69,6 +69,7 @@ protocol MediaLibraryProvider: Sendable {
     func playbackStates(limit: Int) async throws -> PlaybackShelf
     func assets(for item: PlayableID) async throws -> [MediaAsset]
     func makePlaybackDescriptor(assetID: AssetID) async throws -> PlaybackDescriptor
+    func makeDownloadURL(assetID: AssetID) async throws -> URL
 
     func reportProgress(_ update: PlaybackUpdate) async throws -> UserPlaybackState
     func reportStopped(_ update: PlaybackUpdate) async throws -> UserPlaybackState
@@ -156,6 +157,7 @@ struct MediaAsset: Sendable, Hashable {
     let video: VideoCharacteristics?
     let audioTracks: [AudioTrack]
     let subtitleTracks: [SubtitleTrack]
+    let downloadReference: String?
 }
 
 struct PlaybackDescriptor: Sendable {

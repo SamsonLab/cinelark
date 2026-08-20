@@ -20,7 +20,9 @@ Only synthetic fixtures belong in `fixtures/`.
 - Redact authorization headers, cookies, and sensitive query parameters before
   logging or telemetry.
 - Keep provider credentials in the core app; never send them to IINA or mpv.
-- Treat playback URLs as short-lived bearer capabilities.
+- Treat playback and download URLs as short-lived bearer capabilities. Resolve
+  them just in time and expose them to the clipboard or browser only after an
+  explicit user action.
 - Persist only recreatable metadata in the versioned Application Support cache;
   never cache credentials, tokens, signed URLs, or playback descriptors.
 - Clear account-scoped metadata before a new provider sign-in and keep cache

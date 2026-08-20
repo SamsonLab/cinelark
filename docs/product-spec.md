@@ -26,7 +26,7 @@ predictable directional navigation and provider-neutral domain boundaries.
 
 - Implementing a native decoder or replacing IINA/mpv
 - Editing media metadata or administering a media server
-- Offline downloads
+- A managed offline-download library, background downloader, or DRM store
 - Multi-user profile switching
 - A general-purpose IINA library browser inside the plugin
 - Matching every web-provider feature or visual detail

@@ -72,10 +72,10 @@ session.
 The following values must never enter metadata or artwork caches:
 
 - credentials or provider session tokens
-- tokenized/signed playback URLs
+- tokenized/signed playback or download URLs
 - playback descriptors
 - bridge pairing credentials
 - Remote credentials
 
-`playbackURL(for:)` always bypasses `CachedMediaLibraryProvider` caching and is
-resolved just in time.
+`playbackURL(for:)` and `downloadURL(for:)` always bypass
+`CachedMediaLibraryProvider` caching and are resolved just in time.

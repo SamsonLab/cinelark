@@ -16,11 +16,10 @@ final class MediaDetailModel {
     private(set) var isLoadingEpisodes = false
     private(set) var isUpdatingFavorite = false
     private(set) var favoriteState: Bool?
-    private(set) var playingID: String?
     var errorMessage: String?
 
     @ObservationIgnored private let provider: any MediaLibraryProvider
-    @ObservationIgnored private let playback: PlaybackCoordinator
+    @ObservationIgnored let playback: PlaybackCoordinator
 
     init(
         item: MediaSummary,
@@ -111,34 +110,6 @@ final class MediaDetailModel {
         } catch {
             present(error)
         }
-    }
-
-    func playMovie(asset: MediaAsset) async {
-        playingID = asset.id
-        do {
-            try await playback.play(
-                asset: asset,
-                title: item.title,
-                startPositionSeconds: item.userState.positionSeconds
-            )
-        } catch {
-            present(error)
-        }
-        playingID = nil
-    }
-
-    func playEpisode(_ episode: Episode) async {
-        playingID = episode.id
-        do {
-            try await playback.playFirst(
-                item: PlayableItem(id: episode.id, kind: .episode),
-                title: episode.title,
-                startPositionSeconds: episode.userState.positionSeconds
-            )
-        } catch {
-            present(error)
-        }
-        playingID = nil
     }
 
     func dismissError() {

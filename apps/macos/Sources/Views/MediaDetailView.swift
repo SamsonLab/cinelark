@@ -3,6 +3,7 @@ import CineLarkDomain
 
 struct MediaDetailView: View {
     @State private var model: MediaDetailModel
+    @State private var playbackOptions: PlaybackOptionsContext? = nil
 
     init(
         item: MediaSummary,
@@ -50,6 +51,9 @@ struct MediaDetailView: View {
             Button("OK", role: .cancel) { model.dismissError() }
         } message: {
             Text(model.errorMessage ?? "")
+        }
+        .sheet(item: $playbackOptions) { context in
+            PlaybackOptionsView(context: context, playback: model.playback)
         }
     }
 
@@ -154,11 +158,8 @@ struct MediaDetailView: View {
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(model.movieAssets) { asset in
-                    AssetRow(
-                        asset: asset,
-                        isPlaying: model.playingID == asset.id
-                    ) {
-                        Task { await model.playMovie(asset: asset) }
+                    AssetRow(asset: asset) {
+                        presentMovieOptions(preferredAssetID: asset.id)
                     }
                 }
             }
@@ -190,11 +191,8 @@ struct MediaDetailView: View {
             } else {
                 LazyVStack(spacing: 14) {
                     ForEach(model.episodes) { episode in
-                        EpisodeRow(
-                            episode: episode,
-                            isPlaying: model.playingID == episode.id
-                        ) {
-                            Task { await model.playEpisode(episode) }
+                        EpisodeRow(episode: episode) {
+                            presentEpisodeOptions(episode)
                         }
                     }
                 }
@@ -209,6 +207,32 @@ struct MediaDetailView: View {
             set: { seasonID in
                 Task { await model.selectSeason(seasonID) }
             }
+        )
+    }
+
+    private func presentMovieOptions(preferredAssetID: String?) {
+        playbackOptions = PlaybackOptionsContext(
+            item: PlayableItem(id: model.item.id, kind: .movie),
+            title: model.item.title,
+            artworkURL: model.item.backdropURL ?? model.item.posterURL,
+            startPositionSeconds: model.item.userState.positionSeconds,
+            initialAssets: model.movieAssets,
+            preferredAssetID: preferredAssetID
+        )
+    }
+
+    private func presentEpisodeOptions(_ episode: Episode) {
+        let seasonTitle = model.seasons.first {
+            $0.id == episode.seasonID
+        }?.title
+        playbackOptions = PlaybackOptionsContext(
+            item: PlayableItem(id: episode.id, kind: .episode),
+            title: episode.title,
+            subtitle: [seasonTitle, "Episode \(episode.number)"]
+                .compactMap { $0 }
+                .joined(separator: " · "),
+            artworkURL: episode.thumbnailURL ?? model.item.backdropURL,
+            startPositionSeconds: episode.userState.positionSeconds
         )
     }
 
@@ -257,7 +281,6 @@ struct MediaDetailView: View {
 
 private struct EpisodeRow: View {
     let episode: Episode
-    let isPlaying: Bool
     let action: () -> Void
 
     var body: some View {
@@ -265,6 +288,16 @@ private struct EpisodeRow: View {
             ArtworkView(url: episode.thumbnailURL)
                 .frame(width: 220, height: 124)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
+                .overlay(alignment: .topTrailing) {
+                    if episode.versionCount > 0 {
+                        Text("\(episode.versionCount) version\(episode.versionCount == 1 ? "" : "s")")
+                            .font(.caption2.weight(.semibold))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 5)
+                            .background(.ultraThinMaterial, in: Capsule())
+                            .padding(8)
+                    }
+                }
 
             VStack(alignment: .leading, spacing: 7) {
                 Text("Episode \(episode.number)")
@@ -289,15 +322,10 @@ private struct EpisodeRow: View {
             Spacer()
 
             Button(action: action) {
-                if isPlaying {
-                    ProgressView().controlSize(.small)
-                } else {
-                    Image(systemName: "play.fill")
-                }
+                Image(systemName: "play.fill")
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
-            .disabled(isPlaying)
         }
         .padding(14)
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16))

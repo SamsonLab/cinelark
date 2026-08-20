@@ -3,7 +3,6 @@ import CineLarkDomain
 
 struct AssetRow: View {
     let asset: MediaAsset
-    let isPlaying: Bool
     let action: () -> Void
 
     var body: some View {
@@ -34,17 +33,9 @@ struct AssetRow: View {
             Spacer()
 
             Button(action: action) {
-                HStack {
-                    if isPlaying {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        Image(systemName: "play.fill")
-                    }
-                    Text("Play")
-                }
+                Label("Options", systemImage: "slider.horizontal.3")
             }
             .buttonStyle(.borderedProminent)
-            .disabled(isPlaying)
         }
         .padding(16)
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
