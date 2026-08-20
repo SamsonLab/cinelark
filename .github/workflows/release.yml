@@ -61,7 +61,6 @@ jobs:
           fi
 
           CERTIFICATE_PATH="$RUNNER_TEMP/cinelark-release.p12"
-          CERTIFICATE_PEM="$RUNNER_TEMP/cinelark-release.pem"
           KEYCHAIN_PATH="$RUNNER_TEMP/cinelark-release.keychain-db"
           KEYCHAIN_PASSWORD=$(/usr/bin/openssl rand -hex 24)
           export CERTIFICATE_PATH
@@ -86,21 +85,16 @@ jobs:
             -s \
             -k "$KEYCHAIN_PASSWORD" \
             "$KEYCHAIN_PATH" >/dev/null
-          /usr/bin/openssl pkcs12 \
-            -in "$CERTIFICATE_PATH" \
-            -clcerts \
-            -nokeys \
-            -passin "pass:$CINELARK_SIGNING_CERTIFICATE_PASSWORD" \
-            -out "$CERTIFICATE_PEM"
-          security add-trusted-cert \
-            -r trustRoot \
-            -p codeSign \
-            -k "$KEYCHAIN_PATH" \
-            "$CERTIFICATE_PEM"
           security list-keychains -d user -s "$KEYCHAIN_PATH"
 
-          IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" \
-            | awk '/CineLark Release Signing/ { print $2; exit }')
+          # A self-signed certificate is intentionally not trusted by
+          # Gatekeeper. codesign can still use its imported private key by the
+          # certificate's SHA-1 hash without opening an authorization UI.
+          IDENTITY=$(security find-certificate \
+            -c 'CineLark Release Signing' \
+            -Z \
+            "$KEYCHAIN_PATH" \
+            | awk '/SHA-1 hash:/ { print $NF; exit }')
           if [[ -z "$IDENTITY" ]]; then
             echo "::error::CineLark release signing identity is unavailable"
             exit 1
@@ -238,4 +232,4 @@ jobs:
         shell: bash
         run: |
           security delete-keychain "${{ steps.signing.outputs.keychain }}" >/dev/null 2>&1 || true
-          rm -f "$RUNNER_TEMP/cinelark-release.p12" "$RUNNER_TEMP/cinelark-release.pem"
+          rm -f "$RUNNER_TEMP/cinelark-release.p12"
