@@ -198,7 +198,7 @@ private struct MediaSortToolbar: ToolbarContent {
                         .font(.body.weight(.semibold))
                         .frame(width: 36, height: 36)
                         .cineLarkHoverSurface(
-                            cornerRadius: 9,
+                            cornerRadius: 18,
                             normalFillOpacity: 0,
                             normalStrokeOpacity: 0,
                             hoverStrokeOpacity: 0
@@ -220,7 +220,8 @@ private struct MediaSortToolbar: ToolbarContent {
                     )
                 )
             }
-            .padding(4)
+            .padding(.horizontal, 4)
+            .frame(height: 44, alignment: .center)
             .fixedSize()
         }
     }
@@ -245,7 +246,7 @@ private struct SortFieldPickerButton: View {
             .padding(.horizontal, 12)
             .frame(width: 176, height: 36)
             .cineLarkHoverSurface(
-                cornerRadius: 9,
+                cornerRadius: 18,
                 normalFillOpacity: 0,
                 normalStrokeOpacity: 0,
                 hoverStrokeOpacity: 0
