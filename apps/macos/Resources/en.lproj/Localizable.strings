@@ -2,6 +2,7 @@
 "language.help" = "Change the interface language";
 "general.dismiss" = "Dismiss";
 "general.refresh" = "Refresh";
+"general.view_all" = "View all";
 "general.selected" = "Selected";
 "general.not_selected" = "Not selected";
 
@@ -19,7 +20,7 @@
 "home.subtitle" = "Continue watching or find something new.";
 "home.loading" = "Loading your library…";
 "home.popular_now" = "Popular Now";
-"home.collection_help" = "Choose a collection from the sidebar to browse its full library.";
+"home.collection_help" = "Browse each collection or open one to see its full library.";
 "home.continue_watching" = "Continue Watching";
 
 "login.tagline" = "Your library, ready for the big screen.";
@@ -36,6 +37,7 @@
 "collection.loading" = "Loading %@…";
 "collection.empty" = "No items";
 "collection.empty_description" = "Choose another collection to keep browsing.";
+"collection.view_all_accessibility" = "View all items in %@";
 "sort.label" = "Sort by";
 "sort.release_date" = "Release Date";
 "sort.name" = "Name";

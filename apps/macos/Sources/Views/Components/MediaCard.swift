@@ -85,13 +85,48 @@ struct MediaCard: View {
 }
 
 struct MediaShelf: View {
+    @Environment(\.appLanguage) private var language
     let title: String
     let items: [MediaSummary]
+    let viewAllCollection: MediaCollection?
+
+    init(
+        title: String,
+        items: [MediaSummary],
+        viewAllCollection: MediaCollection? = nil
+    ) {
+        self.title = title
+        self.items = items
+        self.viewAllCollection = viewAllCollection
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(title)
-                .font(.title2.bold())
+            HStack(alignment: .firstTextBaseline) {
+                Text(title)
+                    .font(.title2.bold())
+
+                Spacer()
+
+                if let viewAllCollection {
+                    NavigationLink(value: viewAllCollection) {
+                        HStack(spacing: 5) {
+                            Text(language.localized("general.view_all"))
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.semibold))
+                        }
+                        .font(.callout.weight(.semibold))
+                        .foregroundStyle(Color.accentColor)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(
+                        language.localized(
+                            "collection.view_all_accessibility",
+                            viewAllCollection.name
+                        )
+                    )
+                }
+            }
 
             ScrollView(.horizontal) {
                 LazyHStack(alignment: .top, spacing: 22) {
@@ -113,23 +148,55 @@ struct MediaShelf: View {
 
 struct MediaGrid: View {
     let items: [MediaSummary]
+    let isLoadingMore: Bool
+    let canLoadMore: Bool
+    private let onLoadMore: (() async -> Void)?
 
     private let columns = [
         GridItem(.adaptive(minimum: 178, maximum: 210), spacing: 28, alignment: .top)
     ]
 
+    init(
+        items: [MediaSummary],
+        isLoadingMore: Bool = false,
+        canLoadMore: Bool = false,
+        onLoadMore: (() async -> Void)? = nil
+    ) {
+        self.items = items
+        self.isLoadingMore = isLoadingMore
+        self.canLoadMore = canLoadMore
+        self.onLoadMore = onLoadMore
+    }
+
     var body: some View {
         ScrollView {
-            LazyVGrid(columns: columns, alignment: .leading, spacing: 32) {
-                ForEach(items) { item in
-                    NavigationLink(value: item) {
-                        MediaCard(item: item)
+            VStack(spacing: 0) {
+                LazyVGrid(columns: columns, alignment: .leading, spacing: 32) {
+                    ForEach(items) { item in
+                        NavigationLink(value: item) {
+                            MediaCard(item: item)
+                        }
+                        .buttonStyle(CineLarkPressButtonStyle())
+                        .task(id: item.id == loadMoreTriggerID) {
+                            guard item.id == loadMoreTriggerID else { return }
+                            await onLoadMore?()
+                        }
                     }
-                    .buttonStyle(CineLarkPressButtonStyle())
+                }
+                .padding(32)
+
+                if isLoadingMore {
+                    ProgressView()
+                        .controlSize(.small)
+                        .padding(.bottom, 32)
                 }
             }
-            .padding(32)
         }
         .background(Color.black.opacity(0.92))
+    }
+
+    private var loadMoreTriggerID: String? {
+        guard canLoadMore, onLoadMore != nil, !items.isEmpty else { return nil }
+        return items[max(items.count - 8, 0)].id
     }
 }

@@ -47,6 +47,17 @@ struct HomeView: View {
                         Text(language.localized("home.collection_help"))
                             .foregroundStyle(.secondary)
                     }
+
+                    ForEach(model.collections) { collection in
+                        let items = model.items(in: collection, sort: .newest)
+                        if !items.isEmpty {
+                            MediaShelf(
+                                title: collection.name,
+                                items: items,
+                                viewAllCollection: collection
+                            )
+                        }
+                    }
                 }
             }
             .padding(36)

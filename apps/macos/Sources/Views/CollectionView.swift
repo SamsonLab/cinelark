@@ -159,7 +159,14 @@ private struct CollectionBrowserContent: View {
                     )
                 )
             } else {
-                MediaGrid(items: items)
+                MediaGrid(
+                    items: items,
+                    isLoadingMore: model.isLoading(collection, sort: sort),
+                    canLoadMore: model.canLoadMore(collection, sort: sort),
+                    onLoadMore: {
+                        await model.loadMore(in: collection, sort: sort)
+                    }
+                )
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)

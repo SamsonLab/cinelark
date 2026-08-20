@@ -11,6 +11,15 @@ final class AppModel {
         let sort: MediaSort
     }
 
+    private struct CollectionPageState {
+        var items: [MediaSummary]
+        var nextPage: Int
+        var total: Int
+        var canLoadMore: Bool
+    }
+
+    private static let collectionPageSize = 20
+
     enum Phase {
         case launching
         case signedOut
@@ -21,7 +30,7 @@ final class AppModel {
     private(set) var hotItems: [MediaSummary] = []
     private(set) var continueWatching: [ContinueWatchingItem] = []
     private(set) var collections: [MediaCollection] = []
-    private var collectionItems: [CollectionQuery: [MediaSummary]] = [:]
+    private var collectionPages: [CollectionQuery: CollectionPageState] = [:]
     private var loadingCollectionQueries: Set<CollectionQuery> = []
     private(set) var searchResults: [MediaSummary] = []
     private(set) var isLoadingHome = false
@@ -76,7 +85,7 @@ final class AppModel {
         hotItems = []
         continueWatching = []
         collections = []
-        collectionItems = [:]
+        collectionPages = [:]
         loadingCollectionQueries = []
         searchResults = []
         errorMessage = nil
@@ -99,6 +108,14 @@ final class AppModel {
         }
         do {
             collections = try await collectionsRequest
+            await withTaskGroup(of: Void.self) { group in
+                for collection in collections {
+                    group.addTask {
+                        await self.loadCollection(collection, sort: .newest)
+                    }
+                }
+                await group.waitForAll()
+            }
         } catch {
             handleAuthenticated(error)
         }
@@ -112,7 +129,7 @@ final class AppModel {
     }
 
     func items(in collection: MediaCollection, sort: MediaSort) -> [MediaSummary] {
-        collectionItems[CollectionQuery(collectionID: collection.id, sort: sort)] ?? []
+        collectionPages[CollectionQuery(collectionID: collection.id, sort: sort)]?.items ?? []
     }
 
     func isLoading(_ collection: MediaCollection, sort: MediaSort) -> Bool {
@@ -121,28 +138,85 @@ final class AppModel {
         )
     }
 
+    func canLoadMore(_ collection: MediaCollection, sort: MediaSort) -> Bool {
+        guard let state = collectionPages[
+            CollectionQuery(collectionID: collection.id, sort: sort)
+        ] else {
+            return false
+        }
+        return state.canLoadMore && state.items.count < state.total
+    }
+
     func loadCollection(_ collection: MediaCollection, sort: MediaSort) async {
         let query = CollectionQuery(collectionID: collection.id, sort: sort)
-        guard collectionItems[query] == nil,
-              !loadingCollectionQueries.contains(query) else {
-            return
-        }
+        guard collectionPages[query] == nil else { return }
+
+        await loadCollectionPage(
+            collection,
+            sort: sort,
+            pageNumber: 1,
+            replacingItems: true
+        )
+    }
+
+    func loadMore(in collection: MediaCollection, sort: MediaSort) async {
+        let query = CollectionQuery(collectionID: collection.id, sort: sort)
+        guard let state = collectionPages[query], state.canLoadMore else { return }
+
+        await loadCollectionPage(
+            collection,
+            sort: sort,
+            pageNumber: state.nextPage,
+            replacingItems: false
+        )
+    }
+
+    private func loadCollectionPage(
+        _ collection: MediaCollection,
+        sort: MediaSort,
+        pageNumber: Int,
+        replacingItems: Bool
+    ) async {
+        let query = CollectionQuery(collectionID: collection.id, sort: sort)
+        guard !loadingCollectionQueries.contains(query) else { return }
 
         loadingCollectionQueries.insert(query)
         defer { loadingCollectionQueries.remove(query) }
+
         do {
             let page = try await provider.items(
                 in: collection.id,
-                page: PageRequest(number: 1, size: 60),
+                page: PageRequest(number: pageNumber, size: Self.collectionPageSize),
                 sort: sort
             )
-            guard !Task.isCancelled else { return }
-            collectionItems[query] = page.items
+            guard !Task.isCancelled, phase == .signedIn else { return }
+
+            let existingItems = replacingItems
+                ? []
+                : collectionPages[query]?.items ?? []
+            let items = appendingUnique(page.items, to: existingItems)
+            let loadedThrough = max(page.number, pageNumber) * max(page.size, 1)
+            let total = max(page.total, items.count)
+
+            collectionPages[query] = CollectionPageState(
+                items: items,
+                nextPage: max(page.number, pageNumber) + 1,
+                total: total,
+                canLoadMore: !page.items.isEmpty && loadedThrough < total
+            )
         } catch is CancellationError {
             return
         } catch {
             handleAuthenticated(error)
         }
+    }
+
+    private func appendingUnique(
+        _ newItems: [MediaSummary],
+        to existingItems: [MediaSummary]
+    ) -> [MediaSummary] {
+        var knownIDs = Set(existingItems.map(\.id))
+        return existingItems + newItems.filter { knownIDs.insert($0.id).inserted }
     }
 
     func search(_ query: String) async {

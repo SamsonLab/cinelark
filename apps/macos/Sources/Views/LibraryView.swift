@@ -78,6 +78,9 @@ struct LibraryView: View {
                             playback: model.playback
                         )
                     }
+                    .navigationDestination(for: MediaCollection.self) { collection in
+                        CollectionView(collection: collection, model: model)
+                    }
                     .navigationDestination(for: PersonCredit.self) { person in
                         PersonDetailView(person: person, provider: model.provider)
                     }

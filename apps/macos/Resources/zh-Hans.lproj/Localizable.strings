@@ -2,6 +2,7 @@
 "language.help" = "切换界面语言";
 "general.dismiss" = "关闭";
 "general.refresh" = "刷新";
+"general.view_all" = "查看全部";
 "general.selected" = "已选择";
 "general.not_selected" = "未选择";
 
@@ -19,7 +20,7 @@
 "home.subtitle" = "继续观看，或发现新的精彩内容。";
 "home.loading" = "正在载入媒体库…";
 "home.popular_now" = "正在热播";
-"home.collection_help" = "从侧边栏选择分类，浏览完整片库。";
+"home.collection_help" = "浏览各个分类，或打开分类查看完整片库。";
 "home.continue_watching" = "继续观看";
 
 "login.tagline" = "你的媒体库，为大屏而生。";
@@ -36,6 +37,7 @@
 "collection.loading" = "正在载入%@…";
 "collection.empty" = "暂无内容";
 "collection.empty_description" = "请选择其他分类继续浏览。";
+"collection.view_all_accessibility" = "查看%@的全部内容";
 "sort.label" = "排序方式";
 "sort.release_date" = "上映日期";
 "sort.name" = "名称";
