@@ -16,7 +16,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Install contract validation dependencies
+        run: python3 -m pip install --requirement requirements-specs.txt
       - name: Validate repository content
         run: python3 scripts/check_repository.py
+      - name: Validate shared contracts
+        run: python3 scripts/check_contracts.py
       - name: Lint observed OpenAPI contract
         run: npx --yes @redocly/cli@2.46.2 lint specs/uhdnow/openapi.yaml

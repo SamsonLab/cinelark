@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/SamsonLab/cinelark/specs/bridge/envelope.schema.json",
-  "title": "CineLark Playback Bridge Envelope",
-  "description": "Draft version 1 envelope. Authentication canonicalization is not yet frozen.",
+  "$id": "https://github.com/SamsonLab/cinelark/specs/remote/envelope.schema.json",
+  "title": "CineLark Remote Protocol Envelope",
+  "description": "Draft version 1 envelope transported over an authenticated TLS session.",
   "type": "object",
   "additionalProperties": true,
   "required": [
@@ -11,8 +11,7 @@
     "type",
     "sentAt",
     "sequence",
-    "payload",
-    "mac"
+    "payload"
   ],
   "properties": {
     "protocolVersion": {
@@ -30,10 +29,6 @@
       "type": "string",
       "format": "date-time"
     },
-    "sessionID": {
-      "type": "string",
-      "format": "uuid"
-    },
     "replyTo": {
       "type": "string",
       "format": "uuid"
@@ -42,13 +37,12 @@
       "type": "integer",
       "minimum": 0
     },
+    "revision": {
+      "type": "integer",
+      "minimum": 0
+    },
     "payload": {
       "type": "object"
-    },
-    "mac": {
-      "type": "string",
-      "minLength": 16,
-      "pattern": "^[A-Za-z0-9_-]+$"
     }
   }
 }

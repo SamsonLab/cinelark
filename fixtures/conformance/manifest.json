@@ -1,0 +1,28 @@
+{
+  "cases": [
+    {
+      "name": "valid playback snapshot",
+      "schema": "specs/common/playback.schema.json",
+      "fixture": "fixtures/conformance/playback-snapshot.valid.json",
+      "valid": true
+    },
+    {
+      "name": "negative playback position",
+      "schema": "specs/common/playback.schema.json",
+      "fixture": "fixtures/conformance/playback-snapshot.invalid-negative-position.json",
+      "valid": false
+    },
+    {
+      "name": "valid Remote envelope",
+      "schema": "specs/remote/envelope.schema.json",
+      "fixture": "fixtures/conformance/remote-envelope.valid.json",
+      "valid": true
+    },
+    {
+      "name": "valid IINA bridge envelope",
+      "schema": "specs/bridge/envelope.schema.json",
+      "fixture": "fixtures/conformance/bridge-envelope.valid.json",
+      "valid": true
+    }
+  ]
+}

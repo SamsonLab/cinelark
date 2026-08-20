@@ -45,7 +45,18 @@ def check_forbidden_paths(files: list[Path]) -> list[str]:
 
 def check_text(files: list[Path]) -> list[str]:
     errors: list[str] = []
-    text_suffixes = {".md", ".json", ".yaml", ".yml", ".py", ".swift", ".js", ".ts"}
+    text_suffixes = {
+        ".dart",
+        ".json",
+        ".md",
+        ".proto",
+        ".py",
+        ".swift",
+        ".ts",
+        ".js",
+        ".yaml",
+        ".yml",
+    }
     for path in files:
         if path.suffix.lower() not in text_suffixes:
             continue

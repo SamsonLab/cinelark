@@ -1,0 +1,26 @@
+{
+  "playbackID": "1f3cc671-b430-4e87-994d-e2a1d4fa5e54",
+  "state": "playing",
+  "title": "Synthetic Feature",
+  "subtitle": null,
+  "artworkResourceID": "artwork-synthetic-1",
+  "positionSeconds": 123.5,
+  "durationSeconds": 7200.0,
+  "speed": 1.0,
+  "volume": 75.0,
+  "muted": false,
+  "audioTracks": [
+    {
+      "id": 1,
+      "kind": "audio",
+      "title": "Synthetic Stereo",
+      "language": "en",
+      "codec": "aac",
+      "selected": true,
+      "isDefault": true,
+      "isForced": false,
+      "isExternal": false
+    }
+  ],
+  "subtitleTracks": []
+}

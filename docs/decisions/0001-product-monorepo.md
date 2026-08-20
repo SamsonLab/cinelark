@@ -5,14 +5,15 @@
 
 ## Context
 
-CineLark consists of a macOS media client, a future iPhone companion, and a thin
+CineLark consists of a macOS media client, a future cross-platform mobile
+companion, and a thin
 IINA plugin. The app and plugin share a versioned bridge contract and must often
 change together. IINA already provides mature mpv-based playback, HDR, track,
 and subtitle behavior.
 
 ## Decision
 
-1. Keep the Mac app, future iPhone Remote, shared packages, protocol specs, and
+1. Keep the Mac app, future Flutter Remote, shared packages, protocol specs, and
    IINA plugin in `SamsonLab/cinelark`.
 2. Keep provider APIs behind `MediaLibraryProvider`; UHDNow is the first adapter,
    not part of the product identity.

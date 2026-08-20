@@ -17,8 +17,9 @@ predictable directional navigation and provider-neutral domain boundaries.
    series, seasons, episodes, people, favorites, and continue-watching state.
 3. Start or resume the selected media version in IINA with minimal friction.
 4. Keep playback progress synchronized with the active provider.
-5. Preserve a clean path to additional providers and a future iPhone Remote.
-6. Work fully without the iPhone Remote; the companion is an enhancement, not
+5. Preserve a clean path to additional providers and a cross-platform mobile
+   Remote.
+6. Work fully without CineLark Remote; the companion is an enhancement, not
    an activation or control dependency.
 
 ## 3. Non-goals for the first release
@@ -60,9 +61,10 @@ It must not authenticate to UHDNow or know provider-specific item models.
 
 ### 4.3 CineLark Remote
 
-A future iPhone companion that talks to the Mac app, never directly to a media
-provider or IINA plugin. Initial capabilities are navigation, play/pause, seek,
-volume, and now-playing state.
+A future Flutter companion for iOS and Android that talks to the Mac app, never
+directly to a media provider or IINA plugin. Initial capabilities are
+navigation, play/pause, seek, volume, and now-playing state. The mobile client
+consumes versioned shared contracts rather than Swift implementation modules.
 
 ## 5. Experience principles
 
@@ -115,7 +117,7 @@ follow without changing the architecture.
 | Sync | Periodic progress and terminal stopped reporting | P0 |
 | Favorites | Read, add, and remove movie/TV favorites | P1 |
 | People | Person detail, credits, and person favorites | P1 |
-| Remote | iPhone navigation and transport controls | P1 |
+| Remote | Flutter-based iOS/Android navigation and transport controls | P1 |
 
 ## 7. Reliability and performance requirements
 
@@ -154,7 +156,7 @@ A build is MVP-complete when a fresh install can:
 8. Recover gracefully when the provider, IINA, or bridge is unavailable.
 9. Pass a repository secret scan with only synthetic fixtures present.
 
-The iPhone Remote is explicitly not part of MVP completion.
+The cross-platform Remote is explicitly not part of MVP completion.
 
 ## 10. Open product decisions
 

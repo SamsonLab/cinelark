@@ -1,0 +1,10 @@
+{
+  "protocolVersion": 1,
+  "id": "d2ab79fc-95f0-46de-a21c-9943b7aa66c7",
+  "type": "playback.seekRelative",
+  "sentAt": "2026-08-20T03:09:00Z",
+  "sequence": 31,
+  "payload": {
+    "seconds": 30.0
+  }
+}

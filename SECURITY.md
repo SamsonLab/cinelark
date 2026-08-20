@@ -9,7 +9,8 @@ Treat both as secrets.
 - usernames, passwords, TOTP values, cookies, or access tokens
 - URLs containing `token`, `auth`, `key`, `signature`, or equivalent query data
 - unredacted account, subscription, or viewing-history responses
-- production Keychain exports or bridge pairing secrets
+- production Keychain exports, bridge secrets, Remote pairing QR payloads, or
+  device credentials
 
 Only synthetic fixtures belong in `fixtures/`.
 
@@ -21,6 +22,8 @@ Only synthetic fixtures belong in `fixtures/`.
 - Keep provider credentials in the core app; never send them to IINA or mpv.
 - Treat playback URLs as short-lived bearer capabilities.
 - Authenticate every local bridge connection and message.
+- Protect Remote traffic with TLS, certificate pinning, explicit pairing, and
+  revocable device-scoped credentials.
 - Do not ship the current IINA WebSocket transport until its network exposure
   and pairing design satisfy the constraints in
   [`docs/interfaces/playback-bridge.md`](docs/interfaces/playback-bridge.md).

@@ -2,38 +2,43 @@
 
 - **Status:** Draft
 - **Protocol version:** 1
-- **Security status:** Blocked pending pairing-key provisioning and network
-  exposure validation
+- **Security status:** Blocked pending helper/plugin pairing validation
 
-The bridge is a provider-neutral protocol between CineLark for Mac and the
-CineLark IINA plugin. It transports opaque playback capabilities and player
-state; it does not expose a media-provider API.
+The bridge is a provider-neutral protocol carried through a bundled Rust helper
+between CineLark for Mac and the CineLark IINA plugin. It transports opaque
+playback capabilities and player state; it does not expose a media-provider API.
 
 ## 1. Roles
 
 - **Coordinator:** CineLark for Mac. Owns provider state, logical playback
   sessions, resume policy, and progress writes.
-- **Player:** CineLark IINA Bridge. Owns one or more IINA player instances and
-  maps commands/events to IINA/mpv.
+- **Broker:** bundled `CineLarkBridge` Rust helper. Owns process isolation,
+  envelope validation, ordering, authentication, and loopback transport.
+- **Player:** thin IINA JavaScript plugin. Owns one or more IINA player instances
+  and maps commands/events to IINA/mpv.
 
 CineLark Remote talks to the Coordinator, not the Player.
 
 ## 2. Transport
 
-The candidate MVP transport is an IINA-hosted WebSocket server because the
-public plugin API exposes `createServer`, `startServer`, connection callbacks,
-and `sendText`.
+Preferred topology:
 
-The audited IINA implementation has important constraints:
+```text
+Mac app ⇄ child stdin/stdout ⇄ bundled Rust helper ⇄ loopback HTTP ⇄ IINA plugin
+```
 
-- no TLS support
-- no API to select a loopback-only interface
-- `includePeerToPeer` is enabled
-- no exported server-stop method
-- `sendText` currently emits a WebSocket **binary** frame containing UTF-8
+- The Mac app launches and supervises the helper; framed JSON over private child
+  stdio requires no app-facing listener.
+- The helper binds HTTP explicitly to `127.0.0.1` and `::1`, selects a port
+  automatically, and accepts only authenticated plugin traffic.
+- The IINA plugin uses its public outbound `http` API for bounded command
+  long-poll and event POST requests.
+- The helper terminates with CineLark and is never a launch daemon or separately
+  installed service.
 
-Therefore clients must accept UTF-8 in text or binary frames, and the bridge
-must not ship based on assumed localhost isolation.
+The audited IINA WebSocket server remains a non-default fallback because it has
+no TLS, exposes no loopback bind option, enables peer-to-peer networking, and
+cannot be stopped through JavaScript.
 
 ## 3. Security invariants
 
@@ -48,11 +53,12 @@ must not ship based on assumed localhost isolation.
 
 ### Open blocker `BRIDGE-SEC-001`
 
-Select and prototype pairing-key provisioning before implementing production
-transport. The preferred outcome is an upstream IINA API that can bind the
-server to loopback. A pre-shared high-entropy key with nonce-based HMAC may
-provide defense in depth, but its provisioning UX and threat model still need
-review. A six-digit code sent over unauthenticated cleartext is not sufficient.
+Prototype zero-configuration helper/plugin pairing and document its local
+process threat model before production use. The plugin credential must be
+high-entropy, revocable, stored in IINA-scoped Keychain, and provisioned through
+a one-time user-approved flow. Port discovery and helper restarts must not
+require manual configuration. A short code sent over unauthenticated cleartext
+is not sufficient.
 
 ## 4. Envelope
 
@@ -140,7 +146,8 @@ current player.
 | `player.ended` | natural EOF with mpv reason when available |
 | `player.closed` | window/plugin/application lifecycle ended |
 
-A state snapshot contains no playback URL:
+A state snapshot contains no playback URL and maps to the shared semantics in
+[`specs/common/playback.schema.json`](../../specs/common/playback.schema.json):
 
 ```json
 {
@@ -167,11 +174,11 @@ external provider writes independently.
 | State | `core.status.*` and mpv properties |
 | Tracks | `core.audio/subtitle/video` |
 | Lifecycle | `event.on("iina.*")`, `event.on("mpv.*")` |
-| App connection | `ws.*` server API |
+| Helper connection | outbound `http.*` to loopback helper |
 
 ## 8. Compatibility
 
-- Both sides advertise protocol version and implementation version.
+- Coordinator, Broker, and Player advertise protocol and implementation versions.
 - Version 1 rejects unsupported major protocol versions.
 - New optional payload members are ignored.
 - Removing/renaming a field or changing units requires a new protocol version.
@@ -182,10 +189,10 @@ external provider writes independently.
 Before release, both sides must share vectors for:
 
 - schema validation and unknown optional fields
-- text and UTF-8 binary WebSocket frames
+- child stdio framing and loopback HTTP request/response limits
 - authentication, replay, sequence gaps, and revocation
 - stale playback sessions
 - open/file-loaded/resume ordering
 - pause, seek, EOF, replacement, close, and termination
 - URL/header/title redaction
-- reconnect and state resynchronization
+- long-poll latency, helper/plugin reconnect, and state resynchronization

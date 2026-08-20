@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/SamsonLab/cinelark/specs/common/playback.schema.json",
+  "title": "CineLark Playback Snapshot",
+  "description": "Provider-neutral, sanitized playback state shared by native, Flutter, and plugin runtimes.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "state",
+    "positionSeconds",
+    "durationSeconds",
+    "speed",
+    "volume",
+    "muted",
+    "audioTracks",
+    "subtitleTracks"
+  ],
+  "properties": {
+    "playbackID": {
+      "type": ["string", "null"],
+      "format": "uuid"
+    },
+    "state": {
+      "type": "string",
+      "enum": ["idle", "opening", "playing", "paused", "stopped", "ended", "error"]
+    },
+    "title": {
+      "type": ["string", "null"]
+    },
+    "subtitle": {
+      "type": ["string", "null"]
+    },
+    "artworkResourceID": {
+      "description": "Opaque Mac-owned resource identifier; never a provider or playback URL.",
+      "type": ["string", "null"]
+    },
+    "positionSeconds": {
+      "$ref": "#/$defs/seconds"
+    },
+    "durationSeconds": {
+      "$ref": "#/$defs/seconds"
+    },
+    "speed": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "volume": {
+      "type": "number",
+      "minimum": 0
+    },
+    "muted": {
+      "type": "boolean"
+    },
+    "audioTracks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/track"
+      }
+    },
+    "subtitleTracks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/track"
+      }
+    }
+  },
+  "$defs": {
+    "seconds": {
+      "type": "number",
+      "minimum": 0,
+      "description": "A finite number of seconds. JSON serialization excludes NaN and infinity."
+    },
+    "track": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "kind", "selected", "isDefault", "isForced", "isExternal"],
+      "properties": {
+        "id": {
+          "type": "integer"
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["audio", "subtitle", "video"]
+        },
+        "title": {
+          "type": ["string", "null"]
+        },
+        "language": {
+          "type": ["string", "null"]
+        },
+        "codec": {
+          "type": ["string", "null"]
+        },
+        "selected": {
+          "type": "boolean"
+        },
+        "isDefault": {
+          "type": "boolean"
+        },
+        "isForced": {
+          "type": "boolean"
+        },
+        "isExternal": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

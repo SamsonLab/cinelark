@@ -8,9 +8,9 @@ an optional thin bridge plugin.
 
 ## Product family
 
-- **CineLark** — the macOS library client and system coordinator.
-- **CineLark Remote** — a future iPhone companion; the Mac app remains fully
-  usable without it.
+- **CineLark** — a native Swift/SwiftUI macOS client and system coordinator.
+- **CineLark Remote** — a future Flutter companion for iOS and Android; the Mac
+  app remains fully usable without it.
 - **CineLark IINA Bridge** — a provider-neutral IINA plugin for playback control
   and telemetry.
 
@@ -20,16 +20,17 @@ atomically.
 ## Architecture
 
 ```text
-Media Provider (UHDNow first)
-            │
-            ▼
-      CineLark for Mac
-  library · auth · progress
-            │
-     authenticated local bridge
-            │
-            ▼
- CineLark IINA Bridge → IINA → mpv
+Flutter Remote (iOS / Android)
+             │ paired TLS protocol
+             ▼
+      CineLark for Mac ◀──▶ Media Provider (UHDNow first)
+   Swift · SwiftUI · AppKit
+             │ child process / stdio
+             ▼
+   bundled Rust Bridge Helper
+             │ loopback-only local protocol
+             ▼
+  thin IINA JS Plugin → IINA → mpv
 ```
 
 IINA owns decoding, HDR, audio tracks, subtitles, and presentation. CineLark
@@ -39,12 +40,15 @@ The bridge never receives provider account credentials.
 ## Repository layout
 
 ```text
-apps/          macOS app and future iPhone Remote
-packages/      shared domain and provider packages
-plugins/iina/  thin IINA playback bridge
-specs/         machine-readable external and internal contracts
-fixtures/      synthetic, redacted test fixtures only
-docs/          product, architecture, integration, and decision records
+apps/macos/       native Swift/SwiftUI macOS app
+apps/remote/      future Flutter app for iOS and Android
+packages/apple/   local Swift package and provider/bridge targets
+packages/rust/    bundled, runtime-free bridge helper
+plugins/iina/     thin IINA JavaScript adapter
+specs/            cross-language contracts and external API observations
+shared/           generated-code policy, design tokens, and brand assets
+fixtures/         synthetic, redacted test fixtures only
+docs/             product, architecture, integration, and decision records
 ```
 
 ## Specifications
@@ -53,8 +57,11 @@ Start with [`docs/README.md`](docs/README.md).
 
 - [Product specification](docs/product-spec.md)
 - [Architecture](docs/architecture.md)
+- [Implementation plan](docs/implementation-plan.md)
 - [Media provider interface](docs/interfaces/media-library-provider.md)
 - [Playback bridge protocol](docs/interfaces/playback-bridge.md)
+- [Rust bridge helper](docs/implementation-plan.md#4-rust-bridge-helper)
+- [Remote protocol](docs/interfaces/remote-protocol.md)
 - [Observed UHDNow API](docs/integrations/uhdnow-api.md)
 - [Verified IINA plugin capabilities](docs/integrations/iina-plugin-api.md)
 

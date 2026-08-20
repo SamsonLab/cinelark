@@ -173,8 +173,9 @@ require:
 - plugin permission `network-request`
 - the target host in `allowedDomains`
 
-This can support diagnostics or a fallback app endpoint, but the provider API
-must remain in the native app.
+This is the preferred connection to the bundled Rust Bridge Helper: the plugin
+performs bounded long-poll and event POST requests against a loopback-only local
+endpoint. The provider API remains in the native app.
 
 ### WebSocket server
 
@@ -202,8 +203,9 @@ Security limitations in the audited implementation:
 - no stop-server API is exported to JavaScript.
 - the selected bound endpoint/ephemeral port is not exposed.
 
-These limitations are tracked in the bridge specification and must not be
-papered over by describing the server as localhost-only.
+These limitations are tracked in the bridge specification. The WebSocket server
+is not the default CineLark transport and must not be described as
+localhost-only.
 
 ## 8. Plugin UI
 
@@ -231,9 +233,10 @@ file-system
 ```
 
 The plugin should request the minimum set. `show-osd` may be useful for pairing
-and connection status. `network-request` is needed only if the final bridge
-transport requires outbound HTTP. Provider domains should not be listed unless
-the architecture changes through a reviewed decision.
+and connection status. `network-request` is required for the preferred outbound
+HTTP connection to the loopback Rust helper. Allow only loopback hosts; provider
+domains must not be listed unless the architecture changes through a reviewed
+decision.
 
 ## 10. Capability assessment
 
@@ -246,20 +249,22 @@ the architecture changes through a reviewed decision.
 | Audio/subtitle inventory and selection | track sub-APIs | Supported |
 | Playback lifecycle telemetry | IINA/mpv events | Supported |
 | Secret storage | plugin-scoped Keychain | Supported |
-| Native app IPC | WebSocket server | Functionally supported, security unresolved |
-| Loopback-only listener | none exposed | Gap |
+| Rust helper IPC | outbound HTTP API | Supported; long-poll spike required |
+| Native app IPC via IINA WebSocket | WebSocket server | Non-default; security unresolved |
+| Loopback-only IINA listener | none exposed | Gap avoided by Rust helper |
 | TLS WebSocket | none | Gap |
 | Stop one WS server / managed player from global API | none exposed | Gap/non-blocking TBD |
 
 ## 11. Fork policy
 
-Do not fork IINA for supported playback operations. Consider a minimal,
-upstreamable IINA change only if the bridge security design proves that one of
+Do not fork IINA for supported playback operations. The preferred Rust helper
+uses only existing outbound HTTP and playback APIs. Consider a minimal,
+upstreamable IINA change only if the helper/plugin spike proves that one of
 these is required:
 
-1. bind WebSocket server to loopback only;
-2. expose the actual bound endpoint for an ephemeral port;
-3. stop the server explicitly;
+1. provide a WebSocket client or streaming outbound HTTP primitive;
+2. improve outbound-request cancellation/timeouts;
+3. bind the existing WebSocket server to loopback only;
 4. provide a safer native-app IPC primitive.
 
 Any such patch requires a separate ADR, compatibility tests, and an upstream PR

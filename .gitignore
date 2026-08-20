@@ -15,6 +15,19 @@ node_modules/
 dist/
 coverage/
 
+# Flutter / Dart
+.dart_tool/
+.packages
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+build/
+*.iml
+android/.gradle/
+android/local.properties
+ios/Flutter/ephemeral/
+macos/Flutter/ephemeral/
+
 # Local configuration and secrets
 .env
 .env.*

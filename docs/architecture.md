@@ -8,7 +8,7 @@
 ```text
                        ┌────────────────────┐
                        │ CineLark Remote    │
-                       │ future iPhone app  │
+                       │ Flutter mobile app │
                        └─────────┬──────────┘
                                  │ paired local protocol
                                  ▼
@@ -18,11 +18,15 @@
 └────────────────┘      │ UI + domain + provider auth   │
                         │ PlaybackCoordinator           │
                         └───────────────┬───────────────┘
-                                        │ authenticated bridge
+                                        │ private child stdio
                                         ▼
                         ┌───────────────────────────────┐
-                        │ CineLark IINA Bridge          │
-                        │ provider-neutral plugin       │
+                        │ bundled Rust Bridge Helper    │
+                        └───────────────┬───────────────┘
+                                        │ loopback-only HTTP
+                                        ▼
+                        ┌───────────────────────────────┐
+                        │ thin IINA JavaScript Plugin   │
                         └───────────────┬───────────────┘
                                         ▼
                                    IINA / mpv
@@ -39,7 +43,7 @@
 | Version selection | Mac app `PlaybackCoordinator` |
 | Playback URL construction | Provider adapter |
 | Decode, HDR, tracks, subtitles | IINA/mpv |
-| Player transport and telemetry | IINA Bridge |
+| Player transport and telemetry | Rust Bridge Helper + IINA plugin |
 | Provider progress writes | Mac app |
 | Remote pairing and authorization | Mac app |
 
@@ -47,6 +51,13 @@ The plugin never calls provider APIs. The Remote never receives provider
 credentials or directly controls the plugin.
 
 ## 3. Logical modules
+
+The Mac implementation is Apple-native: Swift 6 with strict concurrency,
+SwiftUI for product UI, and focused AppKit adapters where macOS windowing,
+input, or focus behavior requires them. Apple modules live as targets in one
+local Swift package initially. The Remote is a separate Flutter/Dart runtime;
+shared behavior crosses that boundary through versioned schemas and conformance
+fixtures, not linked Swift code.
 
 ### 3.1 `CineLarkDomain`
 
@@ -98,10 +109,33 @@ Maintains one logical playback session:
 
 A new `play` supersedes the previous logical session and finalizes it first.
 
-### 3.6 `IINABridgePlugin`
+### 3.6 `RustBridgeHelper`
 
-A small JavaScript/TypeScript package with no provider dependency. It maps the
-bridge protocol to IINA public plugin APIs and mpv properties/events.
+A self-contained native helper bundled and signed inside CineLark.app. The Mac
+supervises it as a child process and exchanges framed JSON over stdio. It exposes
+an authenticated loopback-only HTTP/long-poll endpoint to the IINA plugin,
+validates bridge envelopes, orders sessions, and contains no provider logic or
+persistent daemon behavior.
+
+### 3.7 `IINABridgePlugin`
+
+A minimal JavaScript/TypeScript package with no provider dependency. It polls
+the Rust helper for commands, posts sanitized events, and maps the bridge
+protocol to IINA public plugin APIs and mpv properties/events.
+
+### 3.8 `RemoteGateway`
+
+A native Mac service that publishes sanitized app/player snapshots and accepts
+capability-checked semantic commands. It owns Bonjour discovery, secure pairing,
+device revocation, protocol negotiation, and the TLS endpoint. It never exposes
+provider DTOs, credentials, or playback URLs.
+
+### 3.9 `CineLarkRemote`
+
+A Flutter application for iOS and Android. It mirrors only the state required by
+the companion experience and sends semantic navigation/playback commands to the
+Mac. Discovery, secure storage, notifications, and certificate pinning stay
+behind Flutter infrastructure adapters or narrowly scoped platform channels.
 
 ## 4. Data flow
 
@@ -122,7 +156,8 @@ Selection
   → choose asset
   → provider.makePlaybackDescriptor(asset)
   → bridge.play(descriptor, startPosition)
-  → IINA core.open(url)
+  → Rust helper queues authenticated command
+  → IINA plugin calls core.open(url)
   → file-loaded
   → seekTo(startPosition)
   → state/position events
@@ -147,9 +182,11 @@ stopped event for lifecycle boundaries. Exact cadence and retry policy are Open.
 
 ## 5. State and concurrency
 
-- UI observes immutable view state produced by an application state machine.
-- Provider and bridge operations use structured concurrency and support
-  cancellation.
+- SwiftUI observes `@MainActor` feature models built with the Observation
+  framework; domain values remain immutable and UI-independent.
+- Provider sessions, bridge sessions, image/cache coordination, and progress
+  writes use Swift actors and structured concurrency.
+- Provider and bridge operations support cancellation.
 - Each playback session has a unique opaque ID; late events from superseded
   sessions are ignored.
 - Progress writes for one item are serialized and monotonic unless the user
@@ -175,31 +212,48 @@ stopped event for lifecycle boundaries. Exact cadence and retry policy are Open.
 - The Mac app is the only component allowed to hold provider credentials.
 - Playback descriptors are ephemeral and must not be persisted.
 - Bridge traffic is local but still untrusted until authenticated.
-- The audited IINA WebSocket server is not loopback-restricted and has no TLS;
-  therefore protocol authentication and network-exposure mitigation are P0.
+- The preferred Rust helper binds explicitly to loopback and authenticates the
+  plugin; the Mac side uses private child-process stdio.
+- The audited IINA WebSocket server is not loopback-restricted and has no TLS,
+  so it is not the default transport. Any fallback requires a separate security
+  review.
+- Remote traffic uses authenticated TLS, explicit pairing, certificate pinning,
+  device-scoped credentials, and revocation.
 - Every diagnostic layer applies structured redaction before formatting values.
 
 ## 8. Repository boundaries
 
 ```text
-apps/macos/              CineLark for Mac
-apps/remote/             future CineLark Remote
-packages/domain/         provider-neutral models and protocols
-packages/uhdnow/         UHDNow adapter
-packages/bridge/         app-side bridge implementation
-plugins/iina/            IINA plugin
-specs/bridge/            shared protocol source of truth
-specs/uhdnow/            observed external API description
+apps/macos/                         SwiftUI macOS app and Xcode project
+apps/remote/                        Flutter app for iOS and Android
+packages/apple/CineLarkKit/         local Swift package with focused targets
+packages/rust/cinelark-bridge/      bundled, signed native helper
+plugins/iina/                       minimal JavaScript/TypeScript adapter
+specs/common/                       cross-language domain/wire primitives
+specs/bridge/                       Mac app ↔ IINA contracts
+specs/remote/                       Flutter Remote ↔ Mac app contracts
+specs/uhdnow/                       observed external API description
+shared/design/                      platform-neutral design tokens
+shared/brand/                       source vector brand assets
+fixtures/conformance/               sanitized cross-runtime protocol vectors
 ```
 
-Directories are placeholders until the implementation toolchain is selected.
+Generated Swift/Rust/Dart/TypeScript files are outputs, never the source of truth.
+The exact code generator remains an implementation spike; schema compatibility
+and conformance vectors are required even if a runtime initially uses handwritten
+adapters.
 
 ## 9. Testing strategy
 
 - Domain: pure unit tests for mapping-independent behavior and resume rules.
 - Provider: contract tests against synthetic redacted fixtures.
-- Bridge: schema tests plus app/plugin conformance vectors.
+- Bridge: shared schema vectors in Swift, Rust, and JavaScript; helper process,
+  loopback binding, long-poll latency, crash, and reconnect integration tests.
+- Remote: shared schema vectors executed by Swift and Dart, plus pairing,
+  reconnect, revocation, and stale-command tests.
 - Playback: integration tests with a local fake bridge before IINA automation.
-- UI: deterministic focus-navigation tests for rows, grids, detail pages, and
-  state restoration.
+- macOS UI: deterministic focus-navigation tests for rows, grids, detail pages,
+  and state restoration.
+- Flutter UI: widget/golden tests for controls and connection states, with
+  platform integration tests for discovery and secure storage.
 - Security: secret scanning and URL/header redaction tests in CI.
