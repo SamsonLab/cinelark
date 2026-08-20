@@ -1,0 +1,143 @@
+'use strict';
+
+const assert = require('node:assert/strict');
+const { readFileSync } = require('node:fs');
+const { resolve } = require('node:path');
+const test = require('node:test');
+const vm = require('node:vm');
+
+function makeHarness() {
+  const eventHandlers = new Map();
+  const messageHandlers = new Map();
+  const emitted = [];
+  const calls = [];
+  let timer;
+
+  const core = {
+    status: {
+      idle: false,
+      paused: false,
+      position: 12.5,
+      duration: 120,
+      speed: 1,
+    },
+    audio: {
+      volume: 75,
+      muted: false,
+      id: 1,
+      tracks: [{ id: 1, title: 'Stereo', lang: 'en', codec: 'aac', isSelected: true }],
+    },
+    subtitle: {
+      id: 2,
+      tracks: [{ id: 2, title: 'English', lang: 'en', codec: 'srt', isSelected: true }],
+    },
+    video: {
+      tracks: [{ id: 3, title: 'Main', codec: 'hevc', isSelected: true }],
+    },
+    window: { loaded: true, fullscreen: false },
+    open: (url) => calls.push(['open', url]),
+    pause: () => calls.push(['pause']),
+    resume: () => calls.push(['resume']),
+    stop: () => {
+      calls.push(['stop']);
+      core.status.idle = true;
+    },
+    seek: (seconds, exact) => calls.push(['seek', seconds, exact]),
+    seekTo: (seconds) => calls.push(['seekTo', seconds]),
+    setSpeed: (speed) => calls.push(['setSpeed', speed]),
+  };
+
+  const context = {
+    iina: {
+      core,
+      event: { on: (name, callback) => eventHandlers.set(name, callback) },
+      global: {
+        getLabel: () => 'cinelark:6f55936d-5950-44fd-a696-f989d41785cc',
+        onMessage: (name, callback) => messageHandlers.set(name, callback),
+        postMessage: (name, data) => emitted.push([name, data]),
+      },
+    },
+    setInterval: (callback) => {
+      timer = callback;
+      return 1;
+    },
+    Date,
+    Number,
+    Boolean,
+    Math,
+  };
+  const source = readFileSync(resolve(__dirname, '../src/main.js'), 'utf8');
+  vm.runInNewContext(source, context, { filename: 'main.js' });
+  return { calls, core, emitted, eventHandlers, messageHandlers, runTimer: () => timer() };
+}
+
+function playCommand() {
+  return {
+    id: '4ff6c27e-1415-473f-8764-451d6a3369cb',
+    type: 'player.play',
+    sessionID: '6f55936d-5950-44fd-a696-f989d41785cc',
+    payload: {
+      playbackID: '6f55936d-5950-44fd-a696-f989d41785cc',
+      url: 'https://media.example/video?token=<redacted>',
+      startPositionSeconds: 42.5,
+      presentation: { fullscreen: true },
+    },
+  };
+}
+
+test('player opens the opaque URL and applies resume only after file-loaded', () => {
+  const harness = makeHarness();
+  harness.messageHandlers.get('cinelark.command')(playCommand());
+  assert.deepEqual(harness.calls, [['open', 'https://media.example/video?token=<redacted>']]);
+
+  harness.eventHandlers.get('iina.file-loaded')();
+  assert.deepEqual(harness.calls[1], ['seekTo', 42.5]);
+  assert.equal(harness.core.window.fullscreen, true);
+
+  const events = harness.emitted.map(([, value]) => value);
+  assert.equal(events.some((value) => value.type === 'player.fileLoaded'), true);
+  assert.equal(events.some((value) => value.type === 'player.tracksChanged'), true);
+  const serialized = JSON.stringify(events);
+  assert.equal(serialized.includes('media.example'), false);
+  assert.equal(serialized.includes('token='), false);
+});
+
+test('transport commands map to the public IINA core APIs', () => {
+  const harness = makeHarness();
+  const send = harness.messageHandlers.get('cinelark.command');
+  send(playCommand());
+  send({ type: 'player.pause', sessionID: playCommand().sessionID, payload: {} });
+  send({
+    type: 'player.seekRelative',
+    sessionID: playCommand().sessionID,
+    payload: { seconds: 15, exact: true },
+  });
+  send({
+    type: 'player.setVolume',
+    sessionID: playCommand().sessionID,
+    payload: { volume: 55 },
+  });
+  send({
+    type: 'player.selectSubtitleTrack',
+    sessionID: playCommand().sessionID,
+    payload: { id: 7 },
+  });
+
+  assert.equal(harness.calls.some(([name]) => name === 'pause'), true);
+  assert.equal(harness.calls.some((call) => JSON.stringify(call) === '["seek",15,true]'), true);
+  assert.equal(harness.core.audio.volume, 55);
+  assert.equal(harness.core.subtitle.id, 7);
+});
+
+test('position sampling emits sanitized state without the source URL', () => {
+  const harness = makeHarness();
+  harness.messageHandlers.get('cinelark.command')(playCommand());
+  harness.runTimer();
+  const position = harness.emitted
+    .map(([, value]) => value)
+    .find((value) => value.type === 'player.positionChanged');
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(position.payload)),
+    { positionSeconds: 12.5, durationSeconds: 120 }
+  );
+});
