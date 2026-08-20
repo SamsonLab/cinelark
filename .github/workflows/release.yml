@@ -1,0 +1,241 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Validate release version
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          PROJECT_VERSION=$(awk '/MARKETING_VERSION:/ { print $2; exit }' apps/macos/project.yml)
+          if [[ "$GITHUB_REF_NAME" != v* || "$VERSION" != "$PROJECT_VERSION" ]]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match project version $PROJECT_VERSION"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Install pinned Rust toolchain
+        run: >-
+          rustup toolchain install 1.95.0
+          --profile minimal
+          --target aarch64-apple-darwin,x86_64-apple-darwin
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Test release inputs
+        run: |
+          swift test --package-path packages/apple/CineLarkKit
+          npm test --prefix plugins/iina
+          python3 scripts/check_repository.py
+
+      - name: Import release signing identity
+        id: signing
+        shell: bash
+        env:
+          CINELARK_SIGNING_CERTIFICATE: ${{ secrets.CINELARK_SIGNING_CERTIFICATE }}
+          CINELARK_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.CINELARK_SIGNING_CERTIFICATE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$CINELARK_SIGNING_CERTIFICATE" || -z "$CINELARK_SIGNING_CERTIFICATE_PASSWORD" ]]; then
+            echo "::error::Release signing secrets are not configured"
+            exit 1
+          fi
+
+          CERTIFICATE_PATH="$RUNNER_TEMP/cinelark-release.p12"
+          CERTIFICATE_PEM="$RUNNER_TEMP/cinelark-release.pem"
+          KEYCHAIN_PATH="$RUNNER_TEMP/cinelark-release.keychain-db"
+          KEYCHAIN_PASSWORD=$(/usr/bin/openssl rand -hex 24)
+          export CERTIFICATE_PATH
+          python3 - <<'PY'
+          import base64
+          import os
+
+          with open(os.environ["CERTIFICATE_PATH"], "wb") as output:
+              output.write(base64.b64decode(os.environ["CINELARK_SIGNING_CERTIFICATE"], validate=True))
+          PY
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 3600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" \
+            -k "$KEYCHAIN_PATH" \
+            -P "$CINELARK_SIGNING_CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign \
+            -T /usr/bin/security >/dev/null
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s \
+            -k "$KEYCHAIN_PASSWORD" \
+            "$KEYCHAIN_PATH" >/dev/null
+          /usr/bin/openssl pkcs12 \
+            -in "$CERTIFICATE_PATH" \
+            -clcerts \
+            -nokeys \
+            -passin "pass:$CINELARK_SIGNING_CERTIFICATE_PASSWORD" \
+            -out "$CERTIFICATE_PEM"
+          security add-trusted-cert \
+            -r trustRoot \
+            -p codeSign \
+            -k "$KEYCHAIN_PATH" \
+            "$CERTIFICATE_PEM"
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
+
+          IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" \
+            | awk '/CineLark Release Signing/ { print $2; exit }')
+          if [[ -z "$IDENTITY" ]]; then
+            echo "::error::CineLark release signing identity is unavailable"
+            exit 1
+          fi
+          echo "identity=$IDENTITY" >> "$GITHUB_OUTPUT"
+          echo "keychain=$KEYCHAIN_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Build universal app
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project apps/macos/CineLark.xcodeproj \
+            -scheme CineLark \
+            -configuration Release \
+            -destination 'generic/platform=macOS' \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            'ARCHS=arm64 x86_64' \
+            ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Sign and package universal app
+        id: package
+        shell: bash
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+          SIGNING_IDENTITY: ${{ steps.signing.outputs.identity }}
+        run: |
+          set -euo pipefail
+          chmod +x scripts/package_macos_release.sh
+          DMG_PATH=$(scripts/package_macos_release.sh \
+            "$RUNNER_TEMP/DerivedData/Build/Products/Release/CineLark.app" \
+            "$VERSION" \
+            "$RUNNER_TEMP/release" \
+            "$SIGNING_IDENTITY")
+          {
+            echo "dmg_path=$DMG_PATH"
+            echo "sha_path=$DMG_PATH.sha256"
+            echo "sha256=$(shasum -a 256 "$DMG_PATH" | awk '{ print $1 }')"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.release.outputs.version }}
+          DMG_PATH: ${{ steps.package.outputs.dmg_path }}
+          SHA_PATH: ${{ steps.package.outputs.sha_path }}
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/release-notes.md" <<EOF
+          CineLark $VERSION for macOS 14 or later.
+
+          ## Install
+
+          \`\`\`sh
+          brew install --cask samsonlab/cinelark/cinelark
+          \`\`\`
+
+          CineLark uses a project-controlled self-signed code identity and is not
+          Apple-notarized. The Homebrew Cask pins this artifact by SHA-256 and
+          removes its quarantine attribute after installation.
+          EOF
+
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "$DMG_PATH" "$SHA_PATH" \
+              --clobber \
+              --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$GITHUB_REF_NAME" "$DMG_PATH" "$SHA_PATH" \
+              --title "CineLark $GITHUB_REF_NAME" \
+              --notes-file "$RUNNER_TEMP/release-notes.md" \
+              --repo "$GITHUB_REPOSITORY"
+          fi
+
+      - name: Update Homebrew Cask
+        shell: bash
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          VERSION: ${{ steps.release.outputs.version }}
+          SHA256: ${{ steps.package.outputs.sha256 }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$HOMEBREW_TAP_TOKEN" ]]; then
+            echo "::error::HOMEBREW_TAP_TOKEN is not configured"
+            exit 1
+          fi
+
+          export GH_TOKEN="$HOMEBREW_TAP_TOKEN"
+          gh auth setup-git
+          gh repo clone SamsonLab/homebrew-cinelark "$RUNNER_TEMP/homebrew-cinelark"
+
+          mkdir -p "$RUNNER_TEMP/homebrew-cinelark/Casks"
+          cat > "$RUNNER_TEMP/homebrew-cinelark/Casks/cinelark.rb" <<CASK
+          cask "cinelark" do
+            version "$VERSION"
+            sha256 "$SHA256"
+
+            url "https://github.com/SamsonLab/cinelark/releases/download/v#{version}/CineLark_#{version}_universal.dmg"
+            name "CineLark"
+            desc "TV-first media library client using IINA for playback"
+            homepage "https://github.com/SamsonLab/cinelark"
+
+            depends_on cask: "iina"
+            depends_on macos: :sonoma
+
+            app "CineLark.app"
+
+            postflight_steps do
+              run "/usr/bin/xattr",
+                  args: ["-cr", "{{appdir}}/CineLark.app"]
+            end
+
+            zap trash: [
+              "~/Library/Application Support/CineLark",
+              "~/Library/Caches/com.samsonlab.cinelark",
+              "~/Library/Preferences/com.samsonlab.cinelark.plist",
+              "~/Library/Saved Application State/com.samsonlab.cinelark.savedState",
+            ]
+          end
+          CASK
+
+          cd "$RUNNER_TEMP/homebrew-cinelark"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Casks/cinelark.rb
+          if ! git diff --cached --quiet; then
+            git commit -m "Update cask to v$VERSION"
+            git push origin main
+          fi
+
+      - name: Remove temporary signing material
+        if: always()
+        shell: bash
+        run: |
+          security delete-keychain "${{ steps.signing.outputs.keychain }}" >/dev/null 2>&1 || true
+          rm -f "$RUNNER_TEMP/cinelark-release.p12" "$RUNNER_TEMP/cinelark-release.pem"

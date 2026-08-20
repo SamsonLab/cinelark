@@ -30,6 +30,16 @@ cleared on account transitions. Artwork uses Kingfisher's separate cache under
 the system cache directory. Credentials, provider tokens, and tokenized playback or
 download URLs are excluded from both stores.
 
+## Install
+
+```sh
+brew install --cask samsonlab/cinelark/cinelark
+```
+
+The Cask installs IINA, verifies the versioned DMG by SHA-256, and removes
+quarantine from the project-signed app. The IINA plugin still requires explicit
+approval on first playback.
+
 ## Open and build
 
 ```sh
@@ -56,7 +66,8 @@ swift test --package-path packages/apple/CineLarkKit
 `project.yml` is the source definition for XcodeGen; the generated Xcode project
 is committed so contributors do not need XcodeGen merely to build the app. App
 builds compile and embed the helper with the pinned Rust toolchain; end users do
-not install Cargo or manage a bridge process.
+not install Cargo or manage a bridge process. Tagged releases are universal,
+self-signed with a stable project identity, and intentionally not Apple-notarized.
 
 ## Security
 

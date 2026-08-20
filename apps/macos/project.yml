@@ -57,7 +57,7 @@ targets:
               x86_64) RUST_TARGET="x86_64-apple-darwin" ;;
               *) echo "Unsupported bridge architecture: $ARCH" >&2; exit 1 ;;
             esac
-            cargo build --locked --manifest-path "$CRATE" --target-dir "$TARGET_DIR" --target "$RUST_TARGET" $PROFILE_ARG
+            cargo +1.95.0 build --locked --manifest-path "$CRATE" --target-dir "$TARGET_DIR" --target "$RUST_TARGET" $PROFILE_ARG
             BINARIES+=("$TARGET_DIR/$RUST_TARGET/$PROFILE_DIR/cinelark-bridge")
           done
 

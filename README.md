@@ -51,6 +51,19 @@ fixtures/         synthetic, redacted test fixtures only
 docs/             product, architecture, integration, and decision records
 ```
 
+## Install
+
+CineLark requires macOS 14 or later. The project Cask installs IINA as a
+dependency:
+
+```sh
+brew install --cask samsonlab/cinelark/cinelark
+```
+
+Tagged releases use a stable project-controlled self-signed identity rather
+than Apple notarization. The Cask pins the DMG by SHA-256 and removes quarantine
+after installation. The IINA plugin is installed explicitly on first playback.
+
 ## Development
 
 ```sh
@@ -73,6 +86,7 @@ Start with [`docs/README.md`](docs/README.md).
 - [Playback bridge protocol](docs/interfaces/playback-bridge.md)
 - [Rust bridge helper](docs/implementation-plan.md#4-rust-bridge-helper)
 - [Remote protocol](docs/interfaces/remote-protocol.md)
+- [Homebrew distribution decision](docs/decisions/0005-homebrew-distribution.md)
 - [Observed UHDNow API](docs/integrations/uhdnow-api.md)
 - [Verified IINA plugin capabilities](docs/integrations/iina-plugin-api.md)
 

@@ -11,6 +11,8 @@ Treat both as secrets.
 - unredacted account, subscription, or viewing-history responses
 - production Keychain exports, bridge secrets, Remote pairing QR payloads, or
   device credentials
+- release-signing private keys, PKCS#12 archives/passwords, or Homebrew tap
+  access tokens
 
 Only synthetic fixtures belong in `fixtures/`.
 
@@ -36,6 +38,12 @@ Only synthetic fixtures belong in `fixtures/`.
 - Do not ship the current IINA WebSocket transport until its network exposure
   and pairing design satisfy the constraints in
   [`docs/interfaces/playback-bridge.md`](docs/interfaces/playback-bridge.md).
+- Treat the self-signed release identity as durable security infrastructure:
+  keep it outside the repository, restrict CI access, and preserve it across
+  releases so Keychain designated requirements remain stable.
+- Project Homebrew releases are not Apple-notarized. The custom Cask pins their
+  SHA-256 digest and removes quarantine; it does not provide Apple's malware
+  scanning, identity validation, or certificate revocation.
 
 ## Reporting
 
