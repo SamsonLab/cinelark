@@ -1,0 +1,11 @@
+{
+  "name": "@samsonlab/cinelark-iina-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Provider-neutral CineLark playback bridge for IINA",
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "package": "node scripts/package.js"
+  }
+}

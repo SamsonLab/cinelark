@@ -34,6 +34,10 @@ let package = Package(
         .testTarget(
             name: "CineLarkPersistenceTests",
             dependencies: ["CineLarkDomain", "CineLarkPersistence"]
+        ),
+        .testTarget(
+            name: "CineLarkPlaybackTests",
+            dependencies: ["CineLarkDomain", "CineLarkPlayback"]
         )
     ]
 )

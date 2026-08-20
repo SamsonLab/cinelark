@@ -1,0 +1,62 @@
+name: Playback Bridge
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "packages/rust/cinelark-bridge/**"
+      - "plugins/iina/**"
+      - "scripts/test_bridge_process.py"
+      - ".github/workflows/bridge.yml"
+  pull_request:
+    paths:
+      - "packages/rust/cinelark-bridge/**"
+      - "plugins/iina/**"
+      - "scripts/test_bridge_process.py"
+      - ".github/workflows/bridge.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  protocol:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Install pinned Rust toolchain
+        run: >-
+          rustup toolchain install 1.95.0
+          --profile minimal
+          --component clippy,rustfmt
+          --target aarch64-apple-darwin,x86_64-apple-darwin
+      - name: Format Rust helper
+        run: cargo +1.95.0 fmt --manifest-path packages/rust/cinelark-bridge/Cargo.toml --check
+      - name: Test Rust helper
+        run: cargo +1.95.0 test --locked --manifest-path packages/rust/cinelark-bridge/Cargo.toml
+      - name: Lint Rust helper
+        run: cargo +1.95.0 clippy --locked --all-targets --manifest-path packages/rust/cinelark-bridge/Cargo.toml -- -D warnings
+      - name: Test and package IINA plugin
+        working-directory: plugins/iina
+        run: |
+          npm test
+          node --check src/global.js
+          node --check src/main.js
+          npm run package
+      - name: Build bridge process
+        run: cargo +1.95.0 build --locked --manifest-path packages/rust/cinelark-bridge/Cargo.toml
+      - name: Test broker process integration
+        run: >-
+          python3 scripts/test_bridge_process.py
+          --executable packages/rust/cinelark-bridge/target/debug/cinelark-bridge
+      - name: Build universal helper
+        run: |
+          cargo +1.95.0 build --locked --release --manifest-path packages/rust/cinelark-bridge/Cargo.toml --target aarch64-apple-darwin
+          cargo +1.95.0 build --locked --release --manifest-path packages/rust/cinelark-bridge/Cargo.toml --target x86_64-apple-darwin
+          lipo -create \
+            packages/rust/cinelark-bridge/target/aarch64-apple-darwin/release/cinelark-bridge \
+            packages/rust/cinelark-bridge/target/x86_64-apple-darwin/release/cinelark-bridge \
+            -output /tmp/CineLarkBridge
+          lipo /tmp/CineLarkBridge -verify_arch arm64 x86_64

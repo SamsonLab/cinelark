@@ -4,12 +4,31 @@ import CineLarkPlayback
 
 @MainActor
 final class PlaybackCoordinator {
+    private struct ActivePlayback {
+        let playbackID: UUID
+        let item: PlayableItem
+        let assetID: String
+        var positionSeconds: Double
+        var durationSeconds: Double
+    }
+
     private let provider: any MediaLibraryProvider
     private let launcher: any PlaybackLaunching
+    private let progressReporter: PlaybackProgressReporter
+    private var activePlayback: ActivePlayback?
+    private var eventTask: Task<Void, Never>?
+    private var progressTask: Task<Void, Never>?
 
     init(provider: any MediaLibraryProvider, launcher: any PlaybackLaunching) {
         self.provider = provider
         self.launcher = launcher
+        self.progressReporter = PlaybackProgressReporter(provider: provider)
+        let events = launcher.events
+        self.eventTask = Task { @MainActor [weak self] in
+            for await event in events {
+                await self?.handle(event)
+            }
+        }
     }
 
     func assets(for item: PlayableItem) async throws -> [MediaAsset] {
@@ -25,6 +44,7 @@ final class PlaybackCoordinator {
             throw ProviderError.notFound
         }
         try await play(
+            item: item,
             asset: asset,
             title: title,
             startPositionSeconds: startPositionSeconds
@@ -40,16 +60,141 @@ final class PlaybackCoordinator {
     }
 
     func play(
+        item: PlayableItem,
         asset: MediaAsset,
         title: String,
         startPositionSeconds: Double = 0
     ) async throws {
+        if activePlayback != nil {
+            await stop()
+        }
         let url = try await provider.playbackURL(for: asset)
         let descriptor = PlaybackDescriptor(
             url: url,
             title: title,
             startPositionSeconds: startPositionSeconds
         )
-        try await launcher.open(descriptor)
+        activePlayback = ActivePlayback(
+            playbackID: descriptor.id,
+            item: item,
+            assetID: asset.id,
+            positionSeconds: descriptor.startPositionSeconds,
+            durationSeconds: asset.durationSeconds ?? 0
+        )
+        do {
+            try await launcher.open(descriptor)
+        } catch {
+            activePlayback = nil
+            throw error
+        }
+    }
+
+    func send(_ command: PlaybackControlCommand) async throws {
+        guard let playbackID = activePlayback?.playbackID else {
+            throw PlaybackLaunchError.bridgeUnavailable
+        }
+        try await launcher.send(command, playbackID: playbackID)
+    }
+
+    func stop() async {
+        if let playbackID = activePlayback?.playbackID {
+            try? await launcher.send(.stop, playbackID: playbackID)
+        }
+        await finalizeActivePlayback()
+    }
+
+    private func handle(_ event: PlaybackEvent) async {
+        switch event {
+        case .positionChanged(let playbackID, let positionSeconds, let durationSeconds):
+            guard activePlayback?.playbackID == playbackID else { return }
+            activePlayback?.positionSeconds = max(positionSeconds, 0)
+            activePlayback?.durationSeconds = max(durationSeconds, 0)
+            scheduleProgressReport()
+        case .stateChanged(let playbackID, let snapshot):
+            guard activePlayback?.playbackID == playbackID else { return }
+            activePlayback?.positionSeconds = snapshot.positionSeconds
+            activePlayback?.durationSeconds = snapshot.durationSeconds
+            if snapshot.state == .stopped {
+                await finalizeActivePlayback()
+            }
+        case .ended(let playbackID, _), .closed(let playbackID, _):
+            guard activePlayback?.playbackID == playbackID else { return }
+            await finalizeActivePlayback()
+        case .bridgeReady,
+             .fileLoaded,
+             .tracksChanged,
+             .bridgeError:
+            break
+        }
+    }
+
+    private func scheduleProgressReport() {
+        guard progressTask == nil else { return }
+        progressTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(10))
+            guard !Task.isCancelled else { return }
+            await self?.flushProgress()
+        }
+    }
+
+    private func flushProgress() async {
+        progressTask = nil
+        guard let activePlayback else { return }
+        let update = PlaybackUpdate(
+            item: activePlayback.item,
+            assetID: activePlayback.assetID,
+            positionSeconds: activePlayback.positionSeconds
+        )
+        await progressReporter.reportProgress(update)
+    }
+
+    private func finalizeActivePlayback() async {
+        progressTask?.cancel()
+        progressTask = nil
+        guard let activePlayback else { return }
+        self.activePlayback = nil
+        let update = PlaybackUpdate(
+            item: activePlayback.item,
+            assetID: activePlayback.assetID,
+            positionSeconds: activePlayback.positionSeconds
+        )
+        await progressReporter.reportStopped(update)
+    }
+}
+
+private actor PlaybackProgressReporter {
+    private let provider: any MediaLibraryProvider
+    private var tail: Task<Void, Never>?
+
+    init(provider: any MediaLibraryProvider) {
+        self.provider = provider
+    }
+
+    func reportProgress(_ update: PlaybackUpdate) {
+        enqueue(update, stopped: false)
+    }
+
+    func reportStopped(_ update: PlaybackUpdate) async {
+        let task = enqueue(update, stopped: true)
+        await task.value
+    }
+
+    @discardableResult
+    private func enqueue(
+        _ update: PlaybackUpdate,
+        stopped: Bool
+    ) -> Task<Void, Never> {
+        let previous = tail
+        let provider = provider
+        let task = Task {
+            await previous?.value
+            if stopped {
+                _ = try? await provider.reportStopped(update)
+            } else {
+                _ = try? await provider.reportProgress(update)
+            }
+        }
+        tail = task
+        return task
     }
 }

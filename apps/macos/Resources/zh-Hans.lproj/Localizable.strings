@@ -145,6 +145,11 @@
 "error.unsupported" = "服务提供方不支持此操作，请选择其他操作。";
 "error.iina_missing" = "尚未安装 IINA，请安装后再播放。";
 "error.iina_launch" = "无法在 IINA 中打开此内容，请重试。";
+"error.iina_plugin_install" = "CineLark 已打开 IINA Bridge 安装器，请确认安装后再次播放。";
+"error.iina_plugin_unavailable" = "CineLark IINA Bridge 尚未启用，请在 IINA 中启用后重试。";
+"error.bridge_helper" = "CineLark 无法启动内置播放辅助程序，请重新安装 CineLark 后重试。";
+"error.bridge_authentication" = "IINA 无法与 CineLark 完成认证，请重新安装 Bridge 以再次配对。";
+"error.bridge_unavailable" = "CineLark IINA Bridge 当前不可用，请启动 IINA 后重试。";
 "error.generic" = "无法完成该请求，请检查网络连接后重试。";
 "error.favorites" = "无法载入收藏，请检查网络连接后重试。";
 "error.person" = "无法载入该人物，请检查网络连接后重试。";

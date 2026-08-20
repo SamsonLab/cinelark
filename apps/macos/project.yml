@@ -29,6 +29,51 @@ targets:
     sources:
       - path: Sources
       - path: Resources
+    preBuildScripts:
+      - name: Build Playback Bridge
+        basedOnDependencyAnalysis: false
+        script: |
+          set -euo pipefail
+          export PATH="$HOME/.cargo/bin:/opt/homebrew/bin:$PATH"
+
+          ROOT="$SRCROOT/../.."
+          CRATE="$ROOT/packages/rust/cinelark-bridge/Cargo.toml"
+          TARGET_DIR="$DERIVED_FILE_DIR/cinelark-bridge"
+          HELPER_DIR="$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH/Helpers"
+          RESOURCE_DIR="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH"
+          mkdir -p "$HELPER_DIR" "$RESOURCE_DIR" "$TARGET_DIR"
+
+          PROFILE_ARG=""
+          PROFILE_DIR="debug"
+          if [[ "$CONFIGURATION" == "Release" ]]; then
+            PROFILE_ARG="--release"
+            PROFILE_DIR="release"
+          fi
+
+          BINARIES=()
+          for ARCH in ${ARCHS:-$(uname -m)}; do
+            case "$ARCH" in
+              arm64) RUST_TARGET="aarch64-apple-darwin" ;;
+              x86_64) RUST_TARGET="x86_64-apple-darwin" ;;
+              *) echo "Unsupported bridge architecture: $ARCH" >&2; exit 1 ;;
+            esac
+            cargo build --locked --manifest-path "$CRATE" --target-dir "$TARGET_DIR" --target "$RUST_TARGET" $PROFILE_ARG
+            BINARIES+=("$TARGET_DIR/$RUST_TARGET/$PROFILE_DIR/cinelark-bridge")
+          done
+
+          if [[ ${#BINARIES[@]} -eq 1 ]]; then
+            cp "${BINARIES[0]}" "$HELPER_DIR/CineLarkBridge"
+          else
+            /usr/bin/lipo -create "${BINARIES[@]}" -output "$HELPER_DIR/CineLarkBridge"
+          fi
+          chmod 755 "$HELPER_DIR/CineLarkBridge"
+
+          rm -f "$RESOURCE_DIR/CineLark.iinaplgz"
+          (cd "$ROOT/plugins/iina" && /usr/bin/zip -q -r "$RESOURCE_DIR/CineLark.iinaplgz" Info.json src)
+
+          if [[ "${CODE_SIGNING_ALLOWED:-YES}" != "NO" && -n "${EXPANDED_CODE_SIGN_IDENTITY:-}" && "${EXPANDED_CODE_SIGN_IDENTITY}" != "-" ]]; then
+            /usr/bin/codesign --force --sign "$EXPANDED_CODE_SIGN_IDENTITY" --options runtime --timestamp=none "$HELPER_DIR/CineLarkBridge"
+          fi
     dependencies:
       - package: CineLarkKit
         product: CineLarkDomain

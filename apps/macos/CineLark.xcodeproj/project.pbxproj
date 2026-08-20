@@ -34,6 +34,7 @@
 		D4A3375820C95BFF5B7AA2F7 /* AppLanguage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3E20D588912F0D88C2F56C8 /* AppLanguage.swift */; };
 		D9A6D26E54F24FD83C78A2CB /* InteractiveStyles.swift in Sources */ = {isa = PBXBuildFile; fileRef = F130F10368D8C9CE780999BB /* InteractiveStyles.swift */; };
 		E0FD14EF20191C638ADD81B9 /* MediaCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A02668E828AF3DF47ADD782D /* MediaCard.swift */; };
+		EF4E62F26D7A69E13E8531B9 /* CineLarkAppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B08A8B1D616822F23271FF8A /* CineLarkAppDelegate.swift */; };
 		F188B954EB4C3636BB951E00 /* FavoritesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE58BCE702D398987224468F /* FavoritesView.swift */; };
 		FB38130CCDF118323233623C /* CineLarkApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF1BEAD272C89D962C8DB178 /* CineLarkApp.swift */; };
 		FB650FF02184DCAD4CB1DED2 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7645BC2B798D0AEDE94D2340 /* RootView.swift */; };
@@ -61,6 +62,7 @@
 		883B64BCA708D6239E86FF3B /* ArtworkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkView.swift; sourceTree = "<group>"; };
 		A02668E828AF3DF47ADD782D /* MediaCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaCard.swift; sourceTree = "<group>"; };
 		B054FB68231FF0E76CF25C1B /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
+		B08A8B1D616822F23271FF8A /* CineLarkAppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CineLarkAppDelegate.swift; sourceTree = "<group>"; };
 		B5976220527170DE4D05D69F /* CineLarkKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = CineLarkKit; path = ../../packages/apple/CineLarkKit; sourceTree = SOURCE_ROOT; };
 		BF267C700713EED89267F34A /* PersonDetailModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonDetailModel.swift; sourceTree = "<group>"; };
 		D053D9E6E0ADD452EA014CE5 /* ContinueWatchingShelf.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContinueWatchingShelf.swift; sourceTree = "<group>"; };
@@ -161,6 +163,7 @@
 			children = (
 				F3E20D588912F0D88C2F56C8 /* AppLanguage.swift */,
 				DF1BEAD272C89D962C8DB178 /* CineLarkApp.swift */,
+				B08A8B1D616822F23271FF8A /* CineLarkAppDelegate.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -196,6 +199,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 93D2E70ECC7D23B201141482 /* Build configuration list for PBXNativeTarget "CineLark" */;
 			buildPhases = (
+				DAD78C1988423037A93AED11 /* Build Playback Bridge */,
 				2BD2F5D99F773CB80FE9680A /* Sources */,
 				CEC9454EB6AD1A75EF31372A /* Resources */,
 				1B912C2AFF344F3822483070 /* Frameworks */,
@@ -266,6 +270,28 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		DAD78C1988423037A93AED11 /* Build Playback Bridge */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Build Playback Bridge";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -euo pipefail\nexport PATH=\"$HOME/.cargo/bin:/opt/homebrew/bin:$PATH\"\n\nROOT=\"$SRCROOT/../..\"\nCRATE=\"$ROOT/packages/rust/cinelark-bridge/Cargo.toml\"\nTARGET_DIR=\"$DERIVED_FILE_DIR/cinelark-bridge\"\nHELPER_DIR=\"$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH/Helpers\"\nRESOURCE_DIR=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH\"\nmkdir -p \"$HELPER_DIR\" \"$RESOURCE_DIR\" \"$TARGET_DIR\"\n\nPROFILE_ARG=\"\"\nPROFILE_DIR=\"debug\"\nif [[ \"$CONFIGURATION\" == \"Release\" ]]; then\n  PROFILE_ARG=\"--release\"\n  PROFILE_DIR=\"release\"\nfi\n\nBINARIES=()\nfor ARCH in ${ARCHS:-$(uname -m)}; do\n  case \"$ARCH\" in\n    arm64) RUST_TARGET=\"aarch64-apple-darwin\" ;;\n    x86_64) RUST_TARGET=\"x86_64-apple-darwin\" ;;\n    *) echo \"Unsupported bridge architecture: $ARCH\" >&2; exit 1 ;;\n  esac\n  cargo build --locked --manifest-path \"$CRATE\" --target-dir \"$TARGET_DIR\" --target \"$RUST_TARGET\" $PROFILE_ARG\n  BINARIES+=(\"$TARGET_DIR/$RUST_TARGET/$PROFILE_DIR/cinelark-bridge\")\ndone\n\nif [[ ${#BINARIES[@]} -eq 1 ]]; then\n  cp \"${BINARIES[0]}\" \"$HELPER_DIR/CineLarkBridge\"\nelse\n  /usr/bin/lipo -create \"${BINARIES[@]}\" -output \"$HELPER_DIR/CineLarkBridge\"\nfi\nchmod 755 \"$HELPER_DIR/CineLarkBridge\"\n\nrm -f \"$RESOURCE_DIR/CineLark.iinaplgz\"\n(cd \"$ROOT/plugins/iina\" && /usr/bin/zip -q -r \"$RESOURCE_DIR/CineLark.iinaplgz\" Info.json src)\n\nif [[ \"${CODE_SIGNING_ALLOWED:-YES}\" != \"NO\" && -n \"${EXPANDED_CODE_SIGN_IDENTITY:-}\" && \"${EXPANDED_CODE_SIGN_IDENTITY}\" != \"-\" ]]; then\n  /usr/bin/codesign --force --sign \"$EXPANDED_CODE_SIGN_IDENTITY\" --options runtime --timestamp=none \"$HELPER_DIR/CineLarkBridge\"\nfi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		2BD2F5D99F773CB80FE9680A /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -276,6 +302,7 @@
 				AD35F8FB63FF52A556814D76 /* ArtworkView.swift in Sources */,
 				7468B21A6B665A46AFC839A1 /* AssetRow.swift in Sources */,
 				FB38130CCDF118323233623C /* CineLarkApp.swift in Sources */,
+				EF4E62F26D7A69E13E8531B9 /* CineLarkAppDelegate.swift in Sources */,
 				0C44B5A2A8EE59306E51572F /* CollectionView.swift in Sources */,
 				8155FA4E5C6FABC1B3BCD74E /* ContinueWatchingShelf.swift in Sources */,
 				ADC1B1396C8B9111A0C77D54 /* FavoritesModel.swift in Sources */,

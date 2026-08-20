@@ -18,11 +18,12 @@ Native Swift 6 / SwiftUI client for the observed UHDNow API.
 - native Icon Composer app icon in `Resources/AppIcon.icon`
 - persistent bounded metadata cache with stale outage fallback
 - Kingfisher artwork pipeline with bounded memory/disk caches and downsampling
-- tokenized playback URL construction and direct opening in IINA
+- tokenized playback URL construction through the bundled Rust/IINA bridge
+- guided IINA plugin installation and Keychain-provisioned bridge pairing
+- post-load resume, transport/state/track telemetry, coalesced progress, and terminal stopped reporting
 
-Direct IINA launch is a temporary degraded playback adapter. Precise resume,
-transport telemetry, and progress reporting require the planned bundled Rust
-Bridge Helper and thin IINA plugin.
+The direct IINA launcher remains available only as a degraded adapter. The
+composition root uses the managed bridge path by default.
 
 Metadata is persisted under `Application Support/CineLark/MetadataCache` and is
 cleared on account transitions. Artwork uses Kingfisher's separate cache under
@@ -53,7 +54,9 @@ swift test --package-path packages/apple/CineLarkKit
 ```
 
 `project.yml` is the source definition for XcodeGen; the generated Xcode project
-is committed so contributors do not need XcodeGen merely to build the app.
+is committed so contributors do not need XcodeGen merely to build the app. App
+builds compile and embed the helper with the pinned Rust toolchain; end users do
+not install Cargo or manage a bridge process.
 
 ## Security
 

@@ -18,6 +18,7 @@ Documents use the following status labels:
 | [ADR-0001](decisions/0001-product-monorepo.md) | Accepted | Product monorepo and external IINA policy |
 | [ADR-0002](decisions/0002-native-macos-flutter-remote.md) | Accepted | Native macOS and cross-platform Remote stacks |
 | [ADR-0003](decisions/0003-bundled-rust-bridge-helper.md) | Accepted direction | Bundled Rust helper and thin IINA adapter |
+| [ADR-0004](decisions/0004-iina-bridge-pairing.md) | Phase 0 accepted | Keychain provisioning, authentication, replay resistance, and threat model |
 
 ## Interfaces
 
@@ -25,7 +26,7 @@ Documents use the following status labels:
 | --- | --- | --- |
 | [Media library provider](interfaces/media-library-provider.md) | Draft | Provider-neutral domain boundary |
 | [Metadata cache](interfaces/metadata-cache.md) | Accepted implementation | Durable metadata and artwork-cache boundaries |
-| [Playback bridge](interfaces/playback-bridge.md) | Draft, security blocked | Mac app ↔ IINA protocol |
+| [Playback bridge](interfaces/playback-bridge.md) | Draft, Phase 0 implemented | Mac app ↔ IINA protocol |
 | [Remote protocol](interfaces/remote-protocol.md) | Draft | Flutter Remote ↔ Mac app protocol |
 | [`specs/common/playback.schema.json`](../specs/common/playback.schema.json) | Draft | Cross-language playback state types |
 | [`specs/bridge/envelope.schema.json`](../specs/bridge/envelope.schema.json) | Draft | Bridge message envelope schema |

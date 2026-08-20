@@ -6,11 +6,15 @@ on:
     paths:
       - "apps/macos/**"
       - "packages/apple/**"
+      - "packages/rust/cinelark-bridge/**"
+      - "plugins/iina/**"
       - ".github/workflows/macos.yml"
   pull_request:
     paths:
       - "apps/macos/**"
       - "packages/apple/**"
+      - "packages/rust/cinelark-bridge/**"
+      - "plugins/iina/**"
       - ".github/workflows/macos.yml"
 
 permissions:

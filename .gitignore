@@ -15,6 +15,9 @@ node_modules/
 dist/
 coverage/
 
+# Rust
+target/
+
 # Flutter / Dart
 .dart_tool/
 .packages

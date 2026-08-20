@@ -1,8 +1,8 @@
 # CineLark Playback Bridge Protocol
 
-- **Status:** Draft
+- **Status:** Draft; Phase 0 implementation available
 - **Protocol version:** 1
-- **Security status:** Blocked pending helper/plugin pairing validation
+- **Security status:** Keychain/HMAC design implemented; signed-build validation pending
 
 The bridge is a provider-neutral protocol carried through a bundled Rust helper
 between CineLark for Mac and the CineLark IINA plugin. It transports opaque
@@ -51,14 +51,17 @@ cannot be stopped through JavaScript.
 7. Authentication failure closes or quarantines the connection and is
    rate-limited.
 
-### Open blocker `BRIDGE-SEC-001`
+### `BRIDGE-SEC-001` Phase 0 resolution
 
-Prototype zero-configuration helper/plugin pairing and document its local
-process threat model before production use. The plugin credential must be
-high-entropy, revocable, stored in IINA-scoped Keychain, and provisioned through
-a one-time user-approved flow. Port discovery and helper restarts must not
-require manual configuration. A short code sent over unauthenticated cleartext
-is not sufficient.
+[ADR-0004](../decisions/0004-iina-bridge-pairing.md) defines the implemented
+pairing and local-process threat model. CineLark provisions a random 256-bit key
+through macOS Keychain for the IINA-prefixed plugin service. IINA's Keychain
+approval prompt is the one-time user authorization step. The key never enters a
+plugin file, preference, process argument, environment variable, or HTTP
+bootstrap response.
+
+Production release remains gated on signed/notarized Keychain ACL validation,
+revocation UI, denial/recovery testing, and stock-IINA lifecycle testing.
 
 ## 4. Envelope
 
@@ -82,8 +85,12 @@ All messages conform to
 - `sessionID` identifies a logical playback session and is omitted only for
   bridge-level messages.
 - `sequence` is monotonically increasing within an authenticated connection.
-- `mac` is calculated using the security design selected for
-  `BRIDGE-SEC-001`; canonicalization is not frozen yet.
+- `mac` is unpadded base64url HMAC-SHA-256 over newline-separated protocol
+  version, ID, type, timestamp, session ID, reply ID, sequence, and recursively
+  key-sorted compact JSON payload.
+- Plugin HTTP requests independently authenticate method, request target,
+  Unix timestamp, and nonce with HMAC-SHA-256. The helper accepts a 30-second
+  clock window and rejects reused nonces.
 - Unknown message types are rejected with `bridge.error` but do not terminate a
   compatible connection.
 
@@ -94,7 +101,7 @@ The example authenticator is synthetic.
 ### `bridge.hello`
 
 Negotiates protocol and implementation versions and proves possession of the
-pairing key. Exact payload is blocked by `BRIDGE-SEC-001`.
+Keychain-provisioned pairing key through both request and envelope HMACs.
 
 ### `player.play`
 
@@ -160,8 +167,10 @@ A state snapshot contains no playback URL and maps to the shared semantics in
 }
 ```
 
-The plugin may emit position changes frequently. The Coordinator throttles
-external provider writes independently.
+The plugin samples position every second and emits at most once every two
+seconds. The Coordinator currently coalesces provider progress writes to a
+10-second cadence and sends a terminal stopped update on EOF, close, stop, or
+session replacement.
 
 ## 7. IINA mapping
 

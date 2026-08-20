@@ -145,6 +145,11 @@
 "error.unsupported" = "This action is not supported by the provider. Choose another action.";
 "error.iina_missing" = "IINA is not installed. Install IINA to play this item.";
 "error.iina_launch" = "Unable to open this item in IINA. Try again.";
+"error.iina_plugin_install" = "CineLark opened the IINA Bridge installer. Approve the installation, then play again.";
+"error.iina_plugin_unavailable" = "The CineLark IINA Bridge is not enabled. Enable it in IINA, then try again.";
+"error.bridge_helper" = "CineLark could not start its bundled playback helper. Reinstall CineLark, then try again.";
+"error.bridge_authentication" = "IINA could not authenticate with CineLark. Reinstall the bridge to pair it again.";
+"error.bridge_unavailable" = "The CineLark IINA Bridge is unavailable. Start IINA and try again.";
 "error.generic" = "Unable to complete the request. Check your connection and try again.";
 "error.favorites" = "Unable to load favorites. Check your connection and try again.";
 "error.person" = "Unable to load this person. Check your connection and try again.";

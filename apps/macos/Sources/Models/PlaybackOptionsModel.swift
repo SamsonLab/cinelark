@@ -90,6 +90,7 @@ final class PlaybackOptionsModel {
         defer { isPlaying = false }
         do {
             try await playback.play(
+                item: context.item,
                 asset: selectedAsset,
                 title: context.title,
                 startPositionSeconds: context.startPositionSeconds

@@ -71,6 +71,7 @@ final class AppModel {
     }
 
     func signOut() async {
+        await playback.stop()
         await provider.signOut()
         hotItems = []
         continueWatching = []
@@ -179,6 +180,10 @@ final class AppModel {
             present(error)
         }
         playingItemID = nil
+    }
+
+    func prepareForTermination() async {
+        await playback.stop()
     }
 
     func dismissError() {

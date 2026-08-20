@@ -1,0 +1,17 @@
+{
+  "description": "Synthetic cross-runtime HMAC-SHA-256 vector for ADR-0004.",
+  "secretBase64URL": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc",
+  "envelope": {
+    "protocolVersion": 1,
+    "id": "4ff6c27e-1415-473f-8764-451d6a3369cb",
+    "type": "player.requestState",
+    "sentAt": "2026-08-20T03:09:00Z",
+    "sessionID": "6f55936d-5950-44fd-a696-f989d41785cc",
+    "sequence": 42,
+    "payload": {
+      "z": [2, 1],
+      "a": true
+    },
+    "mac": "MJSUf0t2XseeHfgYLbOFp7x5kIYnV5OT_oBWOhfQovc"
+  }
+}

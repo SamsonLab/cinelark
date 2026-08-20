@@ -7,6 +7,7 @@ import CineLarkUHDNow
 @main
 @MainActor
 struct CineLarkApp: App {
+    @NSApplicationDelegateAdaptor(CineLarkAppDelegate.self) private var appDelegate
     @AppStorage(AppLanguage.storageKey) private var storedLanguage = AppLanguage.systemDefault.rawValue
     @State private var model: AppModel
 
@@ -21,7 +22,7 @@ struct CineLarkApp: App {
             cache: metadataCache,
             namespace: "uhdnow-v1"
         )
-        let launcher = DirectIINAPlaybackLauncher()
+        let launcher = ManagedIINAPlaybackLauncher()
         _model = State(
             initialValue: AppModel(provider: provider, launcher: launcher)
         )
@@ -33,6 +34,11 @@ struct CineLarkApp: App {
                 .environment(\.appLanguage, language)
                 .environment(\.locale, language.locale)
                 .frame(minWidth: 960, minHeight: 640)
+                .task {
+                    appDelegate.prepareForTermination = { [weak model] in
+                        await model?.prepareForTermination()
+                    }
+                }
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1440, height: 900)
