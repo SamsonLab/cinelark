@@ -187,12 +187,16 @@ private struct MediaSortToolbar: ToolbarContent {
     @Binding var order: MediaSort.Order
 
     var body: some ToolbarContent {
+        #if compiler(>=6.2)
         if #available(macOS 26.0, *) {
             toolbarItem
                 .sharedBackgroundVisibility(.hidden)
         } else {
             toolbarItem
         }
+        #else
+        toolbarItem
+        #endif
     }
 
     private var toolbarItem: some ToolbarContent {
