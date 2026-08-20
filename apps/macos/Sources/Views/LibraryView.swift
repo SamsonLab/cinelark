@@ -17,72 +17,57 @@ struct LibraryView: View {
 
     var body: some View {
         NavigationSplitView {
-            List(selection: $selection) {
-                Section {
-                    NavigationLink(value: LibrarySelection.home) {
-                        Label(
-                            language.localized("nav.home"),
-                            systemImage: selection == .home ? "house.fill" : "house"
-                        )
+            VStack(spacing: 0) {
+                List(selection: $selection) {
+                    Section {
+                        NavigationLink(value: LibrarySelection.home) {
+                            Label(
+                                language.localized("nav.home"),
+                                systemImage: selection == .home ? "house.fill" : "house"
+                            )
+                        }
+                        NavigationLink(value: LibrarySelection.movies) {
+                            Label(
+                                language.localized("nav.movies"),
+                                systemImage: selection == .movies ? "film.stack.fill" : "film.stack"
+                            )
+                        }
+                        NavigationLink(value: LibrarySelection.series) {
+                            Label(
+                                language.localized("nav.series"),
+                                systemImage: selection == .series ? "tv.fill" : "tv"
+                            )
+                        }
+                        NavigationLink(value: LibrarySelection.favorites) {
+                            Label(
+                                language.localized("nav.favorites"),
+                                systemImage: selection == .favorites ? "heart.fill" : "heart"
+                            )
+                        }
+                        NavigationLink(value: LibrarySelection.search) {
+                            Label(language.localized("nav.search"), systemImage: "magnifyingglass")
+                        }
                     }
-                    NavigationLink(value: LibrarySelection.movies) {
-                        Label(
-                            language.localized("nav.movies"),
-                            systemImage: selection == .movies ? "film.stack.fill" : "film.stack"
-                        )
-                    }
-                    NavigationLink(value: LibrarySelection.series) {
-                        Label(
-                            language.localized("nav.series"),
-                            systemImage: selection == .series ? "tv.fill" : "tv"
-                        )
-                    }
-                    NavigationLink(value: LibrarySelection.favorites) {
-                        Label(
-                            language.localized("nav.favorites"),
-                            systemImage: selection == .favorites ? "heart.fill" : "heart"
-                        )
-                    }
-                    NavigationLink(value: LibrarySelection.search) {
-                        Label(language.localized("nav.search"), systemImage: "magnifyingglass")
-                    }
-                }
 
-                if !model.collections.isEmpty {
-                    Section(language.localized("nav.collections")) {
-                        ForEach(model.collections) { collection in
-                            NavigationLink(value: LibrarySelection.collection(collection.id)) {
-                                Label(
-                                    collection.name,
-                                    systemImage: selection == .collection(collection.id)
-                                        ? "rectangle.stack.fill"
-                                        : "rectangle.stack"
-                                )
+                    if !model.collections.isEmpty {
+                        Section(language.localized("nav.collections")) {
+                            ForEach(model.collections) { collection in
+                                NavigationLink(value: LibrarySelection.collection(collection.id)) {
+                                    Label(
+                                        collection.name,
+                                        systemImage: selection == .collection(collection.id)
+                                            ? "rectangle.stack.fill"
+                                            : "rectangle.stack"
+                                    )
+                                }
                             }
                         }
                     }
                 }
+
+                sidebarFooter
             }
             .navigationTitle("CineLark")
-            .safeAreaInset(edge: .bottom) {
-                VStack(alignment: .leading, spacing: 12) {
-                    Divider()
-                    LanguageMenu()
-                        .menuStyle(.borderlessButton)
-                    Button {
-                        Task { await model.signOut() }
-                    } label: {
-                        Label(
-                            language.localized("nav.sign_out"),
-                            systemImage: "rectangle.portrait.and.arrow.right"
-                        )
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-                }
-                .padding()
-            }
         } detail: {
             NavigationStack {
                 destination
@@ -109,6 +94,30 @@ struct LibraryView: View {
             Button(language.localized("general.dismiss"), role: .cancel) { model.dismissError() }
         } message: {
             Text(language.userFacingError(model.errorMessage))
+        }
+    }
+
+    private var sidebarFooter: some View {
+        VStack(spacing: 0) {
+            Divider()
+
+            VStack(alignment: .leading, spacing: 12) {
+                LanguageMenu()
+                    .menuStyle(.borderlessButton)
+
+                Button {
+                    Task { await model.signOut() }
+                } label: {
+                    Label(
+                        language.localized("nav.sign_out"),
+                        systemImage: "rectangle.portrait.and.arrow.right"
+                    )
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+            }
+            .padding(16)
         }
     }
 

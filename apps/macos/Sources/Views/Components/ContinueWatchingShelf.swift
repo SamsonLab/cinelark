@@ -25,7 +25,9 @@ struct ContinueWatchingShelf: View {
                         .disabled(model.playingItemID != nil)
                     }
                 }
-                .padding(.vertical, 4)
+                .padding(.horizontal, 10)
+                .padding(.top, 14)
+                .padding(.bottom, 18)
             }
             .scrollIndicators(.hidden)
         }
@@ -33,8 +35,10 @@ struct ContinueWatchingShelf: View {
 }
 
 private struct ContinueWatchingCard: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let item: ContinueWatchingItem
     let isPlaying: Bool
+    @State private var isHovering = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -47,9 +51,18 @@ private struct ContinueWatchingCard: View {
                             .stroke(Color.white.opacity(0.10))
                             .allowsHitTesting(false)
                     }
+                    .shadow(
+                        color: .black.opacity(isHovering ? 0.42 : 0.24),
+                        radius: isHovering ? 18 : 12,
+                        y: isHovering ? 9 : 6
+                    )
 
                 Circle()
-                    .fill(.black.opacity(0.68))
+                    .fill(
+                        isHovering
+                            ? Color.accentColor.opacity(0.88)
+                            : Color.black.opacity(0.68)
+                    )
                     .frame(width: 54, height: 54)
                     .overlay {
                         if isPlaying {
@@ -80,5 +93,13 @@ private struct ContinueWatchingCard: View {
                     .lineLimit(1)
             }
         }
+        .contentShape(Rectangle())
+        .scaleEffect(isHovering && !reduceMotion ? 1.008 : 1)
+        .offset(y: isHovering && !reduceMotion ? -1 : 0)
+        .onHover { isHovering = $0 }
+        .animation(
+            reduceMotion ? nil : .easeOut(duration: 0.12),
+            value: isHovering
+        )
     }
 }

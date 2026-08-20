@@ -187,6 +187,15 @@ private struct MediaSortToolbar: ToolbarContent {
     @Binding var order: MediaSort.Order
 
     var body: some ToolbarContent {
+        if #available(macOS 26.0, *) {
+            toolbarItem
+                .sharedBackgroundVisibility(.hidden)
+        } else {
+            toolbarItem
+        }
+    }
+
+    private var toolbarItem: some ToolbarContent {
         ToolbarItem(placement: .primaryAction) {
             HStack(spacing: 4) {
                 SortFieldPickerButton(field: $field)
@@ -222,6 +231,12 @@ private struct MediaSortToolbar: ToolbarContent {
             }
             .padding(.horizontal, 4)
             .frame(height: 44, alignment: .center)
+            .background(.ultraThinMaterial, in: Capsule())
+            .overlay {
+                Capsule()
+                    .stroke(Color.white.opacity(0.14), lineWidth: 1)
+                    .allowsHitTesting(false)
+            }
             .fixedSize()
         }
     }
