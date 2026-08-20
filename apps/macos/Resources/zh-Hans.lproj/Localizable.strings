@@ -146,6 +146,7 @@
 "error.unavailable" = "服务目前不可用，请检查网络连接后重试。";
 "error.unsupported" = "服务提供方不支持此操作，请选择其他操作。";
 "error.iina_missing" = "尚未安装 IINA，请安装后再播放。";
+"error.download_iina" = "下载 IINA";
 "error.iina_launch" = "无法在 IINA 中打开此内容，请重试。";
 "error.iina_plugin_install" = "CineLark 已打开 IINA Bridge 安装器，请确认安装或更新后再次播放。";
 "error.iina_plugin_unavailable" = "CineLark IINA Bridge 尚未启用，请在 IINA 中启用后重试。";

@@ -38,12 +38,29 @@ fi
 APP_EXECUTABLE="$APP_PATH/Contents/MacOS/CineLark"
 BRIDGE_EXECUTABLE="$APP_PATH/Contents/Helpers/CineLarkBridge"
 PLUGIN_ARCHIVE="$APP_PATH/Contents/Resources/CineLark.iinaplgz"
-for required_path in "$APP_EXECUTABLE" "$BRIDGE_EXECUTABLE" "$PLUGIN_ARCHIVE"; do
+APP_ICON="$APP_PATH/Contents/Resources/AppIcon.icns"
+ASSET_CATALOG="$APP_PATH/Contents/Resources/Assets.car"
+for required_path in \
+  "$APP_EXECUTABLE" \
+  "$BRIDGE_EXECUTABLE" \
+  "$PLUGIN_ARCHIVE" \
+  "$APP_ICON" \
+  "$ASSET_CATALOG"; do
   if [[ ! -e "$required_path" ]]; then
     echo "Release bundle is incomplete: $required_path" >&2
     exit 66
   fi
 done
+
+ICON_NAME=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconName' "$APP_PATH/Contents/Info.plist")
+if [[ "$ICON_NAME" != "AppIcon" ]]; then
+  echo "Release bundle does not reference the compiled AppIcon: $ICON_NAME" >&2
+  exit 65
+fi
+if [[ -d "$APP_PATH/Contents/Resources/AppIcon.icon" ]]; then
+  echo "Icon Composer source was copied instead of compiled; use Xcode 26 or later" >&2
+  exit 65
+fi
 
 verify_universal() {
   local executable=$1

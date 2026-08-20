@@ -94,6 +94,11 @@ struct LibraryView: View {
                 set: { if !$0 { model.dismissError() } }
             )
         ) {
+            if model.errorRecovery == .installIINA {
+                Button(language.localized("error.download_iina")) {
+                    model.performErrorRecovery()
+                }
+            }
             Button(language.localized("general.dismiss"), role: .cancel) { model.dismissError() }
         } message: {
             Text(language.userFacingError(model.errorMessage))

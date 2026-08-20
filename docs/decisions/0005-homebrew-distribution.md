@@ -34,10 +34,13 @@ Release automation will:
 4. publish the DMG and its SHA-256 digest to GitHub Releases; and
 5. update the project Homebrew Cask through a protected tap token.
 
-The Cask depends on the official IINA Cask and removes quarantine recursively
-from the installed CineLark bundle. The IINA plugin remains an explicit,
-first-use installation so its permissions and Keychain authorization stay
-visible to the user.
+The Cask removes quarantine recursively from the installed CineLark bundle. It
+does not declare IINA as a hard Cask dependency because Homebrew cannot
+recognize an existing manually installed `/Applications/IINA.app`; forcing the
+dependency would fail or overwrite that installation. CineLark detects a
+missing IINA installation at playback time and links to the official download.
+The IINA plugin remains an explicit, first-use installation so its permissions
+and Keychain authorization stay visible to the user.
 
 The signing certificate and tap token are GitHub Actions secrets. They must
 never be committed. The signing identity is backed up in the maintainer's

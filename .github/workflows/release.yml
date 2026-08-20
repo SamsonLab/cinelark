@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   macos:
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v5
 
@@ -106,6 +106,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          xcodebuild -version
           xcodebuild \
             -project apps/macos/CineLark.xcodeproj \
             -scheme CineLark \
@@ -199,7 +200,6 @@ jobs:
             desc "TV-first media library client using IINA for playback"
             homepage "https://github.com/SamsonLab/cinelark"
 
-            depends_on cask: "iina"
             depends_on macos: :sonoma
 
             app "CineLark.app"
@@ -215,6 +215,11 @@ jobs:
               "~/Library/Preferences/com.samsonlab.cinelark.plist",
               "~/Library/Saved Application State/com.samsonlab.cinelark.savedState",
             ]
+
+            caveats <<~EOS
+              CineLark requires IINA for playback. If IINA is not already installed:
+                brew install --cask iina
+            EOS
           end
           CASK
 

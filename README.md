@@ -53,11 +53,16 @@ docs/             product, architecture, integration, and decision records
 
 ## Install
 
-CineLark requires macOS 14 or later. The project Cask installs IINA as a
-dependency:
+CineLark requires macOS 14 or later and uses an existing IINA installation:
 
 ```sh
 brew install --cask samsonlab/cinelark/cinelark
+```
+
+If IINA is not installed yet:
+
+```sh
+brew install --cask iina
 ```
 
 Tagged releases use a stable project-controlled self-signed identity rather

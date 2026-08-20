@@ -146,6 +146,7 @@
 "error.unavailable" = "The provider is unavailable. Check your connection and try again.";
 "error.unsupported" = "This action is not supported by the provider. Choose another action.";
 "error.iina_missing" = "IINA is not installed. Install IINA to play this item.";
+"error.download_iina" = "Download IINA";
 "error.iina_launch" = "Unable to open this item in IINA. Try again.";
 "error.iina_plugin_install" = "CineLark opened the IINA Bridge installer. Approve the installation or update, then play again.";
 "error.iina_plugin_unavailable" = "The CineLark IINA Bridge is not enabled. Enable it in IINA, then try again.";

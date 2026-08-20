@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Observation
 import CineLarkDomain
@@ -6,6 +7,10 @@ import CineLarkPlayback
 @Observable
 @MainActor
 final class AppModel {
+    enum ErrorRecovery: Equatable {
+        case installIINA
+    }
+
     private struct CollectionQuery: Hashable {
         let collectionID: String
         let sort: MediaSort
@@ -36,6 +41,7 @@ final class AppModel {
     private(set) var isLoadingHome = false
     private(set) var isSearching = false
     private(set) var playingItemID: String?
+    private(set) var errorRecovery: ErrorRecovery?
     var errorMessage: String?
 
     @ObservationIgnored private var suppressesPlaybackRefresh = false
@@ -288,6 +294,14 @@ final class AppModel {
 
     func dismissError() {
         errorMessage = nil
+        errorRecovery = nil
+    }
+
+    func performErrorRecovery() {
+        guard errorRecovery == .installIINA,
+              let url = URL(string: "https://iina.io/download/") else { return }
+        dismissError()
+        NSWorkspace.shared.open(url)
     }
 
     private func handleAuthenticated(_ error: Error) {
@@ -300,11 +314,15 @@ final class AppModel {
     }
 
     private func present(_ error: Error) {
+        errorRecovery = nil
         switch error {
         case let providerError as ProviderError:
             errorMessage = providerError.errorDescription
         case let playbackError as PlaybackLaunchError:
             errorMessage = playbackError.errorDescription
+            if case .iinaNotInstalled = playbackError {
+                errorRecovery = .installIINA
+            }
         default:
             errorMessage = "CineLark could not complete the request."
         }
