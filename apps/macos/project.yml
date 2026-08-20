@@ -1,0 +1,44 @@
+name: CineLark
+options:
+  createIntermediateGroups: true
+  deploymentTarget:
+    macOS: "14.0"
+packages:
+  CineLarkKit:
+    path: ../../packages/apple/CineLarkKit
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    CLANG_ENABLE_MODULES: true
+    ENABLE_HARDENED_RUNTIME: true
+    CODE_SIGN_STYLE: Automatic
+    MARKETING_VERSION: 0.1.0
+    CURRENT_PROJECT_VERSION: 1
+targets:
+  CineLark:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources
+    dependencies:
+      - package: CineLarkKit
+        product: CineLarkDomain
+      - package: CineLarkKit
+        product: CineLarkUHDNow
+      - package: CineLarkKit
+        product: CineLarkPersistence
+      - package: CineLarkKit
+        product: CineLarkPlayback
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.samsonlab.cinelark
+        PRODUCT_NAME: CineLark
+        GENERATE_INFOPLIST_FILE: true
+        INFOPLIST_KEY_CFBundleDisplayName: CineLark
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.entertainment
+        INFOPLIST_KEY_NSPrincipalClass: NSApplication
+        INFOPLIST_KEY_NSHumanReadableCopyright: Copyright © 2026 SamsonLab
+        ENABLE_PREVIEWS: true
+    scheme:
+      gatherCoverageData: true

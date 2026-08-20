@@ -4,7 +4,7 @@ CineLark is a TV-first media library client for macOS. It presents a focused,
 remote-friendly browsing experience and delegates playback to IINA/mpv through
 an optional thin bridge plugin.
 
-> **Status:** pre-alpha; product and interface specifications only.
+> **Status:** pre-alpha; the native macOS UHDNow vertical slice is now implemented.
 
 ## Product family
 
@@ -50,6 +50,16 @@ shared/           generated-code policy, design tokens, and brand assets
 fixtures/         synthetic, redacted test fixtures only
 docs/             product, architecture, integration, and decision records
 ```
+
+## Development
+
+```sh
+open apps/macos/CineLark.xcodeproj
+swift test --package-path packages/apple/CineLarkKit
+```
+
+See [`apps/macos/README.md`](apps/macos/README.md) for implemented capabilities
+and build details.
 
 ## Specifications
 
