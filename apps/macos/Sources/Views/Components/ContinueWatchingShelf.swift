@@ -2,11 +2,12 @@ import SwiftUI
 import CineLarkDomain
 
 struct ContinueWatchingShelf: View {
+    @Environment(\.appLanguage) private var language
     @Bindable var model: AppModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Continue Watching")
+            Text(language.localized("home.continue_watching"))
                 .font(.title2.bold())
 
             ScrollView(.horizontal) {

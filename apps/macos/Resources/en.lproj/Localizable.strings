@@ -1,0 +1,144 @@
+"language.label" = "Language";
+"language.help" = "Change the interface language";
+"general.ok" = "OK";
+"general.refresh" = "Refresh";
+
+"root.opening" = "Opening CineLark…";
+
+"nav.home" = "Home";
+"nav.movies" = "Movies";
+"nav.series" = "TV Series";
+"nav.favorites" = "Favorites";
+"nav.search" = "Search";
+"nav.collections" = "Collections";
+"nav.sign_out" = "Sign Out";
+"nav.collection_unavailable" = "Collection unavailable";
+
+"home.subtitle" = "Continue watching or find something new.";
+"home.loading" = "Loading your library…";
+"home.popular_now" = "Popular Now";
+"home.collection_help" = "Choose a collection from the sidebar to browse its full library.";
+"home.continue_watching" = "Continue Watching";
+
+"login.tagline" = "Your library, ready for the big screen.";
+"login.username" = "UHDNow username";
+"login.password" = "Password";
+"login.use_totp" = "Use a TOTP code";
+"login.totp" = "6-digit code";
+"login.signing_in" = "Signing In…";
+"login.sign_in" = "Sign In";
+
+"category.no_movie_collections" = "No movie collections";
+"category.no_series_collections" = "No TV series collections";
+"category.no_collections_description" = "The provider did not return a matching collection.";
+"collection.loading" = "Loading %@…";
+"collection.empty" = "No items";
+"collection.empty_description" = "This collection is currently empty.";
+"sort.label" = "Sort by";
+"sort.release_date" = "Release Date";
+"sort.name" = "Name";
+"sort.rating" = "Rating";
+"sort.updated_date" = "Updated Date";
+"sort.asset_updated" = "Asset Updated";
+"sort.popularity" = "Popularity";
+"sort.ascending" = "Ascending";
+"sort.descending" = "Descending";
+"sort.ascending_help" = "Sort ascending";
+"sort.descending_help" = "Sort descending";
+
+"detail.season_count_one" = "%@ season";
+"detail.season_count_many" = "%@ seasons";
+"detail.favorite" = "Favorited";
+"detail.add_favorite" = "Add to Favorites";
+"detail.versions" = "Versions";
+"detail.loading_versions" = "Loading versions…";
+"detail.no_versions" = "No playable version is currently available.";
+"detail.episodes" = "Episodes";
+"detail.season" = "Season";
+"detail.loading_episodes" = "Loading episodes…";
+"detail.cast_crew" = "Cast & Crew";
+"episode.number" = "Episode %@";
+"episode.version_one" = "%@ version";
+"episode.version_many" = "%@ versions";
+
+"asset.audio_count" = "%@ audio";
+"asset.subtitle_count" = "%@ subtitles";
+"asset.options" = "Options";
+
+"playback.loading" = "Loading available versions…";
+"playback.none" = "No playable versions";
+"playback.none_description" = "The provider returned no media assets.";
+"playback.title" = "PLAYBACK OPTIONS";
+"playback.media_versions" = "Media Versions";
+"playback.available_count" = "%@ available";
+"playback.copy_playback" = "Copy Playback Link";
+"playback.copy_download" = "Copy Download Link";
+"playback.open_download" = "Download in Browser";
+"playback.link_help" = "Playback and download links";
+"playback.hide_details" = "Hide version details";
+"playback.show_details" = "Show version details";
+"playback.download_notice" = "Download links are short-lived and exposed only when requested.";
+"playback.play" = "Play";
+"playback.container" = "Container";
+"playback.codec" = "Codec";
+"playback.profile" = "Profile";
+"playback.dimensions" = "Dimensions";
+"playback.frame_rate" = "Frame Rate";
+"playback.pixel_format" = "Pixel Format";
+"playback.dynamic_range" = "Dynamic Range";
+"playback.color" = "Color";
+"playback.video_bitrate" = "Video Bitrate";
+"playback.total_bitrate" = "Total Bitrate";
+"playback.file_size" = "File Size";
+"playback.duration" = "Duration";
+"playback.audio" = "Audio: %@";
+"playback.subtitles" = "Subtitles: %@";
+
+"favorites.my_library" = "My Library";
+"favorites.title" = "Favorites";
+"favorites.summary" = "%@ titles · %@ people";
+"favorites.type" = "Favorite type";
+"favorites.series" = "TV Series";
+"favorites.movies" = "Movies";
+"favorites.people" = "People";
+"favorites.loading" = "Loading favorites…";
+"favorites.no_series" = "No favorite TV series";
+"favorites.no_movies" = "No favorite movies";
+"favorites.no_media_description" = "Titles you favorite will appear here.";
+"favorites.no_people" = "No favorite people";
+"favorites.no_people_description" = "Cast and crew you favorite will appear here.";
+
+"person.loading" = "Loading works…";
+"person.no_works" = "No works available";
+"person.no_works_description" = "The provider returned no linked titles.";
+"person.works" = "Works  %@";
+"person.cast_crew" = "CAST & CREW";
+"person.appears_one" = "Appears in %@ title";
+"person.appears_many" = "Appears in %@ titles";
+
+"search.empty" = "Search your library";
+"search.empty_description" = "Find movies and TV series by title.";
+"search.searching" = "Searching…";
+"search.prompt" = "Movies and TV";
+
+"duration.hours_minutes" = "%@h %@m";
+"duration.minutes" = "%@m";
+
+"error.unauthenticated" = "Please sign in to continue.";
+"error.invalid_credentials" = "The username, password, or TOTP code was not accepted.";
+"error.session_expired" = "Your session has expired. Please sign in again.";
+"error.forbidden" = "This account cannot access the requested content.";
+"error.not_found" = "The requested content is no longer available.";
+"error.rate_limited" = "Too many requests. Please try again shortly.";
+"error.invalid_request" = "CineLark could not create a valid provider request.";
+"error.invalid_response" = "The provider returned data CineLark could not understand.";
+"error.unavailable" = "The provider is currently unavailable.";
+"error.unsupported" = "This provider capability is not supported yet.";
+"error.iina_missing" = "IINA is not installed. Install IINA to play this item.";
+"error.iina_launch" = "CineLark could not open this item in IINA.";
+"error.generic" = "CineLark could not complete the request.";
+"error.favorites" = "CineLark could not load favorites.";
+"error.person" = "CineLark could not load this person.";
+"error.playback_options" = "CineLark could not prepare this version.";
+"error.copy_link" = "CineLark could not copy the link.";
+"error.open_download" = "CineLark could not open the download link.";

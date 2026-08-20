@@ -10,27 +10,40 @@ struct ArtworkView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            if let url {
-                KFImage(url)
-                    .targetCache(CineLarkImagePipeline.cache)
-                    .setProcessor(
-                        DownsamplingImageProcessor(
-                            size: bucketedPixelSize(for: proxy.size)
+            ZStack {
+                unavailablePlaceholder(size: proxy.size)
+
+                if let url {
+                    KFImage(url)
+                        .targetCache(CineLarkImagePipeline.cache)
+                        .setProcessor(
+                            DownsamplingImageProcessor(
+                                size: bucketedPixelSize(for: proxy.size)
+                            )
                         )
-                    )
-                    .loadDiskFileSynchronously(false)
-                    .fade(duration: 0.15)
-                    .cancelOnDisappear(true)
-                    .placeholder {
-                        placeholder
-                            .overlay { ProgressView().controlSize(.small) }
-                    }
-                    .onFailureView { placeholder }
-                    .resizable()
-                    .aspectRatio(contentMode: contentMode)
-            } else {
-                placeholder
+                        .loadDiskFileSynchronously(false)
+                        .fade(duration: 0.15)
+                        .cancelOnDisappear(true)
+                        .placeholder {
+                            loadingPlaceholder(size: proxy.size)
+                        }
+                        .onFailureView {
+                            unavailablePlaceholder(size: proxy.size)
+                        }
+                        .resizable()
+                        .aspectRatio(contentMode: contentMode)
+                        .frame(
+                            width: proxy.size.width,
+                            height: proxy.size.height
+                        )
+                        .clipped()
+                }
             }
+            .frame(
+                width: proxy.size.width,
+                height: proxy.size.height
+            )
+            .clipped()
         }
     }
 
@@ -46,16 +59,31 @@ struct ArtworkView: View {
         return min(max(ceil(value / bucketSize) * bucketSize, bucketSize), 4_096)
     }
 
-    private var placeholder: some View {
-        ZStack {
-            LinearGradient(
-                colors: [Color.white.opacity(0.12), Color.white.opacity(0.04)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            Image(systemName: placeholderSystemImage)
-                .font(.system(size: 28))
-                .foregroundStyle(.secondary)
-        }
+    private func loadingPlaceholder(size: CGSize) -> some View {
+        placeholderBackground
+            .overlay {
+                ProgressView()
+                    .controlSize(.small)
+                    .tint(.secondary)
+            }
+            .frame(width: size.width, height: size.height)
+    }
+
+    private func unavailablePlaceholder(size: CGSize) -> some View {
+        placeholderBackground
+            .overlay {
+                Image(systemName: placeholderSystemImage)
+                    .font(.system(size: 26, weight: .medium))
+                    .foregroundStyle(.tertiary)
+            }
+            .frame(width: size.width, height: size.height)
+    }
+
+    private var placeholderBackground: some View {
+        LinearGradient(
+            colors: [Color.white.opacity(0.11), Color.white.opacity(0.035)],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
     }
 }

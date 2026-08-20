@@ -2,6 +2,7 @@ import SwiftUI
 import CineLarkDomain
 
 struct PlaybackOptionsView: View {
+    @Environment(\.appLanguage) private var language
     @Environment(\.dismiss) private var dismiss
     @State private var model: PlaybackOptionsModel
 
@@ -21,14 +22,14 @@ struct PlaybackOptionsView: View {
 
             Group {
                 if model.isLoading && model.assets.isEmpty {
-                    ProgressView("Loading available versions…")
+                    ProgressView(language.localized("playback.loading"))
                         .controlSize(.large)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if model.assets.isEmpty {
                     ContentUnavailableView(
-                        "No playable versions",
+                        language.localized("playback.none"),
                         systemImage: "film.stack",
-                        description: Text("The provider returned no media assets.")
+                        description: Text(language.localized("playback.none_description"))
                     )
                 } else {
                     versionContent
@@ -47,9 +48,9 @@ struct PlaybackOptionsView: View {
                 set: { if !$0 { model.dismissError() } }
             )
         ) {
-            Button("OK", role: .cancel) { model.dismissError() }
+            Button(language.localized("general.ok"), role: .cancel) { model.dismissError() }
         } message: {
-            Text(model.errorMessage ?? "")
+            Text(language.userFacingError(model.errorMessage))
         }
     }
 
@@ -73,7 +74,7 @@ struct PlaybackOptionsView: View {
                 }
 
             VStack(alignment: .leading, spacing: 7) {
-                Text("PLAYBACK OPTIONS")
+                Text(language.localized("playback.title"))
                     .font(.caption.weight(.bold))
                     .foregroundStyle(.orange)
                 Text(model.context.title)
@@ -86,22 +87,18 @@ struct PlaybackOptionsView: View {
                 }
             }
             .padding(28)
-
-            VStack {
-                HStack {
-                    Spacer()
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.title3.bold())
-                            .frame(width: 38, height: 38)
-                    }
-                    .buttonStyle(.bordered)
-                    .buttonBorderShape(.circle)
-                }
-                Spacer()
+        }
+        .frame(height: 260)
+        .overlay(alignment: .topTrailing) {
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.title3.bold())
+                    .frame(width: 38, height: 38)
             }
+            .buttonStyle(.bordered)
+            .buttonBorderShape(.circle)
             .padding(18)
         }
     }
@@ -109,10 +106,12 @@ struct PlaybackOptionsView: View {
     private var versionContent: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack {
-                Text("Media Versions")
+                Text(language.localized("playback.media_versions"))
                     .font(.title2.bold())
                 Spacer()
-                Text("\(model.assets.count) available")
+                Text(
+                    language.localized("playback.available_count", String(model.assets.count))
+                )
                     .foregroundStyle(.secondary)
             }
 
@@ -144,7 +143,7 @@ struct PlaybackOptionsView: View {
 
             HStack {
                 Label(
-                    "Download links are short-lived and copied only when requested.",
+                    language.localized("playback.download_notice"),
                     systemImage: "lock.shield"
                 )
                 .font(.caption)
@@ -165,7 +164,7 @@ struct PlaybackOptionsView: View {
                     } else {
                         Image(systemName: "play.fill")
                     }
-                    Text("Play")
+                    Text(language.localized("playback.play"))
                     if let selectedAsset = model.selectedAsset {
                         Text("· \(selectedAsset.displayName)")
                             .foregroundStyle(.secondary)
@@ -183,6 +182,7 @@ struct PlaybackOptionsView: View {
 }
 
 private struct VersionCard: View {
+    @Environment(\.appLanguage) private var language
     let asset: MediaAsset
     let isSelected: Bool
     let isExpanded: Bool
@@ -215,7 +215,7 @@ private struct VersionCard: View {
                             Text(size.cineLarkByteCount)
                         }
                         if let duration = asset.durationSeconds {
-                            Text(duration.cineLarkDuration)
+                            Text(language.duration(duration))
                         }
                     }
                     .font(.caption)
@@ -226,35 +226,56 @@ private struct VersionCard: View {
 
                 Menu {
                     Button(action: onCopyPlayback) {
-                        Label("Copy Playback Link", systemImage: "doc.on.doc")
+                        Label(
+                            language.localized("playback.copy_playback"),
+                            systemImage: "doc.on.doc"
+                        )
                     }
                     Button(action: onCopyDownload) {
-                        Label("Copy Download Link", systemImage: "link")
+                        Label(
+                            language.localized("playback.copy_download"),
+                            systemImage: "link"
+                        )
                     }
                     .disabled(asset.downloadPath == nil)
                     Divider()
                     Button(action: onOpenDownload) {
-                        Label("Download in Browser", systemImage: "arrow.down.circle")
+                        Label(
+                            language.localized("playback.open_download"),
+                            systemImage: "arrow.down.circle"
+                        )
                     }
                     .disabled(asset.downloadPath == nil)
                 } label: {
-                    if isResolvingLink {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        Image(systemName: didCopyLink ? "checkmark" : "doc.on.doc")
+                    Group {
+                        if isResolvingLink {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Image(systemName: didCopyLink ? "checkmark" : "doc.on.doc")
+                        }
                     }
+                    .frame(width: 34, height: 32)
+                    .cineLarkHoverSurface(cornerRadius: 9)
                 }
                 .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
                 .fixedSize()
                 .disabled(isResolvingLink)
-                .help("Playback and download links")
+                .help(language.localized("playback.link_help"))
 
                 Button(action: onToggleDetails) {
                     Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .frame(width: 42, height: 32)
+                        .cineLarkHoverSurface(cornerRadius: 9)
                 }
-                .buttonStyle(.bordered)
-                .buttonBorderShape(.roundedRectangle)
-                .help(isExpanded ? "Hide version details" : "Show version details")
+                .buttonStyle(.plain)
+                .help(
+                    language.localized(
+                        isExpanded
+                            ? "playback.hide_details"
+                            : "playback.show_details"
+                    )
+                )
             }
             .padding(16)
             .contentShape(Rectangle())
@@ -286,41 +307,72 @@ private struct VersionCard: View {
                 alignment: .leading,
                 spacing: 14
             ) {
-                VersionProperty(label: "Container", value: asset.container?.uppercased())
-                VersionProperty(label: "Codec", value: asset.encoding?.uppercased())
-                VersionProperty(label: "Profile", value: asset.profile)
-                VersionProperty(label: "Dimensions", value: asset.dimensionsDescription)
-                VersionProperty(label: "Frame Rate", value: asset.frameRate.map { "\($0) fps" })
-                VersionProperty(label: "Pixel Format", value: asset.pixelFormat)
-                VersionProperty(label: "Dynamic Range", value: asset.videoRange?.uppercased())
-                VersionProperty(label: "Color", value: asset.colorDescription)
                 VersionProperty(
-                    label: "Video Bitrate",
+                    label: language.localized("playback.container"),
+                    value: asset.container?.uppercased()
+                )
+                VersionProperty(
+                    label: language.localized("playback.codec"),
+                    value: asset.encoding?.uppercased()
+                )
+                VersionProperty(
+                    label: language.localized("playback.profile"),
+                    value: asset.profile
+                )
+                VersionProperty(
+                    label: language.localized("playback.dimensions"),
+                    value: asset.dimensionsDescription
+                )
+                VersionProperty(
+                    label: language.localized("playback.frame_rate"),
+                    value: asset.frameRate.map { "\($0) fps" }
+                )
+                VersionProperty(
+                    label: language.localized("playback.pixel_format"),
+                    value: asset.pixelFormat
+                )
+                VersionProperty(
+                    label: language.localized("playback.dynamic_range"),
+                    value: asset.videoRange?.uppercased()
+                )
+                VersionProperty(
+                    label: language.localized("playback.color"),
+                    value: asset.colorDescription
+                )
+                VersionProperty(
+                    label: language.localized("playback.video_bitrate"),
                     value: asset.videoBitRate.map(\.cineLarkBitRate)
                 )
                 VersionProperty(
-                    label: "Total Bitrate",
+                    label: language.localized("playback.total_bitrate"),
                     value: asset.bitRate.map(\.cineLarkBitRate)
                 )
                 VersionProperty(
-                    label: "File Size",
+                    label: language.localized("playback.file_size"),
                     value: asset.fileSize.map(\.cineLarkByteCount)
                 )
                 VersionProperty(
-                    label: "Duration",
-                    value: asset.durationSeconds.map(\.cineLarkDuration)
+                    label: language.localized("playback.duration"),
+                    value: asset.durationSeconds.map(language.duration)
                 )
             }
 
             if !asset.audioTracks.isEmpty {
-                Text("Audio: \(asset.audioTracks.map(\.displayDescription).joined(separator: " · "))")
+                Text(
+                    language.localized(
+                        "playback.audio",
+                        asset.audioTracks.map(\.displayDescription).joined(separator: " · ")
+                    )
+                )
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
             if !asset.subtitleTracks.isEmpty {
                 Text(
-                    "Subtitles: " +
-                    asset.subtitleTracks.map(\.displayDescription).joined(separator: " · ")
+                    language.localized(
+                        "playback.subtitles",
+                        asset.subtitleTracks.map(\.displayDescription).joined(separator: " · ")
+                    )
                 )
                 .font(.caption)
                 .foregroundStyle(.secondary)

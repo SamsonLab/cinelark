@@ -11,6 +11,7 @@ private enum LibrarySelection: Hashable {
 }
 
 struct LibraryView: View {
+    @Environment(\.appLanguage) private var language
     @Bindable var model: AppModel
     @State private var selection: LibrarySelection? = .home
 
@@ -19,24 +20,24 @@ struct LibraryView: View {
             List(selection: $selection) {
                 Section {
                     NavigationLink(value: LibrarySelection.home) {
-                        Label("Home", systemImage: "house.fill")
+                        Label(language.localized("nav.home"), systemImage: "house.fill")
                     }
                     NavigationLink(value: LibrarySelection.movies) {
-                        Label("Movies", systemImage: "film.stack.fill")
+                        Label(language.localized("nav.movies"), systemImage: "film.stack.fill")
                     }
                     NavigationLink(value: LibrarySelection.series) {
-                        Label("TV Series", systemImage: "tv.fill")
+                        Label(language.localized("nav.series"), systemImage: "tv.fill")
                     }
                     NavigationLink(value: LibrarySelection.favorites) {
-                        Label("Favorites", systemImage: "heart.fill")
+                        Label(language.localized("nav.favorites"), systemImage: "heart.fill")
                     }
                     NavigationLink(value: LibrarySelection.search) {
-                        Label("Search", systemImage: "magnifyingglass")
+                        Label(language.localized("nav.search"), systemImage: "magnifyingglass")
                     }
                 }
 
                 if !model.collections.isEmpty {
-                    Section("Collections") {
+                    Section(language.localized("nav.collections")) {
                         ForEach(model.collections) { collection in
                             NavigationLink(value: LibrarySelection.collection(collection.id)) {
                                 Label(collection.name, systemImage: "rectangle.stack.fill")
@@ -47,14 +48,22 @@ struct LibraryView: View {
             }
             .navigationTitle("CineLark")
             .safeAreaInset(edge: .bottom) {
-                Button {
-                    Task { await model.signOut() }
-                } label: {
-                    Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
+                VStack(alignment: .leading, spacing: 12) {
+                    Divider()
+                    LanguageMenu()
+                        .menuStyle(.borderlessButton)
+                    Button {
+                        Task { await model.signOut() }
+                    } label: {
+                        Label(
+                            language.localized("nav.sign_out"),
+                            systemImage: "rectangle.portrait.and.arrow.right"
+                        )
                         .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
                 .padding()
             }
         } detail: {
@@ -80,9 +89,9 @@ struct LibraryView: View {
                 set: { if !$0 { model.dismissError() } }
             )
         ) {
-            Button("OK", role: .cancel) { model.dismissError() }
+            Button(language.localized("general.ok"), role: .cancel) { model.dismissError() }
         } message: {
-            Text(model.errorMessage ?? "")
+            Text(language.userFacingError(model.errorMessage))
         }
     }
 
@@ -103,7 +112,10 @@ struct LibraryView: View {
             if let collection = model.collections.first(where: { $0.id == id }) {
                 CollectionView(collection: collection, model: model)
             } else {
-                ContentUnavailableView("Collection unavailable", systemImage: "rectangle.stack")
+                ContentUnavailableView(
+                    language.localized("nav.collection_unavailable"),
+                    systemImage: "rectangle.stack"
+                )
             }
         }
     }

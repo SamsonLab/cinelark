@@ -28,13 +28,17 @@
 		AD35F8FB63FF52A556814D76 /* ArtworkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 883B64BCA708D6239E86FF3B /* ArtworkView.swift */; };
 		ADC1B1396C8B9111A0C77D54 /* FavoritesModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AFAB30FB02C68C461F76FF7 /* FavoritesModel.swift */; };
 		B05299F38635BB6EA6EBF3E8 /* CineLarkPlayback in Frameworks */ = {isa = PBXBuildFile; productRef = AA501AC6C8C7D61D9DA24810 /* CineLarkPlayback */; };
+		B3AE41D5BF04A4DEE93A0AF9 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = FA9FAFAB2F795541DE7F6F3C /* AppIcon.icon */; };
 		B489F5A60889975CD929D5D1 /* Kingfisher in Frameworks */ = {isa = PBXBuildFile; productRef = E6C9969F909E6E89FA05FD2C /* Kingfisher */; };
 		B5F3BB1A14D77C4536307248 /* MediaDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 159CEAD9CEDB3B09B0577D62 /* MediaDetailView.swift */; };
+		D4A3375820C95BFF5B7AA2F7 /* AppLanguage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3E20D588912F0D88C2F56C8 /* AppLanguage.swift */; };
+		D9A6D26E54F24FD83C78A2CB /* InteractiveStyles.swift in Sources */ = {isa = PBXBuildFile; fileRef = F130F10368D8C9CE780999BB /* InteractiveStyles.swift */; };
 		E0FD14EF20191C638ADD81B9 /* MediaCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A02668E828AF3DF47ADD782D /* MediaCard.swift */; };
 		F188B954EB4C3636BB951E00 /* FavoritesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE58BCE702D398987224468F /* FavoritesView.swift */; };
 		FB38130CCDF118323233623C /* CineLarkApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF1BEAD272C89D962C8DB178 /* CineLarkApp.swift */; };
 		FB650FF02184DCAD4CB1DED2 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7645BC2B798D0AEDE94D2340 /* RootView.swift */; };
 		FEA0753FFBFC5DE2AFB1F5E6 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28F9B8DDF66E20BDB88B2EFF /* HomeView.swift */; };
+		FEF442E4AE9C6B9B723AF707 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = E717D917BD15FA54CE607D7F /* Localizable.strings */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -46,11 +50,13 @@
 		28F9B8DDF66E20BDB88B2EFF /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		395BB40B27A65E50568ACD66 /* SearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchView.swift; sourceTree = "<group>"; };
 		3AFAB30FB02C68C461F76FF7 /* FavoritesModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoritesModel.swift; sourceTree = "<group>"; };
+		5453DD1F20CC657FE244EC32 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
 		5A2B52C7CCEA6A44B30EEBF8 /* CineLark.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CineLark.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5B636A10BFC193AD5217DD9F /* PersonDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonDetailView.swift; sourceTree = "<group>"; };
 		5C3D6E064538934AC541E71B /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		5D699E7A6E17B2FA7E5070ED /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		5F70E7DBECFF31900C0A4544 /* AssetRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssetRow.swift; sourceTree = "<group>"; };
+		6EB4E7379D1569F779BAF6CF /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
 		7645BC2B798D0AEDE94D2340 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		883B64BCA708D6239E86FF3B /* ArtworkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkView.swift; sourceTree = "<group>"; };
 		A02668E828AF3DF47ADD782D /* MediaCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaCard.swift; sourceTree = "<group>"; };
@@ -61,6 +67,9 @@
 		DE6FDC450494CEE6E6F6391F /* CollectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectionView.swift; sourceTree = "<group>"; };
 		DF1BEAD272C89D962C8DB178 /* CineLarkApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CineLarkApp.swift; sourceTree = "<group>"; };
 		E446DFF475AB6BE1AC655007 /* ImagePipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagePipeline.swift; sourceTree = "<group>"; };
+		F130F10368D8C9CE780999BB /* InteractiveStyles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InteractiveStyles.swift; sourceTree = "<group>"; };
+		F3E20D588912F0D88C2F56C8 /* AppLanguage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLanguage.swift; sourceTree = "<group>"; };
+		FA9FAFAB2F795541DE7F6F3C /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 		FCA18E1430C347EE66F26BDC /* PlaybackCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackCoordinator.swift; sourceTree = "<group>"; };
 		FE58BCE702D398987224468F /* FavoritesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoritesView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -87,6 +96,7 @@
 				883B64BCA708D6239E86FF3B /* ArtworkView.swift */,
 				5F70E7DBECFF31900C0A4544 /* AssetRow.swift */,
 				D053D9E6E0ADD452EA014CE5 /* ContinueWatchingShelf.swift */,
+				F130F10368D8C9CE780999BB /* InteractiveStyles.swift */,
 				A02668E828AF3DF47ADD782D /* MediaCard.swift */,
 				11E72F191AE8AB81C1DD9B26 /* MediaFormatting.swift */,
 			);
@@ -111,6 +121,15 @@
 			path = Views;
 			sourceTree = "<group>";
 		};
+		82E93BDD7F66AC4FF0AD72D6 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				FA9FAFAB2F795541DE7F6F3C /* AppIcon.icon */,
+				E717D917BD15FA54CE607D7F /* Localizable.strings */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
 		ADBE4CF5D5F124D7E1C917BF /* Products */ = {
 			isa = PBXGroup;
 			children = (
@@ -123,6 +142,7 @@
 			isa = PBXGroup;
 			children = (
 				D481B8C38EA6B4E94332195A /* Packages */,
+				82E93BDD7F66AC4FF0AD72D6 /* Resources */,
 				E683FC99B39F259AC939008E /* Sources */,
 				ADBE4CF5D5F124D7E1C917BF /* Products */,
 			);
@@ -139,6 +159,7 @@
 		DF206D6F17E424F5DD12994A /* App */ = {
 			isa = PBXGroup;
 			children = (
+				F3E20D588912F0D88C2F56C8 /* AppLanguage.swift */,
 				DF1BEAD272C89D962C8DB178 /* CineLarkApp.swift */,
 			);
 			path = App;
@@ -176,6 +197,7 @@
 			buildConfigurationList = 93D2E70ECC7D23B201141482 /* Build configuration list for PBXNativeTarget "CineLark" */;
 			buildPhases = (
 				2BD2F5D99F773CB80FE9680A /* Sources */,
+				CEC9454EB6AD1A75EF31372A /* Resources */,
 				1B912C2AFF344F3822483070 /* Frameworks */,
 			);
 			buildRules = (
@@ -214,6 +236,7 @@
 			knownRegions = (
 				Base,
 				en,
+				"zh-Hans",
 			);
 			mainGroup = B2ABD014FC07E30AB5D1D8EB;
 			minimizedProjectReferenceProxies = 1;
@@ -231,11 +254,24 @@
 		};
 /* End PBXProject section */
 
+/* Begin PBXResourcesBuildPhase section */
+		CEC9454EB6AD1A75EF31372A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B3AE41D5BF04A4DEE93A0AF9 /* AppIcon.icon in Resources */,
+				FEF442E4AE9C6B9B723AF707 /* Localizable.strings in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		2BD2F5D99F773CB80FE9680A /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D4A3375820C95BFF5B7AA2F7 /* AppLanguage.swift in Sources */,
 				57B5CCC253448F03E3E7A6AA /* AppModel.swift in Sources */,
 				AD35F8FB63FF52A556814D76 /* ArtworkView.swift in Sources */,
 				7468B21A6B665A46AFC839A1 /* AssetRow.swift in Sources */,
@@ -246,6 +282,7 @@
 				F188B954EB4C3636BB951E00 /* FavoritesView.swift in Sources */,
 				FEA0753FFBFC5DE2AFB1F5E6 /* HomeView.swift in Sources */,
 				0FBA55BD2D5A9E90186B12A9 /* ImagePipeline.swift in Sources */,
+				D9A6D26E54F24FD83C78A2CB /* InteractiveStyles.swift in Sources */,
 				1B7F01EBA86DBED26D6882EA /* LibraryView.swift in Sources */,
 				42F2C14657B60EB006A35194 /* LoginView.swift in Sources */,
 				E0FD14EF20191C638ADD81B9 /* MediaCard.swift in Sources */,
@@ -263,6 +300,18 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXVariantGroup section */
+		E717D917BD15FA54CE607D7F /* Localizable.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				5453DD1F20CC657FE244EC32 /* en */,
+				6EB4E7379D1569F779BAF6CF /* zh-Hans */,
+			);
+			name = Localizable.strings;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
 		00C6F3E5A9211CDD3E1DFF88 /* Release */ = {

@@ -7,6 +7,7 @@ import CineLarkUHDNow
 @main
 @MainActor
 struct CineLarkApp: App {
+    @AppStorage(AppLanguage.storageKey) private var storedLanguage = AppLanguage.systemDefault.rawValue
     @State private var model: AppModel
 
     init() {
@@ -29,9 +30,15 @@ struct CineLarkApp: App {
     var body: some Scene {
         WindowGroup {
             RootView(model: model)
+                .environment(\.appLanguage, language)
+                .environment(\.locale, language.locale)
                 .frame(minWidth: 960, minHeight: 640)
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1440, height: 900)
+    }
+
+    private var language: AppLanguage {
+        AppLanguage(rawValue: storedLanguage) ?? .systemDefault
     }
 }

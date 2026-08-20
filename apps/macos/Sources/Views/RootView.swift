@@ -1,13 +1,14 @@
 import SwiftUI
 
 struct RootView: View {
+    @Environment(\.appLanguage) private var language
     @Bindable var model: AppModel
 
     var body: some View {
         Group {
             switch model.phase {
             case .launching:
-                ProgressView("Opening CineLark…")
+                ProgressView(language.localized("root.opening"))
                     .controlSize(.large)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             case .signedOut:

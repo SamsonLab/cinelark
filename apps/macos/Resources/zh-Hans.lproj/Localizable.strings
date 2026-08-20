@@ -1,0 +1,144 @@
+"language.label" = "语言";
+"language.help" = "切换界面语言";
+"general.ok" = "好";
+"general.refresh" = "刷新";
+
+"root.opening" = "正在打开 CineLark…";
+
+"nav.home" = "首页";
+"nav.movies" = "电影";
+"nav.series" = "电视剧";
+"nav.favorites" = "收藏";
+"nav.search" = "搜索";
+"nav.collections" = "分类";
+"nav.sign_out" = "退出登录";
+"nav.collection_unavailable" = "分类不可用";
+
+"home.subtitle" = "继续观看，或发现新的精彩内容。";
+"home.loading" = "正在载入媒体库…";
+"home.popular_now" = "正在热播";
+"home.collection_help" = "从侧边栏选择分类，浏览完整片库。";
+"home.continue_watching" = "继续观看";
+
+"login.tagline" = "你的媒体库，为大屏而生。";
+"login.username" = "UHDNow 用户名";
+"login.password" = "密码";
+"login.use_totp" = "使用动态验证码";
+"login.totp" = "6 位验证码";
+"login.signing_in" = "正在登录…";
+"login.sign_in" = "登录";
+
+"category.no_movie_collections" = "没有电影分类";
+"category.no_series_collections" = "没有电视剧分类";
+"category.no_collections_description" = "服务提供方没有返回匹配的分类。";
+"collection.loading" = "正在载入%@…";
+"collection.empty" = "暂无内容";
+"collection.empty_description" = "这个分类目前没有内容。";
+"sort.label" = "排序方式";
+"sort.release_date" = "上映日期";
+"sort.name" = "名称";
+"sort.rating" = "评分";
+"sort.updated_date" = "更新日期";
+"sort.asset_updated" = "片源更新";
+"sort.popularity" = "热度";
+"sort.ascending" = "升序";
+"sort.descending" = "降序";
+"sort.ascending_help" = "按升序排列";
+"sort.descending_help" = "按降序排列";
+
+"detail.season_count_one" = "%@ 季";
+"detail.season_count_many" = "%@ 季";
+"detail.favorite" = "已收藏";
+"detail.add_favorite" = "加入收藏";
+"detail.versions" = "片源版本";
+"detail.loading_versions" = "正在载入片源版本…";
+"detail.no_versions" = "目前没有可播放的片源版本。";
+"detail.episodes" = "剧集";
+"detail.season" = "季";
+"detail.loading_episodes" = "正在载入剧集…";
+"detail.cast_crew" = "演职人员";
+"episode.number" = "第 %@ 集";
+"episode.version_one" = "%@ 个版本";
+"episode.version_many" = "%@ 个版本";
+
+"asset.audio_count" = "%@ 条音轨";
+"asset.subtitle_count" = "%@ 条字幕";
+"asset.options" = "选项";
+
+"playback.loading" = "正在载入可用片源…";
+"playback.none" = "没有可播放的片源";
+"playback.none_description" = "服务提供方没有返回媒体资源。";
+"playback.title" = "播放选项";
+"playback.media_versions" = "片源版本";
+"playback.available_count" = "%@ 个可用";
+"playback.copy_playback" = "复制播放链接";
+"playback.copy_download" = "复制下载链接";
+"playback.open_download" = "在浏览器中下载";
+"playback.link_help" = "播放与下载链接";
+"playback.hide_details" = "收起版本详情";
+"playback.show_details" = "展开版本详情";
+"playback.download_notice" = "下载链接有效期较短，仅在你主动操作时提供。";
+"playback.play" = "播放";
+"playback.container" = "封装格式";
+"playback.codec" = "编码";
+"playback.profile" = "配置";
+"playback.dimensions" = "画面尺寸";
+"playback.frame_rate" = "帧率";
+"playback.pixel_format" = "像素格式";
+"playback.dynamic_range" = "动态范围";
+"playback.color" = "色彩";
+"playback.video_bitrate" = "视频码率";
+"playback.total_bitrate" = "总码率";
+"playback.file_size" = "文件大小";
+"playback.duration" = "时长";
+"playback.audio" = "音轨：%@";
+"playback.subtitles" = "字幕：%@";
+
+"favorites.my_library" = "我的媒体库";
+"favorites.title" = "收藏";
+"favorites.summary" = "%@ 部影视 · %@ 位人物";
+"favorites.type" = "收藏类型";
+"favorites.series" = "电视剧";
+"favorites.movies" = "电影";
+"favorites.people" = "人物";
+"favorites.loading" = "正在载入收藏…";
+"favorites.no_series" = "没有收藏的电视剧";
+"favorites.no_movies" = "没有收藏的电影";
+"favorites.no_media_description" = "你收藏的影视内容会显示在这里。";
+"favorites.no_people" = "没有收藏的人物";
+"favorites.no_people_description" = "你收藏的演职人员会显示在这里。";
+
+"person.loading" = "正在载入作品…";
+"person.no_works" = "暂无作品";
+"person.no_works_description" = "服务提供方没有返回关联影视。";
+"person.works" = "作品  %@";
+"person.cast_crew" = "演职人员";
+"person.appears_one" = "参演 %@ 部影视";
+"person.appears_many" = "参演 %@ 部影视";
+
+"search.empty" = "搜索媒体库";
+"search.empty_description" = "按名称查找电影和电视剧。";
+"search.searching" = "正在搜索…";
+"search.prompt" = "电影和电视剧";
+
+"duration.hours_minutes" = "%@ 小时 %@ 分钟";
+"duration.minutes" = "%@ 分钟";
+
+"error.unauthenticated" = "请先登录后继续。";
+"error.invalid_credentials" = "用户名、密码或动态验证码不正确。";
+"error.session_expired" = "登录状态已过期，请重新登录。";
+"error.forbidden" = "当前账号无法访问所请求的内容。";
+"error.not_found" = "所请求的内容已不可用。";
+"error.rate_limited" = "请求过于频繁，请稍后再试。";
+"error.invalid_request" = "CineLark 无法创建有效的服务请求。";
+"error.invalid_response" = "服务返回了 CineLark 无法识别的数据。";
+"error.unavailable" = "服务目前不可用。";
+"error.unsupported" = "该服务能力暂不受支持。";
+"error.iina_missing" = "尚未安装 IINA，请安装后再播放。";
+"error.iina_launch" = "CineLark 无法在 IINA 中打开此内容。";
+"error.generic" = "CineLark 无法完成该请求。";
+"error.favorites" = "CineLark 无法载入收藏。";
+"error.person" = "CineLark 无法载入该人物。";
+"error.playback_options" = "CineLark 无法准备这个片源版本。";
+"error.copy_link" = "CineLark 无法复制链接。";
+"error.open_download" = "CineLark 无法打开下载链接。";

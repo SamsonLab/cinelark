@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct HomeView: View {
+    @Environment(\.appLanguage) private var language
     @Bindable var model: AppModel
 
     var body: some View {
@@ -8,22 +9,22 @@ struct HomeView: View {
             LazyVStack(alignment: .leading, spacing: 36) {
                 HStack(alignment: .firstTextBaseline) {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Home")
+                        Text(language.localized("nav.home"))
                             .font(.largeTitle.bold())
-                        Text("Continue watching or find something new.")
+                        Text(language.localized("home.subtitle"))
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
                     Button {
                         Task { await model.refreshHome() }
                     } label: {
-                        Label("Refresh", systemImage: "arrow.clockwise")
+                        Label(language.localized("general.refresh"), systemImage: "arrow.clockwise")
                     }
                     .disabled(model.isLoadingHome)
                 }
 
                 if model.isLoadingHome && model.hotItems.isEmpty {
-                    ProgressView("Loading your library…")
+                    ProgressView(language.localized("home.loading"))
                         .controlSize(.large)
                         .frame(maxWidth: .infinity, minHeight: 240)
                 }
@@ -33,14 +34,17 @@ struct HomeView: View {
                 }
 
                 if !model.hotItems.isEmpty {
-                    MediaShelf(title: "Popular Now", items: model.hotItems)
+                    MediaShelf(
+                        title: language.localized("home.popular_now"),
+                        items: model.hotItems
+                    )
                 }
 
                 if !model.collections.isEmpty {
                     VStack(alignment: .leading, spacing: 14) {
-                        Text("Collections")
+                        Text(language.localized("nav.collections"))
                             .font(.title2.bold())
-                        Text("Choose a collection from the sidebar to browse its full library.")
+                        Text(language.localized("home.collection_help"))
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -48,6 +52,6 @@ struct HomeView: View {
             .padding(36)
         }
         .background(Color.black.opacity(0.92))
-        .navigationTitle("Home")
+        .navigationTitle(language.localized("nav.home"))
     }
 }

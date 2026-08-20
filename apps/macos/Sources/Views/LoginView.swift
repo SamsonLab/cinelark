@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct LoginView: View {
+    @Environment(\.appLanguage) private var language
     @Bindable var model: AppModel
     @State private var username = ""
     @State private var password = ""
@@ -24,26 +25,26 @@ struct LoginView: View {
                         .foregroundStyle(.cyan)
                     Text("CineLark")
                         .font(.system(size: 38, weight: .bold, design: .rounded))
-                    Text("Your library, ready for the big screen.")
+                    Text(language.localized("login.tagline"))
                         .foregroundStyle(.secondary)
                 }
 
                 VStack(spacing: 14) {
-                    TextField("UHDNow username", text: $username)
+                    TextField(language.localized("login.username"), text: $username)
                         .textContentType(.username)
-                    SecureField("Password", text: $password)
+                    SecureField(language.localized("login.password"), text: $password)
                         .textContentType(.password)
 
-                    Toggle("Use a TOTP code", isOn: $showTOTP)
+                    Toggle(language.localized("login.use_totp"), isOn: $showTOTP)
                         .toggleStyle(.switch)
 
                     if showTOTP {
-                        TextField("6-digit code", text: $totpCode)
+                        TextField(language.localized("login.totp"), text: $totpCode)
                             .textContentType(.oneTimeCode)
                     }
 
                     if let error = model.errorMessage {
-                        Text(error)
+                        Text(language.userFacingError(error))
                             .font(.callout)
                             .foregroundStyle(.red)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -65,7 +66,11 @@ struct LoginView: View {
                                 ProgressView()
                                     .controlSize(.small)
                             }
-                            Text(isSigningIn ? "Signing In…" : "Sign In")
+                            Text(
+                                language.localized(
+                                    isSigningIn ? "login.signing_in" : "login.sign_in"
+                                )
+                            )
                                 .fontWeight(.semibold)
                         }
                         .frame(maxWidth: .infinity)
@@ -83,6 +88,17 @@ struct LoginView: View {
                 .frame(width: 420)
                 .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24))
             }
+
+            VStack {
+                HStack {
+                    Spacer()
+                    LanguageMenu()
+                        .padding(10)
+                        .background(.ultraThinMaterial, in: Capsule())
+                }
+                Spacer()
+            }
+            .padding(20)
         }
     }
 }

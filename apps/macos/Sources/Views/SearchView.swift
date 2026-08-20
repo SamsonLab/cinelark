@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct SearchView: View {
+    @Environment(\.appLanguage) private var language
     @Bindable var model: AppModel
     @State private var query = ""
 
@@ -8,12 +9,12 @@ struct SearchView: View {
         Group {
             if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 ContentUnavailableView(
-                    "Search your library",
+                    language.localized("search.empty"),
                     systemImage: "magnifyingglass",
-                    description: Text("Find movies and TV series by title.")
+                    description: Text(language.localized("search.empty_description"))
                 )
             } else if model.isSearching && model.searchResults.isEmpty {
-                ProgressView("Searching…")
+                ProgressView(language.localized("search.searching"))
                     .controlSize(.large)
             } else if model.searchResults.isEmpty {
                 ContentUnavailableView.search(text: query)
@@ -21,8 +22,12 @@ struct SearchView: View {
                 MediaGrid(items: model.searchResults)
             }
         }
-        .navigationTitle("Search")
-        .searchable(text: $query, placement: .toolbar, prompt: "Movies and TV")
+        .navigationTitle(language.localized("nav.search"))
+        .searchable(
+            text: $query,
+            placement: .toolbar,
+            prompt: language.localized("search.prompt")
+        )
         .task(id: query) {
             do {
                 try await Task.sleep(for: .milliseconds(350))

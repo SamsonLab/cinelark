@@ -2,6 +2,7 @@ import SwiftUI
 import CineLarkDomain
 
 struct PersonDetailView: View {
+    @Environment(\.appLanguage) private var language
     @State private var model: PersonDetailModel
 
     init(person: PersonCredit, provider: any MediaLibraryProvider) {
@@ -16,18 +17,18 @@ struct PersonDetailView: View {
             Divider()
 
             if model.isLoading && model.works.isEmpty {
-                ProgressView("Loading works…")
+                ProgressView(language.localized("person.loading"))
                     .controlSize(.large)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if model.works.isEmpty {
                 ContentUnavailableView(
-                    "No works available",
+                    language.localized("person.no_works"),
                     systemImage: "person.crop.circle.badge.questionmark",
-                    description: Text("The provider returned no linked titles.")
+                    description: Text(language.localized("person.no_works_description"))
                 )
             } else {
                 VStack(alignment: .leading, spacing: 0) {
-                    Text("Works  \(model.workCount)")
+                    Text(language.localized("person.works", String(model.workCount)))
                         .font(.title2.bold())
                         .padding(.horizontal, 32)
                         .padding(.top, 24)
@@ -47,9 +48,9 @@ struct PersonDetailView: View {
                 set: { if !$0 { model.dismissError() } }
             )
         ) {
-            Button("OK", role: .cancel) { model.dismissError() }
+            Button(language.localized("general.ok"), role: .cancel) { model.dismissError() }
         } message: {
-            Text(model.errorMessage ?? "")
+            Text(language.userFacingError(model.errorMessage))
         }
     }
 
@@ -64,12 +65,19 @@ struct PersonDetailView: View {
             .overlay { Circle().stroke(Color.white.opacity(0.12)) }
 
             VStack(alignment: .leading, spacing: 16) {
-                Text("CAST & CREW")
+                Text(language.localized("person.cast_crew"))
                     .font(.caption.weight(.bold))
                     .foregroundStyle(.orange)
                 Text(model.name)
                     .font(.system(size: 46, weight: .bold, design: .rounded))
-                Text("Appears in \(model.workCount) title\(model.workCount == 1 ? "" : "s")")
+                Text(
+                    language.localized(
+                        model.workCount == 1
+                            ? "person.appears_one"
+                            : "person.appears_many",
+                        String(model.workCount)
+                    )
+                )
                     .font(.title3)
                     .foregroundStyle(.secondary)
 
@@ -81,7 +89,11 @@ struct PersonDetailView: View {
                             .controlSize(.small)
                     } else {
                         Label(
-                            model.isFavorite ? "Favorited" : "Add to Favorites",
+                            language.localized(
+                                model.isFavorite
+                                    ? "detail.favorite"
+                                    : "detail.add_favorite"
+                            ),
                             systemImage: model.isFavorite ? "heart.fill" : "heart"
                         )
                     }

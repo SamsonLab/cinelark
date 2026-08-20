@@ -25,6 +25,7 @@ struct CollectionView: View {
 }
 
 struct MediaCategoryView: View {
+    @Environment(\.appLanguage) private var language
     let kind: MediaKind
     @Bindable var model: AppModel
     @State private var selectedCollectionID: String?
@@ -45,12 +46,19 @@ struct MediaCategoryView: View {
                 }
             } else {
                 ContentUnavailableView(
-                    "No \(title.lowercased()) collections",
+                    language.localized(
+                        kind == .movie
+                            ? "category.no_movie_collections"
+                            : "category.no_series_collections"
+                    ),
                     systemImage: kind == .movie ? "film.stack" : "tv",
-                    description: Text("The provider did not return a matching collection.")
+                    description: Text(
+                        language.localized("category.no_collections_description")
+                    )
                 )
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .navigationTitle(title)
         .toolbar {
             MediaSortToolbar(field: $sortField, order: $sortOrder)
@@ -85,18 +93,15 @@ struct MediaCategoryView: View {
                         .padding(.vertical, 8)
                         .background(
                             selectedCollection?.id == collection.id
-                                ? Color.accentColor.opacity(0.2)
-                                : Color.white.opacity(0.06),
+                                ? Color.accentColor.opacity(0.18)
+                                : Color.clear,
                             in: Capsule()
                         )
-                        .overlay {
-                            Capsule()
-                                .stroke(
-                                    selectedCollection?.id == collection.id
-                                        ? Color.accentColor.opacity(0.8)
-                                        : Color.white.opacity(0.12)
-                                )
-                        }
+                        .cineLarkHoverSurface(
+                            cornerRadius: 999,
+                            normalFillOpacity: selectedCollection?.id == collection.id ? 0.04 : 0.055,
+                            accentOnHover: true
+                        )
                     }
                     .buttonStyle(.plain)
                 }
@@ -113,11 +118,12 @@ struct MediaCategoryView: View {
     }
 
     private var title: String {
-        kind == .movie ? "Movies" : "TV Series"
+        language.localized(kind == .movie ? "nav.movies" : "nav.series")
     }
 }
 
 private struct CollectionBrowserContent: View {
+    @Environment(\.appLanguage) private var language
     let collection: MediaCollection
     let sort: MediaSort
     @Bindable var model: AppModel
@@ -125,18 +131,24 @@ private struct CollectionBrowserContent: View {
     var body: some View {
         Group {
             if model.isLoading(collection, sort: sort) && items.isEmpty {
-                ProgressView("Loading \(collection.name)…")
-                    .controlSize(.large)
+                ProgressView(
+                    language.localized("collection.loading", collection.name)
+                )
+                .controlSize(.large)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if items.isEmpty {
                 ContentUnavailableView(
-                    "No items",
+                    language.localized("collection.empty"),
                     systemImage: "rectangle.stack",
-                    description: Text("This collection is currently empty.")
+                    description: Text(
+                        language.localized("collection.empty_description")
+                    )
                 )
             } else {
                 MediaGrid(items: items)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .task(id: requestID) {
             await model.loadCollection(collection, sort: sort)
         }
@@ -156,41 +168,108 @@ private struct CollectionBrowserContent: View {
 }
 
 private struct MediaSortToolbar: ToolbarContent {
+    @Environment(\.appLanguage) private var language
     @Binding var field: MediaSort.Field
     @Binding var order: MediaSort.Order
 
     var body: some ToolbarContent {
-        ToolbarItemGroup(placement: .primaryAction) {
-            Picker("Sort by", selection: $field) {
-                ForEach(MediaSort.Field.allCases, id: \.self) { field in
-                    Text(field.displayName).tag(field)
-                }
-            }
-            .pickerStyle(.menu)
-            .frame(minWidth: 150)
+        ToolbarItem(placement: .primaryAction) {
+            HStack(spacing: 8) {
+                SortFieldPickerButton(field: $field)
 
-            Button {
-                order = order == .ascending ? .descending : .ascending
-            } label: {
-                Label(
-                    order == .ascending ? "Ascending" : "Descending",
-                    systemImage: order == .ascending ? "arrow.up" : "arrow.down"
+                Button {
+                    order = order == .ascending ? .descending : .ascending
+                } label: {
+                    Image(systemName: order == .ascending ? "arrow.up" : "arrow.down")
+                        .font(.body.weight(.semibold))
+                        .frame(width: 38, height: 36)
+                        .cineLarkHoverSurface(cornerRadius: 10)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(
+                    language.localized(
+                        order == .ascending
+                            ? "sort.ascending"
+                            : "sort.descending"
+                    )
+                )
+                .help(
+                    language.localized(
+                        order == .ascending
+                            ? "sort.ascending_help"
+                            : "sort.descending_help"
+                    )
                 )
             }
-            .help(order == .ascending ? "Sort ascending" : "Sort descending")
+            .fixedSize()
+        }
+    }
+}
+
+private struct SortFieldPickerButton: View {
+    @Environment(\.appLanguage) private var language
+    @Binding var field: MediaSort.Field
+    @State private var isPresentingOptions = false
+
+    var body: some View {
+        Button {
+            isPresentingOptions.toggle()
+        } label: {
+            HStack(spacing: 10) {
+                Text(field.displayName(language: language))
+                Spacer(minLength: 4)
+                Image(systemName: "chevron.down")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 14)
+            .frame(width: 176, height: 36)
+            .cineLarkHoverSurface(cornerRadius: 10)
+        }
+        .buttonStyle(.plain)
+        .help(language.localized("sort.label"))
+        .popover(isPresented: $isPresentingOptions, arrowEdge: .top) {
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(MediaSort.Field.allCases, id: \.self) { option in
+                    Button {
+                        field = option
+                        isPresentingOptions = false
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "checkmark")
+                                .opacity(field == option ? 1 : 0)
+                                .frame(width: 14)
+                            Text(option.displayName(language: language))
+                            Spacer()
+                        }
+                        .padding(.horizontal, 10)
+                        .frame(height: 32)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .cineLarkHoverSurface(
+                        cornerRadius: 7,
+                        normalFillOpacity: 0,
+                        normalStrokeOpacity: 0,
+                        hoverStrokeOpacity: 0
+                    )
+                }
+            }
+            .padding(8)
+            .frame(width: 220)
         }
     }
 }
 
 private extension MediaSort.Field {
-    var displayName: String {
+    func displayName(language: AppLanguage) -> String {
         switch self {
-        case .releaseDate: "Release Date"
-        case .title: "Name"
-        case .rating: "Rating"
-        case .updatedAt: "Updated Date"
-        case .assetUpdatedAt: "Asset Updated"
-        case .popularity: "Popularity"
+        case .releaseDate: language.localized("sort.release_date")
+        case .title: language.localized("sort.name")
+        case .rating: language.localized("sort.rating")
+        case .updatedAt: language.localized("sort.updated_date")
+        case .assetUpdatedAt: language.localized("sort.asset_updated")
+        case .popularity: language.localized("sort.popularity")
         }
     }
 }

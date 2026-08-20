@@ -2,6 +2,7 @@ import SwiftUI
 import CineLarkDomain
 
 struct MediaDetailView: View {
+    @Environment(\.appLanguage) private var language
     @State private var model: MediaDetailModel
     @State private var playbackOptions: PlaybackOptionsContext? = nil
 
@@ -48,9 +49,9 @@ struct MediaDetailView: View {
                 set: { if !$0 { model.dismissError() } }
             )
         ) {
-            Button("OK", role: .cancel) { model.dismissError() }
+            Button(language.localized("general.ok"), role: .cancel) { model.dismissError() }
         } message: {
-            Text(model.errorMessage ?? "")
+            Text(language.userFacingError(model.errorMessage))
         }
         .sheet(item: $playbackOptions) { context in
             PlaybackOptionsView(context: context, playback: model.playback)
@@ -98,10 +99,17 @@ struct MediaDetailView: View {
                             )
                         }
                         if let duration = model.item.durationSeconds {
-                            Text(duration.cineLarkDuration)
+                            Text(language.duration(duration))
                         }
                         if let seasons = model.item.totalSeasons {
-                            Text("\(seasons) season\(seasons == 1 ? "" : "s")")
+                            Text(
+                                language.localized(
+                                    seasons == 1
+                                        ? "detail.season_count_one"
+                                        : "detail.season_count_many",
+                                    String(seasons)
+                                )
+                            )
                         }
                     }
                     .foregroundStyle(.secondary)
@@ -116,6 +124,7 @@ struct MediaDetailView: View {
                             .font(.body)
                             .foregroundStyle(.secondary)
                             .lineLimit(5)
+                            .fixedSize(horizontal: false, vertical: true)
                             .frame(maxWidth: 720, alignment: .leading)
                     }
 
@@ -126,7 +135,11 @@ struct MediaDetailView: View {
                             ProgressView().controlSize(.small)
                         } else {
                             Label(
-                                model.isFavorite ? "Favorited" : "Add to Favorites",
+                                language.localized(
+                                    model.isFavorite
+                                        ? "detail.favorite"
+                                        : "detail.add_favorite"
+                                ),
                                 systemImage: model.isFavorite ? "heart.fill" : "heart"
                             )
                         }
@@ -140,7 +153,10 @@ struct MediaDetailView: View {
                     )
                 }
                 .padding(.bottom, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .layoutPriority(1)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 40)
         }
     }
@@ -148,13 +164,13 @@ struct MediaDetailView: View {
     @ViewBuilder
     private var movieVersions: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Versions")
+            Text(language.localized("detail.versions"))
                 .font(.title2.bold())
 
             if model.isLoading && model.movieAssets.isEmpty {
-                ProgressView("Loading versions…")
+                ProgressView(language.localized("detail.loading_versions"))
             } else if model.movieAssets.isEmpty {
-                Text("No playable version is currently available.")
+                Text(language.localized("detail.no_versions"))
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(model.movieAssets) { asset in
@@ -171,11 +187,11 @@ struct MediaDetailView: View {
     private var seriesContent: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack {
-                Text("Episodes")
+                Text(language.localized("detail.episodes"))
                     .font(.title2.bold())
                 Spacer()
                 if !model.seasons.isEmpty {
-                    Picker("Season", selection: seasonSelection) {
+                    Picker(language.localized("detail.season"), selection: seasonSelection) {
                         ForEach(model.seasons) { season in
                             Text(season.title).tag(season.id)
                         }
@@ -186,7 +202,7 @@ struct MediaDetailView: View {
             }
 
             if model.isLoadingEpisodes {
-                ProgressView("Loading episodes…")
+                ProgressView(language.localized("detail.loading_episodes"))
                     .frame(maxWidth: .infinity, minHeight: 180)
             } else {
                 LazyVStack(spacing: 14) {
@@ -228,7 +244,10 @@ struct MediaDetailView: View {
         playbackOptions = PlaybackOptionsContext(
             item: PlayableItem(id: episode.id, kind: .episode),
             title: episode.title,
-            subtitle: [seasonTitle, "Episode \(episode.number)"]
+            subtitle: [
+                seasonTitle,
+                language.localized("episode.number", String(episode.number))
+            ]
                 .compactMap { $0 }
                 .joined(separator: " · "),
             artworkURL: episode.thumbnailURL ?? model.item.backdropURL,
@@ -238,7 +257,7 @@ struct MediaDetailView: View {
 
     private func cast(_ people: [PersonCredit]) -> some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Cast & Crew")
+            Text(language.localized("detail.cast_crew"))
                 .font(.title2.bold())
 
             ScrollView(.horizontal) {
@@ -280,54 +299,91 @@ struct MediaDetailView: View {
 }
 
 private struct EpisodeRow: View {
+    @Environment(\.appLanguage) private var language
     let episode: Episode
     let action: () -> Void
+    @State private var isHovering = false
 
     var body: some View {
-        HStack(spacing: 18) {
-            ArtworkView(url: episode.thumbnailURL)
-                .frame(width: 220, height: 124)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                .overlay(alignment: .topTrailing) {
-                    if episode.versionCount > 0 {
-                        Text("\(episode.versionCount) version\(episode.versionCount == 1 ? "" : "s")")
+        Button(action: action) {
+            HStack(spacing: 18) {
+                ArtworkView(url: episode.thumbnailURL)
+                    .frame(width: 220, height: 124)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(alignment: .topTrailing) {
+                        if episode.versionCount > 0 {
+                            Text(
+                                language.localized(
+                                    episode.versionCount == 1
+                                        ? "episode.version_one"
+                                        : "episode.version_many",
+                                    String(episode.versionCount)
+                                )
+                            )
                             .font(.caption2.weight(.semibold))
                             .padding(.horizontal, 8)
                             .padding(.vertical, 5)
                             .background(.ultraThinMaterial, in: Capsule())
                             .padding(8)
+                        }
+                    }
+
+                VStack(alignment: .leading, spacing: 7) {
+                    Text(language.localized("episode.number", String(episode.number)))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.cyan)
+                    Text(episode.title)
+                        .font(.headline)
+                    if let synopsis = episode.synopsis {
+                        Text(synopsis)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
+                    if episode.userState.progress > 0 && !episode.userState.played {
+                        ProgressView(value: episode.userState.progress)
+                            .progressViewStyle(.linear)
+                            .tint(.cyan)
+                            .frame(maxWidth: 280)
                     }
                 }
 
-            VStack(alignment: .leading, spacing: 7) {
-                Text("Episode \(episode.number)")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.cyan)
-                Text(episode.title)
-                    .font(.headline)
-                if let synopsis = episode.synopsis {
-                    Text(synopsis)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                }
-                if episode.userState.progress > 0 && !episode.userState.played {
-                    ProgressView(value: episode.userState.progress)
-                        .progressViewStyle(.linear)
-                        .tint(.cyan)
-                        .frame(maxWidth: 280)
-                }
-            }
+                Spacer(minLength: 16)
 
-            Spacer()
-
-            Button(action: action) {
                 Image(systemName: "play.fill")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 52, height: 40)
+                    .background(
+                        isHovering ? Color.accentColor : Color.accentColor.opacity(0.82),
+                        in: Capsule()
+                    )
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
-        .padding(14)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .buttonStyle(.plain)
+        .background(
+            isHovering ? Color.accentColor.opacity(0.12) : Color.white.opacity(0.055),
+            in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(
+                    isHovering
+                        ? Color.accentColor.opacity(0.65)
+                        : Color.white.opacity(0.10),
+                    lineWidth: isHovering ? 1.5 : 1
+                )
+        }
+        .scaleEffect(isHovering ? 1.006 : 1)
+        .offset(y: isHovering ? -1 : 0)
+        .shadow(color: .black.opacity(isHovering ? 0.30 : 0), radius: 12, y: 6)
+        .onHover { isHovering = $0 }
+        .animation(.easeOut(duration: 0.16), value: isHovering)
+        .accessibilityLabel(
+            language.localized("episode.number", String(episode.number))
+        )
     }
 }

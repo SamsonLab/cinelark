@@ -3,6 +3,7 @@ import CineLarkDomain
 
 struct MediaCard: View {
     let item: MediaSummary
+    @State private var isHovering = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -26,7 +27,20 @@ struct MediaCard: View {
                             .padding(8)
                     }
                 }
-                .shadow(color: .black.opacity(0.35), radius: 12, y: 6)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 13, style: .continuous)
+                        .stroke(
+                            isHovering
+                                ? Color.accentColor.opacity(0.7)
+                                : Color.white.opacity(0.08),
+                            lineWidth: isHovering ? 1.5 : 1
+                        )
+                }
+                .shadow(
+                    color: .black.opacity(isHovering ? 0.55 : 0.35),
+                    radius: isHovering ? 18 : 12,
+                    y: isHovering ? 9 : 6
+                )
 
             Text(item.title)
                 .font(.headline)
@@ -45,6 +59,10 @@ struct MediaCard: View {
             .foregroundStyle(.secondary)
         }
         .contentShape(Rectangle())
+        .scaleEffect(isHovering ? 1.025 : 1)
+        .offset(y: isHovering ? -3 : 0)
+        .onHover { isHovering = $0 }
+        .animation(.easeOut(duration: 0.16), value: isHovering)
     }
 }
 
@@ -66,7 +84,9 @@ struct MediaShelf: View {
                         .buttonStyle(.plain)
                     }
                 }
-                .padding(.vertical, 4)
+                .padding(.horizontal, 10)
+                .padding(.top, 14)
+                .padding(.bottom, 18)
             }
             .scrollIndicators(.hidden)
         }

@@ -2,14 +2,23 @@ import SwiftUI
 import CineLarkDomain
 
 struct FavoritesView: View {
-    private enum Tab: String, CaseIterable, Identifiable {
-        case series = "TV Series"
-        case movies = "Movies"
-        case people = "People"
+    private enum Tab: CaseIterable, Identifiable {
+        case series
+        case movies
+        case people
 
         var id: Self { self }
+
+        func title(language: AppLanguage) -> String {
+            switch self {
+            case .series: language.localized("favorites.series")
+            case .movies: language.localized("favorites.movies")
+            case .people: language.localized("favorites.people")
+            }
+        }
     }
 
+    @Environment(\.appLanguage) private var language
     @State private var model: FavoritesModel
     @State private var selectedTab: Tab = .series
 
@@ -24,7 +33,7 @@ struct FavoritesView: View {
             content
         }
         .background(Color.black.opacity(0.92))
-        .navigationTitle("Favorites")
+        .navigationTitle(language.localized("favorites.title"))
         .task {
             await model.load()
         }
@@ -35,30 +44,33 @@ struct FavoritesView: View {
                 set: { if !$0 { model.dismissError() } }
             )
         ) {
-            Button("OK", role: .cancel) { model.dismissError() }
+            Button(language.localized("general.ok"), role: .cancel) { model.dismissError() }
         } message: {
-            Text(model.errorMessage ?? "")
+            Text(language.userFacingError(model.errorMessage))
         }
     }
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 20) {
             VStack(alignment: .leading, spacing: 7) {
-                Label("My Library", systemImage: "heart.fill")
+                Label(language.localized("favorites.my_library"), systemImage: "heart.fill")
                     .font(.headline)
                     .foregroundStyle(.orange)
-                Text("Favorites")
+                Text(language.localized("favorites.title"))
                     .font(.system(size: 42, weight: .bold, design: .rounded))
                 Text(
-                    "\(model.movieCount + model.seriesCount) titles · " +
-                    "\(model.peopleCount) people"
+                    language.localized(
+                        "favorites.summary",
+                        String(model.movieCount + model.seriesCount),
+                        String(model.peopleCount)
+                    )
                 )
                 .foregroundStyle(.secondary)
             }
 
-            Picker("Favorite type", selection: $selectedTab) {
+            Picker(language.localized("favorites.type"), selection: $selectedTab) {
                 ForEach(Tab.allCases) { tab in
-                    Text("\(tab.rawValue)  \(count(for: tab))").tag(tab)
+                    Text("\(tab.title(language: language))  \(count(for: tab))").tag(tab)
                 }
             }
             .pickerStyle(.segmented)
@@ -71,15 +83,15 @@ struct FavoritesView: View {
     @ViewBuilder
     private var content: some View {
         if model.isLoading && model.movies.isEmpty && model.series.isEmpty && model.people.isEmpty {
-            ProgressView("Loading favorites…")
+            ProgressView(language.localized("favorites.loading"))
                 .controlSize(.large)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             switch selectedTab {
             case .series:
-                mediaContent(model.series, label: "TV series")
+                mediaContent(model.series, emptyKey: "favorites.no_series")
             case .movies:
-                mediaContent(model.movies, label: "movies")
+                mediaContent(model.movies, emptyKey: "favorites.no_movies")
             case .people:
                 peopleContent
             }
@@ -87,12 +99,12 @@ struct FavoritesView: View {
     }
 
     @ViewBuilder
-    private func mediaContent(_ items: [MediaSummary], label: String) -> some View {
+    private func mediaContent(_ items: [MediaSummary], emptyKey: String) -> some View {
         if items.isEmpty {
             ContentUnavailableView(
-                "No favorite \(label)",
+                language.localized(emptyKey),
                 systemImage: "heart",
-                description: Text("Titles you favorite will appear here.")
+                description: Text(language.localized("favorites.no_media_description"))
             )
         } else {
             MediaGrid(items: items)
@@ -103,9 +115,9 @@ struct FavoritesView: View {
     private var peopleContent: some View {
         if model.people.isEmpty {
             ContentUnavailableView(
-                "No favorite people",
+                language.localized("favorites.no_people"),
                 systemImage: "person.crop.circle",
-                description: Text("Cast and crew you favorite will appear here.")
+                description: Text(language.localized("favorites.no_people_description"))
             )
         } else {
             ScrollView {
