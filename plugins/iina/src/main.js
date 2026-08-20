@@ -118,7 +118,7 @@ event.on('iina.window-will-close', () => {
   activeSession = null;
 });
 
-global.onMessage('cinelark.command', (command) => {
+function handleCommand(command) {
   if (!command || !command.sessionID || command.sessionID !== labelSessionID) return;
 
   if (command.type === 'player.play') {
@@ -177,6 +177,13 @@ global.onMessage('cinelark.command', (command) => {
     default:
       break;
   }
+}
+
+// IINA's global message hub invokes listeners on the caller's queue. Broker
+// responses arrive on an NSURLSession delegate queue, while player/core APIs
+// must execute on the main run loop. IINA timers provide that queue hop.
+global.onMessage('cinelark.command', (command) => {
+  setTimeout(() => handleCommand(command), 0);
 });
 
 setInterval(() => {

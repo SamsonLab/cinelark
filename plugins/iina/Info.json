@@ -1,7 +1,7 @@
 {
   "name": "CineLark Bridge",
   "identifier": "com.samsonlab.cinelark.iina",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Provider-neutral playback bridge between CineLark and IINA.",
   "author": {
     "name": "SamsonLab",
@@ -10,7 +10,8 @@
   "entry": "src/main.js",
   "globalEntry": "src/global.js",
   "permissions": [
-    "network-request"
+    "network-request",
+    "file-system"
   ],
   "allowedDomains": [
     "127.0.0.1",

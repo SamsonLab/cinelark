@@ -232,11 +232,20 @@ video-overlay
 file-system
 ```
 
-The plugin should request the minimum set. `show-osd` may be useful for pairing
-and connection status. `network-request` is required for the preferred outbound
-HTTP connection to the loopback Rust helper. Allow only loopback hosts; provider
+The plugin should request the minimum set. `network-request` is required for the
+preferred outbound HTTP connection to the loopback Rust helper. Stock IINA
+1.4.4 also gates `core.open` through `file-system`, including network URLs, so
+the bridge must currently declare that permission even though its code never
+reads or writes user files. Revisit this permission if IINA separates network
+media opening from filesystem access. Allow only loopback hosts; provider
 domains must not be listed unless the architecture changes through a reviewed
 decision.
+
+IINA HTTP promises resolve on an `NSURLSession` delegate queue, and the global
+message hub invokes child listeners synchronously on its caller's queue. Calling
+managed-player or `core` APIs directly from that continuation can trap inside
+JavaScriptCore. Broker commands must first hop to IINA's main run loop through
+its `setTimeout`/`Timer` polyfill.
 
 ## 10. Capability assessment
 

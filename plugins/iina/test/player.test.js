@@ -11,7 +11,8 @@ function makeHarness() {
   const messageHandlers = new Map();
   const emitted = [];
   const calls = [];
-  let timer;
+  let interval;
+  const timeouts = [];
 
   const core = {
     status: {
@@ -58,8 +59,12 @@ function makeHarness() {
       },
     },
     setInterval: (callback) => {
-      timer = callback;
+      interval = callback;
       return 1;
+    },
+    setTimeout: (callback) => {
+      timeouts.push(callback);
+      return timeouts.length;
     },
     Date,
     Number,
@@ -68,7 +73,17 @@ function makeHarness() {
   };
   const source = readFileSync(resolve(__dirname, '../src/main.js'), 'utf8');
   vm.runInNewContext(source, context, { filename: 'main.js' });
-  return { calls, core, emitted, eventHandlers, messageHandlers, runTimer: () => timer() };
+  return {
+    calls,
+    core,
+    emitted,
+    eventHandlers,
+    messageHandlers,
+    runInterval: () => interval(),
+    runTimeouts: () => {
+      while (timeouts.length > 0) timeouts.shift()();
+    },
+  };
 }
 
 function playCommand() {
@@ -88,6 +103,8 @@ function playCommand() {
 test('player opens the opaque URL and applies resume only after file-loaded', () => {
   const harness = makeHarness();
   harness.messageHandlers.get('cinelark.command')(playCommand());
+  assert.deepEqual(harness.calls, []);
+  harness.runTimeouts();
   assert.deepEqual(harness.calls, [['open', 'https://media.example/video?token=<redacted>']]);
 
   harness.eventHandlers.get('iina.file-loaded')();
@@ -122,6 +139,8 @@ test('transport commands map to the public IINA core APIs', () => {
     sessionID: playCommand().sessionID,
     payload: { id: 7 },
   });
+  assert.equal(harness.calls.length, 0);
+  harness.runTimeouts();
 
   assert.equal(harness.calls.some(([name]) => name === 'pause'), true);
   assert.equal(harness.calls.some((call) => JSON.stringify(call) === '["seek",15,true]'), true);
@@ -132,7 +151,8 @@ test('transport commands map to the public IINA core APIs', () => {
 test('position sampling emits sanitized state without the source URL', () => {
   const harness = makeHarness();
   harness.messageHandlers.get('cinelark.command')(playCommand());
-  harness.runTimer();
+  harness.runTimeouts();
+  harness.runInterval();
   const position = harness.emitted
     .map(([, value]) => value)
     .find((value) => value.type === 'player.positionChanged');

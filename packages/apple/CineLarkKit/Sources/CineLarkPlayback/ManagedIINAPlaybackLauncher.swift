@@ -6,6 +6,8 @@ import CineLarkDomain
 public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
     public let events: AsyncStream<PlaybackEvent>
 
+    private static let minimumPluginVersion = "0.1.1"
+
     private let bundle: Bundle
     private let workspace: NSWorkspace
     private let pairingStore: BridgePairingStore
@@ -40,7 +42,7 @@ public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
 
         let secret = try pairingStore.loadOrCreateSecret()
         self.secret = secret
-        guard pluginIsInstalled else {
+        guard !pluginRequiresInstallation else {
             try await openPluginInstaller(with: iinaURL)
             throw PlaybackLaunchError.pluginInstallationRequired
         }
@@ -217,18 +219,21 @@ public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
         return sequence
     }
 
-    private var pluginIsInstalled: Bool {
-        let applicationSupport = FileManager.default.urls(
+    private var pluginRequiresInstallation: Bool {
+        guard let applicationSupport = FileManager.default.urls(
             for: .applicationSupportDirectory,
             in: .userDomainMask
-        ).first
-        let pluginURL = applicationSupport?
+        ).first else {
+            return true
+        }
+        let pluginURL = applicationSupport
             .appendingPathComponent("com.colliderli.iina/plugins", isDirectory: true)
             .appendingPathComponent(
                 "\(BridgePairingStore.pluginIdentifier).iinaplugin",
                 isDirectory: true
             )
-        return pluginURL.map { FileManager.default.fileExists(atPath: $0.path) } ?? false
+        return IINAPluginInstallation(directoryURL: pluginURL)
+            .requiresVersion(Self.minimumPluginVersion)
     }
 
     private func openPluginInstaller(with iinaURL: URL) async throws {
@@ -279,6 +284,29 @@ public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
                 }
             }
         }
+    }
+}
+
+struct IINAPluginInstallation {
+    let directoryURL: URL
+
+    func requiresVersion(_ minimumVersion: String) -> Bool {
+        let manifestURL = directoryURL.appendingPathComponent("Info.json", isDirectory: false)
+        let playerEntryURL = directoryURL.appendingPathComponent("src/main.js", isDirectory: false)
+        let globalEntryURL = directoryURL.appendingPathComponent("src/global.js", isDirectory: false)
+        guard FileManager.default.fileExists(atPath: playerEntryURL.path),
+              FileManager.default.fileExists(atPath: globalEntryURL.path),
+              let data = try? Data(contentsOf: manifestURL),
+              let manifest = try? JSONDecoder().decode(Manifest.self, from: data),
+              manifest.identifier == BridgePairingStore.pluginIdentifier else {
+            return true
+        }
+        return manifest.version.compare(minimumVersion, options: .numeric) == .orderedAscending
+    }
+
+    private struct Manifest: Decodable {
+        let identifier: String
+        let version: String
     }
 }
 

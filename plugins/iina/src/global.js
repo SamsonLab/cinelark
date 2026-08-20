@@ -10,7 +10,7 @@ const {
 
 const { console, global, http, menu, utils } = iina;
 
-const PLUGIN_VERSION = '0.1.0';
+const PLUGIN_VERSION = '0.1.1';
 const KEYCHAIN_SERVICE = 'bridge';
 const KEYCHAIN_ACCOUNT = 'pairing-key';
 const PORT_START = 43191;
@@ -153,7 +153,12 @@ async function poll(generation) {
       if (response.statusCode !== 200 || !response.data || !Array.isArray(response.data.commands)) {
         throw new Error('Invalid command response');
       }
-      for (const command of response.data.commands) handleCommand(command);
+      // HTTP promises resolve on IINA's NSURLSession delegate queue. Managed
+      // player APIs are main-run-loop-only, so use IINA's timer polyfill as the
+      // documented queue hop before creating a player or posting its command.
+      for (const command of response.data.commands) {
+        setTimeout(() => handleCommand(command), 0);
+      }
     } catch (_) {
       baseURL = null;
       break;

@@ -20,6 +20,9 @@ Only synthetic fixtures belong in `fixtures/`.
 - Redact authorization headers, cookies, and sensitive query parameters before
   logging or telemetry.
 - Keep provider credentials in the core app; never send them to IINA or mpv.
+- The IINA bridge declares `file-system` only because stock IINA gates
+  `core.open` behind it even for network URLs; bridge code must not use that
+  permission to read or write user files.
 - Treat playback and download URLs as short-lived bearer capabilities. Resolve
   them just in time and expose them to the clipboard or browser only after an
   explicit user action.

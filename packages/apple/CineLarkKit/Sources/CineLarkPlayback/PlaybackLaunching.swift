@@ -127,7 +127,7 @@ public enum PlaybackLaunchError: Error, LocalizedError {
         case .iinaNotInstalled:
             "IINA is not installed. Install IINA to play this item."
         case .pluginInstallationRequired:
-            "CineLark opened the IINA Bridge installer. Approve the installation, then play again."
+            "CineLark opened the IINA Bridge installer. Approve the installation or update, then play again."
         case .pluginUnavailable:
             "The CineLark IINA Bridge is not enabled. Enable it in IINA, then try again."
         case .helperUnavailable:
