@@ -72,6 +72,39 @@ struct CachedMediaLibraryProviderTests {
         }
     }
 
+    @Test("stopped reports invalidate the continue watching shelf")
+    func stoppedReportsInvalidatePlaybackShelf() async throws {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let date = Date(timeIntervalSince1970: 1_700_000_000)
+        let upstream = StubProvider(
+            hotBehavior: .value(samplePage()),
+            playbackShelves: (sampleShelf(positionSeconds: 10), sampleShelf(positionSeconds: 42))
+        )
+        let provider = makeProvider(
+            upstream: upstream,
+            cache: PersistentMetadataCache(directory: directory, now: { date }),
+            date: date
+        )
+
+        let initial = try await provider.playbackShelf(limit: 16)
+        let cached = try await provider.playbackShelf(limit: 16)
+        #expect(initial.resume.first?.userState.positionSeconds == 10)
+        #expect(cached.resume.first?.userState.positionSeconds == 10)
+        #expect(await upstream.playbackShelfRequestCount() == 1)
+
+        _ = try await provider.reportStopped(
+            PlaybackUpdate(
+                item: PlayableItem(id: "movie-1", kind: .movie),
+                assetID: "asset-1",
+                positionSeconds: 42
+            )
+        )
+        let refreshed = try await provider.playbackShelf(limit: 16)
+        #expect(refreshed.resume.first?.userState.positionSeconds == 42)
+        #expect(await upstream.playbackShelfRequestCount() == 2)
+    }
+
     @Test("sign out removes account-scoped metadata")
     func signOutClearsMetadata() async throws {
         let directory = temporaryDirectory()
@@ -120,6 +153,29 @@ struct CachedMediaLibraryProviderTests {
         )
     }
 
+    private func sampleShelf(positionSeconds: Double) -> PlaybackShelf {
+        PlaybackShelf(
+            resume: [
+                ContinueWatchingItem(
+                    id: "movie-1",
+                    item: PlayableItem(id: "movie-1", kind: .movie),
+                    mediaID: "movie-1",
+                    title: "Synthetic Movie",
+                    subtitle: nil,
+                    posterURL: nil,
+                    thumbnailURL: nil,
+                    durationSeconds: 100,
+                    userState: UserPlaybackState(
+                        played: false,
+                        positionSeconds: positionSeconds,
+                        progress: positionSeconds / 100
+                    )
+                )
+            ],
+            nextUp: []
+        )
+    }
+
     private func temporaryDirectory() -> URL {
         FileManager.default.temporaryDirectory
             .appendingPathComponent("cinelark-provider-cache-tests-\(UUID().uuidString)", isDirectory: true)
@@ -134,14 +190,25 @@ private actor StubProvider: MediaLibraryProvider {
     }
 
     private let hotBehavior: HotBehavior
+    private let playbackShelves: (beforeStop: PlaybackShelf, afterStop: PlaybackShelf)?
     private var hotRequests = 0
+    private var playbackShelfRequests = 0
+    private var didReportStopped = false
 
-    init(hotBehavior: HotBehavior) {
+    init(
+        hotBehavior: HotBehavior,
+        playbackShelves: (beforeStop: PlaybackShelf, afterStop: PlaybackShelf)? = nil
+    ) {
         self.hotBehavior = hotBehavior
+        self.playbackShelves = playbackShelves
     }
 
     func hotRequestCount() -> Int {
         hotRequests
+    }
+
+    func playbackShelfRequestCount() -> Int {
+        playbackShelfRequests
     }
 
     func restoreSession() async throws -> ProviderSession? {
@@ -238,7 +305,9 @@ private actor StubProvider: MediaLibraryProvider {
     }
 
     func playbackShelf(limit: Int) async throws -> PlaybackShelf {
-        throw ProviderError.unsupported
+        guard let playbackShelves else { throw ProviderError.unsupported }
+        playbackShelfRequests += 1
+        return didReportStopped ? playbackShelves.afterStop : playbackShelves.beforeStop
     }
 
     func reportProgress(_ update: PlaybackUpdate) async throws -> UserPlaybackState {
@@ -246,6 +315,12 @@ private actor StubProvider: MediaLibraryProvider {
     }
 
     func reportStopped(_ update: PlaybackUpdate) async throws -> UserPlaybackState {
-        throw ProviderError.unsupported
+        guard playbackShelves != nil else { throw ProviderError.unsupported }
+        didReportStopped = true
+        return UserPlaybackState(
+            played: false,
+            positionSeconds: update.positionSeconds,
+            progress: update.positionSeconds / 100
+        )
     }
 }

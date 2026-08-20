@@ -117,9 +117,9 @@ Keychain-provisioned pairing key through both request and envelope HMACs.
 }
 ```
 
-The URL is opaque to the plugin. The player acknowledges receipt, opens it, and
-applies resume only after the matching file-loaded event. Actual URLs must never
-appear in fixtures or logs.
+The URL is opaque to the plugin. The player acknowledges receipt, opens it,
+applies resume only after the matching file-loaded event, and enters fullscreen
+by default. Actual URLs must never appear in fixtures or logs.
 
 ### Transport commands
 
@@ -170,7 +170,9 @@ A state snapshot contains no playback URL and maps to the shared semantics in
 The plugin samples position every second and emits at most once every two
 seconds. The Coordinator currently coalesces provider progress writes to a
 10-second cadence and sends a terminal stopped update on EOF, close, stop, or
-session replacement.
+session replacement. After the stopped request succeeds, CineLark invalidates
+the cached playback shelf and reloads Continue Watching; a failed stopped
+request must not make the UI claim that remote progress was updated.
 
 ## 7. IINA mapping
 

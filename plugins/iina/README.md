@@ -19,6 +19,12 @@ uses IINA's timer polyfill for this queue hop. IINA also gates `core.open` behin
 the `file-system` permission even for network URLs; the bridge requests that
 permission but does not read or write user files.
 
+Broker discovery happens before Keychain access, and a successfully read pairing
+key is cached only for the lifetime of the IINA process. IINA therefore asks for
+Keychain authorization only when CineLark is reachable and does not repeat the
+prompt during automatic reconnects. Users can choose **Always Allow** to retain
+that explicit authorization across IINA launches.
+
 ## Development
 
 ```sh

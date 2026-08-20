@@ -8,9 +8,9 @@ const {
   verifyEnvelope,
 } = require('./lib/protocol.js');
 
-const { console, global, http, menu, utils } = iina;
+const { global, http, menu, utils } = iina;
 
-const PLUGIN_VERSION = '0.1.1';
+const PLUGIN_VERSION = '0.1.2';
 const KEYCHAIN_SERVICE = 'bridge';
 const KEYCHAIN_ACCOUNT = 'pairing-key';
 const PORT_START = 43191;
@@ -168,25 +168,29 @@ async function poll(generation) {
 
 async function connect() {
   const generation = ++connectionGeneration;
-  const storedSecret = utils.keychainRead(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT);
-  if (typeof storedSecret !== 'string') {
-    console.log('CineLark Bridge is waiting for Keychain pairing.');
-    await delay(RETRY_DELAY_MS);
-    if (generation === connectionGeneration) connect();
-    return;
-  }
 
   try {
-    const decoded = base64UrlDecode(storedSecret);
-    if (decoded.length !== 32) throw new Error('Invalid pairing key');
-    secret = decoded;
+    // Do not touch Keychain while CineLark is absent. This prevents IINA from
+    // presenting an authorization dialog on every background retry.
     baseURL = await discoverBroker();
     if (!baseURL) throw new Error('Broker unavailable');
+
+    if (!secret) {
+      const storedSecret = utils.keychainRead(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT);
+      if (typeof storedSecret !== 'string') {
+        throw new Error('CineLark Bridge is waiting for Keychain pairing.');
+      }
+      const decoded = base64UrlDecode(storedSecret);
+      if (decoded.length !== 32) throw new Error('Invalid pairing key');
+      secret = decoded;
+    }
+
     eventSequence = 0;
     lastCommandSequence = 0;
     await hello();
     await poll(generation);
-  } catch (_) {
+  } catch (error) {
+    if (error && error.statusCode === 401) secret = null;
     baseURL = null;
   }
 
@@ -205,6 +209,7 @@ global.onMessage('cinelark.event', (event) => {
 menu.addItem(
   menu.item('Reconnect CineLark Bridge', () => {
     baseURL = null;
+    secret = null;
     connect();
   })
 );

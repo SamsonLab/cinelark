@@ -25,16 +25,21 @@ prompt for IINA.
    JavaScript plugins receive a different IINA-enforced service prefix.
 4. The first IINA read is authorized through the macOS Keychain prompt. The
    prompt is the user-approved cross-application provisioning step; the key is
-   never copied through HTTP or a file.
-5. CineLark sends the key to its supervised Rust child only in the initial
+   never copied through HTTP or a file. Choosing **Always Allow** persists this
+   approval across signed IINA launches.
+5. The plugin discovers a live CineLark broker before reading Keychain and
+   caches the key only in memory for the IINA process lifetime. Automatic
+   reconnects do not repeat Keychain reads; explicit reconnect or a 401 clears
+   the cached key.
+6. CineLark sends the key to its supervised Rust child only in the initial
    length-prefixed stdin frame. The helper retains it in memory only.
-6. Plugin HTTP requests use HMAC-SHA-256 over method, request target, Unix
+7. Plugin HTTP requests use HMAC-SHA-256 over method, request target, Unix
    timestamp, and a unique nonce. The helper enforces a 30-second window and a
    bounded replay cache.
-7. Every command and event envelope uses HMAC-SHA-256 over the versioned
+8. Every command and event envelope uses HMAC-SHA-256 over the versioned
    canonical envelope representation. Each direction enforces monotonically
    increasing sequence numbers.
-8. Revocation rotates/deletes the Keychain item and restarts the helper. UI for
+9. Revocation rotates/deletes the Keychain item and restarts the helper. UI for
    manual reset remains a follow-up hardening task.
 
 ## Threat model

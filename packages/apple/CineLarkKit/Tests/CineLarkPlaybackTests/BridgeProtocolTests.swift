@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import CineLarkDomain
 @testable import CineLarkPlayback
 
 @Suite("Playback bridge protocol")
@@ -50,6 +51,16 @@ struct BridgeProtocolTests {
             date: date
         )
         #expect(envelope.mac == "f-U2R3wA0BH372_NRygSR_sK3PLkSf6CsmDgNLGRoKU")
+    }
+
+    @Test("Playback descriptors start managed players in fullscreen")
+    func playbackStartsInFullscreen() {
+        let descriptor = PlaybackDescriptor(
+            url: URL(string: "https://media.example/video?token=<redacted>")!,
+            title: "Synthetic Feature"
+        )
+
+        #expect(descriptor.startsInFullscreen)
     }
 
     @Test("Canonical JSON sorts nested object keys")

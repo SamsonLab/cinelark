@@ -527,11 +527,19 @@ public struct PlaybackDescriptor: Sendable {
     public let url: URL
     public let title: String
     public let startPositionSeconds: Double
+    public let startsInFullscreen: Bool
 
-    public init(id: UUID = UUID(), url: URL, title: String, startPositionSeconds: Double = 0) {
+    public init(
+        id: UUID = UUID(),
+        url: URL,
+        title: String,
+        startPositionSeconds: Double = 0,
+        startsInFullscreen: Bool = true
+    ) {
         self.id = id
         self.url = url
         self.title = title
         self.startPositionSeconds = max(startPositionSeconds, 0)
+        self.startsInFullscreen = startsInFullscreen
     }
 }

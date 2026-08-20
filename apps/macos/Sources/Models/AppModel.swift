@@ -38,12 +38,22 @@ final class AppModel {
     private(set) var playingItemID: String?
     var errorMessage: String?
 
+    @ObservationIgnored private var suppressesPlaybackRefresh = false
     @ObservationIgnored let provider: any MediaLibraryProvider
     @ObservationIgnored let playback: PlaybackCoordinator
 
     init(provider: any MediaLibraryProvider, launcher: any PlaybackLaunching) {
         self.provider = provider
-        self.playback = PlaybackCoordinator(provider: provider, launcher: launcher)
+        let playback = PlaybackCoordinator(provider: provider, launcher: launcher)
+        self.playback = playback
+        playback.onStoppedReported = { [weak self] in
+            guard let self,
+                  self.phase == .signedIn,
+                  !self.suppressesPlaybackRefresh else { return }
+            Task { @MainActor [weak self] in
+                await self?.refreshContinueWatching()
+            }
+        }
     }
 
     func bootstrap() async {
@@ -80,6 +90,7 @@ final class AppModel {
     }
 
     func signOut() async {
+        suppressesPlaybackRefresh = true
         await playback.stop()
         await provider.signOut()
         hotItems = []
@@ -90,6 +101,7 @@ final class AppModel {
         searchResults = []
         errorMessage = nil
         phase = .signedOut
+        suppressesPlaybackRefresh = false
     }
 
     func refreshHome() async {
@@ -126,6 +138,19 @@ final class AppModel {
         }
 
         isLoadingHome = false
+    }
+
+    func refreshContinueWatching() async {
+        guard phase == .signedIn, !suppressesPlaybackRefresh else { return }
+        do {
+            let shelf = try await provider.playbackShelf(limit: 16)
+            guard phase == .signedIn, !suppressesPlaybackRefresh else { return }
+            continueWatching = shelf.resume
+        } catch is CancellationError {
+            return
+        } catch {
+            handleAuthenticated(error)
+        }
     }
 
     func items(in collection: MediaCollection, sort: MediaSort) -> [MediaSummary] {
@@ -257,6 +282,7 @@ final class AppModel {
     }
 
     func prepareForTermination() async {
+        suppressesPlaybackRefresh = true
         await playback.stop()
     }
 

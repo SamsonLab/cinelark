@@ -6,7 +6,7 @@ import CineLarkDomain
 public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
     public let events: AsyncStream<PlaybackEvent>
 
-    private static let minimumPluginVersion = "0.1.1"
+    private static let minimumPluginVersion = "0.1.2"
 
     private let bundle: Bundle
     private let workspace: NSWorkspace
@@ -62,7 +62,7 @@ public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
                 "url": .string(descriptor.url.absoluteString),
                 "title": .string(descriptor.title),
                 "startPositionSeconds": .number(descriptor.startPositionSeconds),
-                "presentation": .object(["fullscreen": .bool(false)])
+                "presentation": .object(["fullscreen": .bool(descriptor.startsInFullscreen)])
             ],
             secret: secret
         )

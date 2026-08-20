@@ -1,9 +1,17 @@
 import Foundation
+import OSLog
 import CineLarkDomain
 import CineLarkPlayback
 
 @MainActor
 final class PlaybackCoordinator {
+    private static let logger = Logger(
+        subsystem: "com.samsonlab.cinelark",
+        category: "Playback"
+    )
+
+    var onStoppedReported: (@MainActor @Sendable () -> Void)?
+
     private struct ActivePlayback {
         let playbackID: UUID
         let item: PlayableItem
@@ -158,7 +166,13 @@ final class PlaybackCoordinator {
             assetID: activePlayback.assetID,
             positionSeconds: activePlayback.positionSeconds
         )
-        await progressReporter.reportStopped(update)
+        do {
+            try await progressReporter.reportStopped(update)
+            Self.logger.info("Stopped playback state reported successfully")
+            onStoppedReported?()
+        } catch {
+            Self.logger.error("Stopped playback state report failed")
+        }
     }
 }
 
@@ -171,30 +185,29 @@ private actor PlaybackProgressReporter {
     }
 
     func reportProgress(_ update: PlaybackUpdate) {
-        enqueue(update, stopped: false)
+        enqueueProgress(update)
     }
 
-    func reportStopped(_ update: PlaybackUpdate) async {
-        let task = enqueue(update, stopped: true)
-        await task.value
+    func reportStopped(_ update: PlaybackUpdate) async throws {
+        let previous = tail
+        let provider = provider
+        let reportingTask = Task {
+            await previous?.value
+            return try await provider.reportStopped(update)
+        }
+        tail = Task {
+            _ = try? await reportingTask.value
+        }
+        _ = try await reportingTask.value
     }
 
-    @discardableResult
-    private func enqueue(
-        _ update: PlaybackUpdate,
-        stopped: Bool
-    ) -> Task<Void, Never> {
+    private func enqueueProgress(_ update: PlaybackUpdate) {
         let previous = tail
         let provider = provider
         let task = Task {
             await previous?.value
-            if stopped {
-                _ = try? await provider.reportStopped(update)
-            } else {
-                _ = try? await provider.reportProgress(update)
-            }
+            _ = try? await provider.reportProgress(update)
         }
         tail = task
-        return task
     }
 }

@@ -6,34 +6,34 @@ import Testing
 struct IINAPluginInstallationTests {
     @Test("outdated plugins require an update")
     func outdatedPluginRequiresUpdate() throws {
-        let directory = try makePlugin(version: "0.1.0")
+        let directory = try makePlugin(version: "0.1.1")
         defer { try? FileManager.default.removeItem(at: directory) }
 
-        #expect(IINAPluginInstallation(directoryURL: directory).requiresVersion("0.1.1"))
+        #expect(IINAPluginInstallation(directoryURL: directory).requiresVersion("0.1.2"))
     }
 
     @Test("current and newer plugins remain installed")
     func currentAndNewerPluginsRemainInstalled() throws {
-        let current = try makePlugin(version: "0.1.1")
+        let current = try makePlugin(version: "0.1.2")
         let newer = try makePlugin(version: "0.2.0")
         defer {
             try? FileManager.default.removeItem(at: current)
             try? FileManager.default.removeItem(at: newer)
         }
 
-        #expect(!IINAPluginInstallation(directoryURL: current).requiresVersion("0.1.1"))
-        #expect(!IINAPluginInstallation(directoryURL: newer).requiresVersion("0.1.1"))
+        #expect(!IINAPluginInstallation(directoryURL: current).requiresVersion("0.1.2"))
+        #expect(!IINAPluginInstallation(directoryURL: newer).requiresVersion("0.1.2"))
     }
 
     @Test("missing player entries require reinstallation")
     func missingEntriesRequireReinstallation() throws {
-        let directory = try makePlugin(version: "0.1.1")
+        let directory = try makePlugin(version: "0.1.2")
         defer { try? FileManager.default.removeItem(at: directory) }
         try FileManager.default.removeItem(
             at: directory.appendingPathComponent("src/main.js", isDirectory: false)
         )
 
-        #expect(IINAPluginInstallation(directoryURL: directory).requiresVersion("0.1.1"))
+        #expect(IINAPluginInstallation(directoryURL: directory).requiresVersion("0.1.2"))
     }
 
     private func makePlugin(version: String) throws -> URL {
