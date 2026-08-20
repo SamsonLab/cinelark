@@ -100,7 +100,8 @@ struct MediaCategoryView: View {
                         .cineLarkHoverSurface(
                             cornerRadius: 999,
                             normalFillOpacity: selectedCollection?.id == collection.id ? 0.04 : 0.055,
-                            accentOnHover: true
+                            normalStrokeOpacity: 0,
+                            hoverStrokeOpacity: 0
                         )
                     }
                     .buttonStyle(.plain)
@@ -183,7 +184,11 @@ private struct MediaSortToolbar: ToolbarContent {
                     Image(systemName: order == .ascending ? "arrow.up" : "arrow.down")
                         .font(.body.weight(.semibold))
                         .frame(width: 38, height: 36)
-                        .cineLarkHoverSurface(cornerRadius: 10)
+                        .cineLarkHoverSurface(
+                            cornerRadius: 10,
+                            normalStrokeOpacity: 0,
+                            hoverStrokeOpacity: 0
+                        )
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(
@@ -224,7 +229,11 @@ private struct SortFieldPickerButton: View {
             }
             .padding(.horizontal, 14)
             .frame(width: 176, height: 36)
-            .cineLarkHoverSurface(cornerRadius: 10)
+            .cineLarkHoverSurface(
+                cornerRadius: 10,
+                normalStrokeOpacity: 0,
+                hoverStrokeOpacity: 0
+            )
         }
         .buttonStyle(.plain)
         .help(language.localized("sort.label"))
