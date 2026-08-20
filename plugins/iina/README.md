@@ -14,8 +14,9 @@ persists playback URLs.
 - emit sanitized state, position, track, EOF, and close events.
 
 IINA 1.4.4 resolves HTTP promises on an `NSURLSession` delegate queue, while
-managed-player and `core.open` calls must run on the main run loop. The plugin
-uses IINA's timer polyfill for this queue hop. IINA also gates `core.open` behind
+its JavaScript API objects are main-run-loop-bound. The plugin uses IINA's timer
+polyfill before every subsequent HTTP, Keychain, managed-player, or `core`
+operation. IINA also gates `core.open` behind
 the `file-system` permission even for network URLs; the bridge requests that
 permission but does not read or write user files.
 

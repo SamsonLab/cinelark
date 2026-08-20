@@ -243,9 +243,10 @@ decision.
 
 IINA HTTP promises resolve on an `NSURLSession` delegate queue, and the global
 message hub invokes child listeners synchronously on its caller's queue. Calling
-managed-player or `core` APIs directly from that continuation can trap inside
-JavaScriptCore. Broker commands must first hop to IINA's main run loop through
-its `setTimeout`/`Timer` polyfill.
+any IINA JavaScript API object—including the next `http` request, Keychain,
+managed-player, or `core` APIs—directly from that continuation can trap inside
+JavaScriptCore. Every such call after an async boundary must first hop to IINA's
+main run loop through its `setTimeout`/`Timer` polyfill.
 
 ## 10. Capability assessment
 

@@ -10,7 +10,7 @@ const {
 
 const { global, http, menu, utils } = iina;
 
-const PLUGIN_VERSION = '0.1.2';
+const PLUGIN_VERSION = '0.1.3';
 const KEYCHAIN_SERVICE = 'bridge';
 const KEYCHAIN_ACCOUNT = 'pairing-key';
 const PORT_START = 43191;
@@ -29,31 +29,48 @@ function delay(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
+function runOnMain(operation) {
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      try {
+        const result = operation();
+        if (result && typeof result.then === 'function') {
+          result.then(resolve, reject);
+        } else {
+          resolve(result);
+        }
+      } catch (error) {
+        reject(error);
+      }
+    }, 0);
+  });
+}
+
 function authenticatedHeaders(method, uri) {
   return requestHeaders({ secret, method, uri });
 }
 
 async function get(uri) {
-  return http.get(`${baseURL}${uri}`, {
+  return runOnMain(() => http.get(`${baseURL}${uri}`, {
     headers: authenticatedHeaders('GET', uri),
-  });
+  }));
 }
 
 async function post(uri, data) {
-  return http.post(`${baseURL}${uri}`, {
+  return runOnMain(() => http.post(`${baseURL}${uri}`, {
     headers: {
       ...authenticatedHeaders('POST', uri),
       'Content-Type': 'application/json',
     },
     data,
-  });
+  }));
 }
 
 async function discoverBroker() {
   for (let port = PORT_START; port <= PORT_END; port += 1) {
     const candidate = `http://127.0.0.1:${port}`;
     try {
-      const response = await http.get(`${candidate}/v1/health`);
+      const response = await runOnMain(() => http.get(`${candidate}/v1/health`));
       if (
         response.statusCode === 200 &&
         response.data &&
@@ -176,7 +193,9 @@ async function connect() {
     if (!baseURL) throw new Error('Broker unavailable');
 
     if (!secret) {
-      const storedSecret = utils.keychainRead(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT);
+      const storedSecret = await runOnMain(
+        () => utils.keychainRead(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT)
+      );
       if (typeof storedSecret !== 'string') {
         throw new Error('CineLark Bridge is waiting for Keychain pairing.');
       }

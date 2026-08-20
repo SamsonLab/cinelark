@@ -13,7 +13,40 @@ async function settlePromises(iterations = 20) {
   for (let index = 0; index < iterations; index += 1) await Promise.resolve();
 }
 
-test('broker commands hop through the main-run-loop timer before using global player APIs', async () => {
+function timerHarness() {
+  const timers = [];
+  let isMainTurn = true;
+
+  return {
+    timers,
+    assertMain: () => assert.equal(isMainTurn, true, 'IINA API called off the main run loop'),
+    setTimeout: (callback, milliseconds) => {
+      timers.push({ callback, milliseconds });
+      return timers.length;
+    },
+    finishInitialTurn: () => { isMainTurn = false; },
+    run: async (timer) => {
+      isMainTurn = true;
+      timer.callback();
+      isMainTurn = false;
+      await settlePromises();
+    },
+    drainImmediate: async () => {
+      for (let count = 0; count < 100; count += 1) {
+        const index = timers.findIndex((timer) => timer.milliseconds === 0);
+        if (index < 0) return;
+        const [timer] = timers.splice(index, 1);
+        isMainTurn = true;
+        timer.callback();
+        isMainTurn = false;
+        await settlePromises();
+      }
+      throw new Error('Immediate IINA timer queue did not settle');
+    },
+  };
+}
+
+test('all broker, Keychain, and player IINA APIs execute on the main run loop', async () => {
   const secret = Array.from({ length: 32 }, (_, index) => index);
   const secretString = protocol.base64UrlEncode(secret);
   const sessionID = '6f55936d-5950-44fd-a696-f989d41785cc';
@@ -28,24 +61,27 @@ test('broker commands hop through the main-run-loop timer before using global pl
       startPositionSeconds: 0,
     },
   });
-  const timers = [];
+  const harness = timerHarness();
   const calls = [];
   let deliveredCommand = false;
 
-  const iinaGlobal = {
-    createPlayerInstance: (options) => {
-      calls.push(['createPlayerInstance', options]);
-      return 17;
-    },
-    postMessage: (target, name, data) => calls.push(['postMessage', target, name, data]),
-    onMessage: () => {},
-  };
   const context = {
     iina: {
-      console: { log: () => {} },
-      global: iinaGlobal,
+      global: {
+        createPlayerInstance: (options) => {
+          harness.assertMain();
+          calls.push(['createPlayerInstance', options]);
+          return 17;
+        },
+        postMessage: (target, name, data) => {
+          harness.assertMain();
+          calls.push(['postMessage', target, name, data]);
+        },
+        onMessage: () => {},
+      },
       http: {
         get: (url) => {
+          harness.assertMain();
           if (url.endsWith('/v1/health')) {
             return Promise.resolve({
               statusCode: 200,
@@ -61,75 +97,81 @@ test('broker commands hop through the main-run-loop timer before using global pl
           }
           return Promise.reject(new Error('Unexpected GET'));
         },
-        post: () => Promise.resolve({
-          statusCode: 200,
-          data: { protocolVersion: protocol.PROTOCOL_VERSION },
-        }),
+        post: () => {
+          harness.assertMain();
+          return Promise.resolve({
+            statusCode: 200,
+            data: { protocolVersion: protocol.PROTOCOL_VERSION },
+          });
+        },
       },
-      menu: {
-        item: (_title, action) => action,
-        addItem: () => {},
+      menu: { item: (_title, action) => action, addItem: () => {} },
+      utils: {
+        keychainRead: () => {
+          harness.assertMain();
+          return secretString;
+        },
       },
-      utils: { keychainRead: () => secretString },
     },
     require: (path) => {
       assert.equal(path, './lib/protocol.js');
       return protocol;
     },
-    setTimeout: (callback) => {
-      timers.push(callback);
-      return timers.length;
-    },
+    setTimeout: harness.setTimeout,
     Promise,
     Date,
     Math,
   };
   vm.runInNewContext(globalSource, context, { filename: 'global.js' });
-  await settlePromises();
+  harness.finishInitialTurn();
+  await harness.drainImmediate();
 
-  assert.deepEqual(calls, []);
-  assert.equal(timers.length, 1);
-  timers.shift()();
   assert.equal(calls[0][0], 'createPlayerInstance');
   assert.deepEqual(calls[1].slice(0, 3), ['postMessage', 17, 'cinelark.command']);
 });
 
 test('broker discovery does not touch Keychain while CineLark is absent', async () => {
+  const harness = timerHarness();
   let keychainReads = 0;
-  const timers = [];
   const context = {
     iina: {
       global: { onMessage: () => {} },
       http: {
-        get: () => Promise.reject(new Error('Broker unavailable')),
+        get: () => {
+          harness.assertMain();
+          return Promise.reject(new Error('Broker unavailable'));
+        },
         post: () => Promise.reject(new Error('Unexpected POST')),
       },
       menu: { item: (_title, action) => action, addItem: () => {} },
       utils: { keychainRead: () => { keychainReads += 1; return false; } },
     },
     require: () => protocol,
-    setTimeout: (callback) => { timers.push(callback); return timers.length; },
+    setTimeout: harness.setTimeout,
     Promise,
     Date,
     Math,
   };
 
   vm.runInNewContext(globalSource, context, { filename: 'global.js' });
-  await settlePromises(50);
+  harness.finishInitialTurn();
+  await harness.drainImmediate();
 
   assert.equal(keychainReads, 0);
-  assert.equal(timers.length, 1);
+  assert.equal(harness.timers.length, 1);
+  assert.equal(harness.timers[0].milliseconds, 3000);
 });
 
 test('automatic broker reconnect reuses the in-memory pairing key', async () => {
   const secret = Array.from({ length: 32 }, (_, index) => index);
+  const harness = timerHarness();
   let keychainReads = 0;
-  const timers = [];
   const context = {
     iina: {
       global: { onMessage: () => {} },
       http: {
         get: (url) => {
+          harness.assertMain();
           if (url.endsWith('/v1/health')) {
             return Promise.resolve({
               statusCode: 200,
@@ -138,32 +180,38 @@ test('automatic broker reconnect reuses the in-memory pairing key', async () => 
           }
           return Promise.reject(new Error('Long poll disconnected'));
         },
-        post: () => Promise.resolve({
-          statusCode: 200,
-          data: { protocolVersion: protocol.PROTOCOL_VERSION },
-        }),
+        post: () => {
+          harness.assertMain();
+          return Promise.resolve({
+            statusCode: 200,
+            data: { protocolVersion: protocol.PROTOCOL_VERSION },
+          });
+        },
       },
       menu: { item: (_title, action) => action, addItem: () => {} },
       utils: {
         keychainRead: () => {
+          harness.assertMain();
           keychainReads += 1;
           return protocol.base64UrlEncode(secret);
         },
       },
     },
     require: () => protocol,
-    setTimeout: (callback) => { timers.push(callback); return timers.length; },
+    setTimeout: harness.setTimeout,
     Promise,
     Date,
     Math,
   };
 
   vm.runInNewContext(globalSource, context, { filename: 'global.js' });
-  await settlePromises(50);
+  harness.finishInitialTurn();
+  await harness.drainImmediate();
   assert.equal(keychainReads, 1);
-  assert.equal(timers.length, 1);
 
-  timers.shift()();
-  await settlePromises(50);
+  const reconnectTimerIndex = harness.timers.findIndex((timer) => timer.milliseconds === 3000);
+  const [reconnectTimer] = harness.timers.splice(reconnectTimerIndex, 1);
+  await harness.run(reconnectTimer);
+  await harness.drainImmediate();
   assert.equal(keychainReads, 1);
 });
