@@ -1,0 +1,205 @@
+# CineLark Architecture
+
+- **Status:** Accepted direction; implementation details remain Draft
+- **Last updated:** 2026-08-20
+
+## 1. System context
+
+```text
+                       ┌────────────────────┐
+                       │ CineLark Remote    │
+                       │ future iPhone app  │
+                       └─────────┬──────────┘
+                                 │ paired local protocol
+                                 ▼
+┌────────────────┐      ┌───────────────────────────────┐
+│ Media Provider │◀────▶│ CineLark for Mac             │
+│ UHDNow first   │      │                               │
+└────────────────┘      │ UI + domain + provider auth   │
+                        │ PlaybackCoordinator           │
+                        └───────────────┬───────────────┘
+                                        │ authenticated bridge
+                                        ▼
+                        ┌───────────────────────────────┐
+                        │ CineLark IINA Bridge          │
+                        │ provider-neutral plugin       │
+                        └───────────────┬───────────────┘
+                                        ▼
+                                   IINA / mpv
+```
+
+## 2. Ownership rules
+
+| Concern | Owner |
+| --- | --- |
+| Account credentials and provider token | Provider adapter in Mac app |
+| Keychain lifecycle | Mac app; plugin stores only its bridge secret |
+| Library, detail, favorites, resume source | Provider adapter |
+| Navigation and focus | Mac app presentation layer |
+| Version selection | Mac app `PlaybackCoordinator` |
+| Playback URL construction | Provider adapter |
+| Decode, HDR, tracks, subtitles | IINA/mpv |
+| Player transport and telemetry | IINA Bridge |
+| Provider progress writes | Mac app |
+| Remote pairing and authorization | Mac app |
+
+The plugin never calls provider APIs. The Remote never receives provider
+credentials or directly controls the plugin.
+
+## 3. Logical modules
+
+### 3.1 `CineLarkDomain`
+
+Provider-neutral value types and use cases:
+
+- media identifiers, summaries, details, seasons, episodes, and people
+- image references and playback state
+- media assets, audio/subtitle tracks, and playback descriptors
+- pagination, sorting, favorites, and provider errors
+
+It contains no networking, UI framework, UHDNow JSON, or IINA API types.
+
+### 3.2 `MediaLibraryProvider`
+
+An asynchronous capability boundary described in
+[`interfaces/media-library-provider.md`](interfaces/media-library-provider.md).
+Provider adapters translate unstable external contracts into stable domain
+models.
+
+### 3.3 `UHDNowProvider`
+
+Owns:
+
+- authentication and raw `Authorization` token transport
+- `/api/v1` request/response models
+- line/domain resolution and tokenized playback URL construction
+- tick/second conversion
+- UHDNow-specific paging, sorting, and item-type mapping
+
+Raw DTOs stay internal to this package.
+
+### 3.4 `CineLarkApplication`
+
+Coordinates use cases and state machines. It depends on domain protocols, not
+concrete provider or bridge implementations.
+
+### 3.5 `PlaybackCoordinator`
+
+Maintains one logical playback session:
+
+1. Resolve provider item and selected media asset.
+2. Decide resume/start-over position.
+3. Request an ephemeral playback descriptor.
+4. Connect and authenticate the IINA Bridge.
+5. Send provider-neutral `play` command.
+6. Translate bridge telemetry into local state.
+7. Coalesce and write provider progress.
+8. Send a final stopped update and close the logical session.
+
+A new `play` supersedes the previous logical session and finalizes it first.
+
+### 3.6 `IINABridgePlugin`
+
+A small JavaScript/TypeScript package with no provider dependency. It maps the
+bridge protocol to IINA public plugin APIs and mpv properties/events.
+
+## 4. Data flow
+
+### 4.1 Browse
+
+```text
+View → Use Case → MediaLibraryProvider → Provider API
+     ← View State ← Domain Models       ← DTO mapping
+```
+
+Views never depend on provider DTOs.
+
+### 4.2 Play and resume
+
+```text
+Selection
+  → provider.assets(item)
+  → choose asset
+  → provider.makePlaybackDescriptor(asset)
+  → bridge.play(descriptor, startPosition)
+  → IINA core.open(url)
+  → file-loaded
+  → seekTo(startPosition)
+  → state/position events
+  → provider.reportProgress(...)
+```
+
+Resume is applied after a matching `file-loaded` event, not merely after sending
+`open`, to avoid races with mpv initialization.
+
+### 4.3 Progress
+
+Bridge telemetry uses seconds. Provider adapters convert at their boundary.
+UHDNow uses 10,000,000 ticks per second:
+
+```text
+positionTicks = round(positionSeconds × 10,000,000)
+positionSeconds = positionTicks ÷ 10,000,000
+```
+
+The coordinator periodically coalesces position changes and sends a terminal
+stopped event for lifecycle boundaries. Exact cadence and retry policy are Open.
+
+## 5. State and concurrency
+
+- UI observes immutable view state produced by an application state machine.
+- Provider and bridge operations use structured concurrency and support
+  cancellation.
+- Each playback session has a unique opaque ID; late events from superseded
+  sessions are ignored.
+- Progress writes for one item are serialized and monotonic unless the user
+  explicitly seeks backward.
+- Provider token refresh/login changes invalidate derived playback URLs.
+
+## 6. Failure boundaries
+
+| Failure | Required behavior |
+| --- | --- |
+| Provider unavailable | Preserve navigation state; show retry affordance |
+| Session expired | Reauthenticate without exposing credentials to plugin |
+| Asset/domain resolution failed | Do not launch IINA; offer retry/version change |
+| IINA absent | Explain installation requirement; library remains usable |
+| Plugin absent/incompatible | Show detected protocol versions and remediation |
+| Bridge disconnected | Keep provider state; reconnect or terminate session cleanly |
+| Progress write failed | Coalesce retry; never pause playback |
+| Tokenized URL expired | Resolve a new descriptor instead of replaying cached URL |
+
+## 7. Security boundaries
+
+- External provider traffic uses HTTPS.
+- The Mac app is the only component allowed to hold provider credentials.
+- Playback descriptors are ephemeral and must not be persisted.
+- Bridge traffic is local but still untrusted until authenticated.
+- The audited IINA WebSocket server is not loopback-restricted and has no TLS;
+  therefore protocol authentication and network-exposure mitigation are P0.
+- Every diagnostic layer applies structured redaction before formatting values.
+
+## 8. Repository boundaries
+
+```text
+apps/macos/              CineLark for Mac
+apps/remote/             future CineLark Remote
+packages/domain/         provider-neutral models and protocols
+packages/uhdnow/         UHDNow adapter
+packages/bridge/         app-side bridge implementation
+plugins/iina/            IINA plugin
+specs/bridge/            shared protocol source of truth
+specs/uhdnow/            observed external API description
+```
+
+Directories are placeholders until the implementation toolchain is selected.
+
+## 9. Testing strategy
+
+- Domain: pure unit tests for mapping-independent behavior and resume rules.
+- Provider: contract tests against synthetic redacted fixtures.
+- Bridge: schema tests plus app/plugin conformance vectors.
+- Playback: integration tests with a local fake bridge before IINA automation.
+- UI: deterministic focus-navigation tests for rows, grids, detail pages, and
+  state restoration.
+- Security: secret scanning and URL/header redaction tests in CI.

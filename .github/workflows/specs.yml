@@ -1,0 +1,22 @@
+name: Specs
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate repository content
+        run: python3 scripts/check_repository.py
+      - name: Lint observed OpenAPI contract
+        run: npx --yes @redocly/cli@2.46.2 lint specs/uhdnow/openapi.yaml

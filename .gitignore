@@ -1,0 +1,36 @@
+# macOS
+.DS_Store
+
+# Xcode
+DerivedData/
+.build/
+.swiftpm/
+xcuserdata/
+*.xcuserstate
+*.xccheckout
+*.moved-aside
+
+# JavaScript
+node_modules/
+dist/
+coverage/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.p12
+*.mobileprovision
+secrets/
+
+# Network captures and private fixtures
+*.har
+*_extracted/
+fixtures/private/
+fixtures/raw/
+
+# Logs and temporary files
+*.log
+*.tmp
+.tmp/

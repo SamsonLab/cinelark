@@ -1,0 +1,935 @@
+openapi: 3.1.0
+info:
+  title: Observed UHDNow API
+  version: 0.1.0-observed
+  description: >-
+    Sanitized, partial contract inferred from authenticated browser captures on
+    2026-08-20. This is not an official API specification. Unknown fields and
+    error responses are intentionally left open.
+servers:
+  - url: https://www.uhdnow.com/api/v1
+security:
+  - rawAuthorization: []
+tags:
+  - name: Authentication
+    description: Session lifecycle.
+  - name: Account
+    description: Account, plan, usage, and delivery-domain state.
+  - name: Discovery
+    description: Home, search, and collection browsing.
+  - name: Media
+    description: Movie, series, season, episode, asset, and track metadata.
+  - name: People
+    description: Person details and works.
+  - name: Favorites
+    description: Favorite reads and mutations.
+  - name: Playback
+    description: Resume state and progress reporting.
+paths:
+  /auth/login:
+    post:
+      tags: [Authentication]
+      operationId: login
+      summary: Log in with account credentials
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Issued session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+  /users/me/logout:
+    post:
+      tags: [Authentication]
+      operationId: logout
+      summary: Log out the current session
+      responses:
+        '200':
+          $ref: '#/components/responses/OpenSuccess'
+  /users/me:
+    get:
+      tags: [Account]
+      operationId: getCurrentUser
+      summary: Get the current user
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+  /traffic/me:
+    get:
+      tags: [Account]
+      operationId: getCurrentTraffic
+      summary: Get current traffic usage
+      responses:
+        '200':
+          description: Current traffic usage
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpenDataResponse'
+  /subscriptions/me:
+    get:
+      tags: [Account]
+      operationId: getCurrentSubscription
+      summary: Get the current subscription
+      responses:
+        '200':
+          description: Current subscription and plan limits
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpenDataResponse'
+  /subscriptions/domains:
+    get:
+      tags: [Account]
+      operationId: listDeliveryDomains
+      summary: List delivery domains
+      responses:
+        '200':
+          description: Available delivery domains
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DomainsResponse'
+  /subscriptions/domains/{domainID}/resolve:
+    get:
+      tags: [Account]
+      operationId: resolveDeliveryDomain
+      summary: Resolve a delivery domain
+      parameters:
+        - $ref: '#/components/parameters/DomainID'
+      responses:
+        '200':
+          description: Resolved delivery domain
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DomainResponse'
+  /stream/library/hot:
+    get:
+      tags: [Discovery]
+      operationId: listHotMedia
+      summary: List hot media
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          $ref: '#/components/responses/PagedMedia'
+  /stream/library/search:
+    get:
+      tags: [Discovery]
+      operationId: searchMedia
+      summary: Search the media library
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          $ref: '#/components/responses/PagedMedia'
+  /stream/library/collections:
+    get:
+      tags: [Discovery]
+      operationId: listCollections
+      summary: List media collections
+      responses:
+        '200':
+          description: Ordered media collections
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollectionsResponse'
+  /stream/library/collections/{collectionID}/items:
+    get:
+      tags: [Discovery]
+      operationId: listCollectionItems
+      summary: List items in a collection
+      parameters:
+        - $ref: '#/components/parameters/CollectionID'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/SortBy'
+        - $ref: '#/components/parameters/SortOrder'
+      responses:
+        '200':
+          description: Collection and paginated media items
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollectionItemsResponse'
+  /stream/movies/{movieID}:
+    get:
+      tags: [Media]
+      operationId: getMovie
+      summary: Get movie details
+      parameters:
+        - $ref: '#/components/parameters/MovieID'
+      responses:
+        '200':
+          description: Movie detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MediaDetailResponse'
+  /stream/movies/{movieID}/assets:
+    get:
+      tags: [Media]
+      operationId: getMovieAssets
+      summary: Get movie assets
+      parameters:
+        - $ref: '#/components/parameters/MovieID'
+      responses:
+        '200':
+          $ref: '#/components/responses/Assets'
+  /stream/tv/{seriesID}:
+    get:
+      tags: [Media]
+      operationId: getSeries
+      summary: Get series details
+      parameters:
+        - $ref: '#/components/parameters/SeriesID'
+      responses:
+        '200':
+          description: Series detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MediaDetailResponse'
+  /stream/tv/{seriesID}/seasons:
+    get:
+      tags: [Media]
+      operationId: listSeasons
+      summary: List series seasons
+      parameters:
+        - $ref: '#/components/parameters/SeriesID'
+      responses:
+        '200':
+          description: Seasons
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SeasonsResponse'
+  /stream/tv/{seriesID}/seasons/{seasonID}/episodes:
+    get:
+      tags: [Media]
+      operationId: listEpisodes
+      summary: List season episodes
+      parameters:
+        - $ref: '#/components/parameters/SeriesID'
+        - $ref: '#/components/parameters/SeasonID'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: Paginated episodes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EpisodesResponse'
+  /stream/episodes/{episodeID}/assets:
+    get:
+      tags: [Media]
+      operationId: getEpisodeAssets
+      summary: Get episode assets
+      parameters:
+        - $ref: '#/components/parameters/EpisodeID'
+      responses:
+        '200':
+          $ref: '#/components/responses/Assets'
+  /stream/tv/{seriesID}/playback-state:
+    get:
+      tags: [Playback]
+      operationId: getSeriesPlaybackState
+      summary: Get series playback state
+      parameters:
+        - $ref: '#/components/parameters/SeriesID'
+      responses:
+        '200':
+          description: Resume and next-up state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlaybackStateResponse'
+  /stream/me/playback-states:
+    get:
+      tags: [Playback]
+      operationId: getPlaybackShelves
+      summary: Get resume and next-up shelves
+      parameters:
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Resume and next-up shelves
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpenDataResponse'
+  /stream/library/persons/{personID}:
+    get:
+      tags: [People]
+      operationId: getPerson
+      summary: Get person details
+      parameters:
+        - $ref: '#/components/parameters/PersonID'
+      responses:
+        '200':
+          description: Person detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonResponse'
+  /stream/library/persons/{personID}/works:
+    get:
+      tags: [People]
+      operationId: listPersonWorks
+      summary: List a person's works
+      parameters:
+        - $ref: '#/components/parameters/PersonID'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - $ref: '#/components/parameters/SortBy'
+        - $ref: '#/components/parameters/SortOrder'
+      responses:
+        '200':
+          $ref: '#/components/responses/PagedMedia'
+  /stream/me/favorites:
+    get:
+      tags: [Favorites]
+      operationId: listFavorites
+      summary: List favorites
+      parameters:
+        - name: type
+          in: query
+          required: true
+          description: Observed values only; server enum is not guaranteed.
+          schema:
+            type: string
+            enum: [movie, tv, person]
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          $ref: '#/components/responses/PagedMedia'
+    post:
+      tags: [Favorites]
+      operationId: addFavorite
+      summary: Add a favorite
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FavoriteMutation'
+      responses:
+        '200':
+          description: Resulting favorite state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FavoriteMutationResponse'
+  /stream/me/favorites/tv/{seriesID}:
+    delete:
+      tags: [Favorites]
+      operationId: removeSeriesFavorite
+      summary: Remove a series favorite
+      description: Only the TV delete path was observed.
+      parameters:
+        - $ref: '#/components/parameters/SeriesID'
+      responses:
+        '200':
+          description: Resulting favorite state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FavoriteMutationResponse'
+  /stream/playback/progress:
+    post:
+      tags: [Playback]
+      operationId: reportPlaybackProgress
+      summary: Report playback progress
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlaybackUpdate'
+      responses:
+        '200':
+          description: Resulting user playback state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserStateResponse'
+  /stream/playback/stopped:
+    post:
+      tags: [Playback]
+      operationId: reportPlaybackStopped
+      summary: Report stopped playback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlaybackUpdate'
+      responses:
+        '200':
+          description: Resulting terminal user playback state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserStateResponse'
+components:
+  securitySchemes:
+    rawAuthorization:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: Raw issued token; no Bearer prefix was observed.
+  parameters:
+    Page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    PageSize:
+      name: page_size
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+    SortBy:
+      name: sort_by
+      in: query
+      description: Values observed in captures; not a guaranteed exhaustive enum.
+      schema:
+        type: string
+        enum: [release_date, updated_at, asset_updated_at, title, rating, hot]
+    SortOrder:
+      name: sort_order
+      in: query
+      schema:
+        type: string
+        enum: [asc, desc]
+    DomainID:
+      name: domainID
+      in: path
+      required: true
+      schema:
+        type: string
+    CollectionID:
+      name: collectionID
+      in: path
+      required: true
+      schema:
+        type: string
+    MovieID:
+      name: movieID
+      in: path
+      required: true
+      schema:
+        type: string
+    SeriesID:
+      name: seriesID
+      in: path
+      required: true
+      schema:
+        type: string
+    SeasonID:
+      name: seasonID
+      in: path
+      required: true
+      schema:
+        type: string
+    EpisodeID:
+      name: episodeID
+      in: path
+      required: true
+      schema:
+        type: string
+    PersonID:
+      name: personID
+      in: path
+      required: true
+      schema:
+        type: string
+  responses:
+    OpenSuccess:
+      description: Successful response without a data payload
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/BasicSuccessResponse'
+    PagedMedia:
+      description: Paginated media summaries
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PagedMediaResponse'
+    Assets:
+      description: Media versions and tracks
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AssetsResponse'
+  schemas:
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [username, password]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+          format: password
+        totp_code:
+          type: [string, 'null']
+    LoginResponse:
+      type: object
+      required: [ok, data]
+      properties:
+        ok:
+          type: boolean
+        data:
+          type: object
+          required: [token, expires_at]
+          properties:
+            token:
+              type: string
+              writeOnly: true
+            expires_at:
+              type: string
+    BasicSuccessResponse:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+      additionalProperties: true
+    OpenDataResponse:
+      type: object
+      required: [ok, data]
+      properties:
+        ok:
+          type: boolean
+        data: {}
+      additionalProperties: true
+    UserResponse:
+      type: object
+      required: [ok, data]
+      properties:
+        ok:
+          type: boolean
+        data:
+          type: object
+          required: [id, name, email, totp_enabled]
+          properties:
+            id: { type: string }
+            name: { type: string }
+            email: { type: string }
+            balance: { type: integer }
+            cashback_rate: { type: number }
+            invite_code: { type: string }
+            totp_enabled: { type: boolean }
+          additionalProperties: true
+    Domain:
+      type: object
+      required: [id, name, domain, normalized_host, sort_order]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        description: { type: [string, 'null'] }
+        domain: { type: string, format: uri }
+        normalized_host: { type: string }
+        parent_id: { type: string }
+        sort_order: { type: integer }
+      additionalProperties: true
+    DomainsResponse:
+      type: object
+      required: [ok, data]
+      properties:
+        ok: { type: boolean }
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Domain'
+    DomainResponse:
+      type: object
+      required: [ok, data]
+      properties:
+        ok: { type: boolean }
+        data:
+          $ref: '#/components/schemas/Domain'
+    Genre:
+      type: object
+      required: [id, name, slug]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        slug: { type: string }
+    UserState:
+      type: object
+      required: [played, position_ticks, progress_pct]
+      properties:
+        played: { type: boolean }
+        favorite: { type: boolean }
+        position_ticks:
+          type: integer
+          minimum: 0
+          description: 10,000,000 ticks equal one second.
+        progress_pct: { type: integer }
+        last_played_at: { type: string }
+      additionalProperties: true
+    PersonCredit:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        avatar_path: { type: [string, 'null'] }
+        character: { type: string }
+        sort_order: { type: integer }
+      additionalProperties: true
+    MediaSummary:
+      type: object
+      required: [id, type, title]
+      properties:
+        id: { type: string }
+        type: { type: string }
+        title: { type: string }
+        origin_title: { type: [string, 'null'] }
+        description: { type: [string, 'null'] }
+        release_date: { type: [string, 'null'] }
+        release_year: { type: [integer, 'null'] }
+        rating: { type: [integer, 'null'] }
+        duration: { type: [integer, 'null'] }
+        poster_path: { type: [string, 'null'] }
+        fanart_path: { type: [string, 'null'] }
+        logo_path: { type: [string, 'null'] }
+        total_seasons: { type: [integer, 'null'] }
+        has_versions: { type: [integer, 'null'] }
+        asset_updated_at: { type: [string, 'null'] }
+        genres:
+          type: array
+          items:
+            $ref: '#/components/schemas/Genre'
+        user_state:
+          $ref: '#/components/schemas/UserState'
+      additionalProperties: true
+    MediaDetail:
+      allOf:
+        - $ref: '#/components/schemas/MediaSummary'
+        - type: object
+          properties:
+            tmdb_id: { type: [integer, string, 'null'] }
+            imdb_id: { type: [string, 'null'] }
+            last_air_date: { type: [string, 'null'] }
+            directors:
+              type: array
+              items:
+                $ref: '#/components/schemas/PersonCredit'
+            cast:
+              type: array
+              items:
+                $ref: '#/components/schemas/PersonCredit'
+          additionalProperties: true
+    PagedMediaData:
+      type: object
+      required: [page, page_size, total, items]
+      properties:
+        page: { type: integer }
+        page_size: { type: integer }
+        total: { type: integer }
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MediaSummary'
+      additionalProperties: true
+    PagedMediaResponse:
+      type: object
+      required: [ok, data]
+      properties:
+        ok: { type: boolean }
+        data:
+          $ref: '#/components/schemas/PagedMediaData'
+    Collection:
+      type: object
+      required: [id, name, media_type, ord, item_count]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        media_type: { type: string }
+        ord: { type: integer }
+        item_count: { type: integer }
+    CollectionsResponse:
+      type: object
+      required: [ok, data]
+      properties:
+        ok: { type: boolean }
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/Collection'
+    CollectionItemsResponse:
+      type: object
+      required: [ok, data]
+      properties:
+        ok: { type: boolean }
+        data:
+          allOf:
+            - $ref: '#/components/schemas/PagedMediaData'
+            - type: object
+              required: [collection]
+              properties:
+                collection:
+                  $ref: '#/components/schemas/Collection'
+    MediaDetailResponse:
+      type: object
+      required: [ok, data]
+      properties:
+        ok: { type: boolean }
+        data:
+          $ref: '#/components/schemas/MediaDetail'
+    Season:
+      type: object
+      required: [id, media_id, season_number, season_title, total_episodes]
+      properties:
+        id: { type: string }
+        media_id: { type: string }
+        season_number: { type: integer }
+        season_title: { type: string }
+        poster_path: { type: [string, 'null'] }
+        total_episodes: { type: integer }
+        user_state:
+          $ref: '#/components/schemas/UserState'
+      additionalProperties: true
+    SeasonsResponse:
+      type: object
+      required: [ok, data]
+      properties:
+        ok: { type: boolean }
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/Season'
+    Episode:
+      type: object
+      required: [id, media_id, season_id, episode_number, title]
+      properties:
+        id: { type: string }
+        media_id: { type: string }
+        season_id: { type: string }
+        episode_number: { type: integer }
+        title: { type: string }
+        description: { type: [string, 'null'] }
+        air_date: { type: [string, 'null'] }
+        thumb_path: { type: [string, 'null'] }
+        duration: { type: [integer, 'null'] }
+        has_versions: { type: [integer, 'null'] }
+        user_state:
+          $ref: '#/components/schemas/UserState'
+      additionalProperties: true
+    EpisodesResponse:
+      type: object
+      required: [ok, data]
+      properties:
+        ok: { type: boolean }
+        data:
+          type: object
+          required: [page, page_size, total, items]
+          properties:
+            page: { type: integer }
+            page_size: { type: integer }
+            total: { type: integer }
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/Episode'
+    AudioTrack:
+      type: object
+      required: [index, codec_name, is_default]
+      properties:
+        index: { type: integer }
+        codec_name: { type: string }
+        bit_rate: { type: [integer, 'null'] }
+        channels: { type: [integer, 'null'] }
+        channel_layout: { type: [string, 'null'] }
+        sample_rate: { type: [string, 'null'] }
+        language: { type: [string, 'null'] }
+        title: { type: [string, 'null'] }
+        is_default: { type: boolean }
+      additionalProperties: true
+    SubtitleTrack:
+      type: object
+      required: [index, codec_name, is_default]
+      properties:
+        index: { type: integer }
+        language: { type: [string, 'null'] }
+        title: { type: [string, 'null'] }
+        codec_name: { type: string }
+        is_default: { type: boolean }
+      additionalProperties: true
+    VideoAsset:
+      type: object
+      required: [asset_id, media_id, play_path, download_path]
+      properties:
+        asset_id: { type: string }
+        media_id: { type: string }
+        episode_id: { type: string }
+        name: { type: string }
+        display_name: { type: string }
+        container: { type: [string, 'null'] }
+        duration: { type: [integer, 'null'] }
+        file_size: { type: [integer, 'null'] }
+        bit_rate: { type: [integer, 'null'] }
+        width: { type: [integer, 'null'] }
+        height: { type: [integer, 'null'] }
+        resolution: { type: [string, 'null'] }
+        encoding: { type: [string, 'null'] }
+        profile: { type: [string, 'null'] }
+        video_bit_rate: { type: [integer, 'null'] }
+        pix_fmt: { type: [string, 'null'] }
+        frame_rate: { type: [string, 'null'] }
+        color_space: { type: [string, 'null'] }
+        color_transfer: { type: [string, 'null'] }
+        color_primaries: { type: [string, 'null'] }
+        video_range: { type: [string, 'null'] }
+        audio_tracks:
+          type: array
+          items:
+            $ref: '#/components/schemas/AudioTrack'
+        subtitle_tracks:
+          type: array
+          items:
+            $ref: '#/components/schemas/SubtitleTrack'
+        play_path:
+          type: string
+          description: Observed as /play/video/{assetID}.
+        download_path:
+          type: string
+          description: Observed as /download/video/{assetID}.
+      additionalProperties: true
+    AssetsResponse:
+      type: object
+      required: [ok, data]
+      properties:
+        ok: { type: boolean }
+        data:
+          type: object
+          required: [videos, subtitles]
+          properties:
+            videos:
+              type: array
+              items:
+                $ref: '#/components/schemas/VideoAsset'
+            subtitles:
+              type: array
+              items: {}
+    PlaybackStateResponse:
+      type: object
+      required: [ok, data]
+      properties:
+        ok: { type: boolean }
+        data:
+          type: object
+          required: [resume, next_up]
+          properties:
+            resume:
+              oneOf:
+                - type: 'null'
+                - type: object
+                  additionalProperties: true
+            next_up:
+              oneOf:
+                - type: 'null'
+                - $ref: '#/components/schemas/Episode'
+    PersonResponse:
+      type: object
+      required: [ok, data]
+      properties:
+        ok: { type: boolean }
+        data:
+          type: object
+          required: [id, name, favorite]
+          properties:
+            id: { type: string }
+            name: { type: string }
+            tmdb_id: { type: [string, 'null'] }
+            imdb_id: { type: [string, 'null'] }
+            favorite: { type: boolean }
+          additionalProperties: true
+    FavoriteMutation:
+      type: object
+      additionalProperties: false
+      required: [item_id, item_type]
+      properties:
+        item_id: { type: string }
+        item_type:
+          type: string
+          description: Observed values include movie, tv, and person.
+    FavoriteMutationResponse:
+      type: object
+      required: [ok, data]
+      properties:
+        ok: { type: boolean }
+        data:
+          type: object
+          required: [favorite, item_id, item_type]
+          properties:
+            favorite: { type: boolean }
+            item_id: { type: string }
+            item_type: { type: string }
+    PlaybackUpdate:
+      type: object
+      additionalProperties: false
+      required: [asset_id, item_id, item_type, position_ticks]
+      properties:
+        asset_id: { type: string }
+        item_id: { type: string }
+        item_type:
+          type: string
+          description: episode is observed; movie value remains unverified.
+        position_ticks:
+          type: integer
+          minimum: 0
+          description: 10,000,000 ticks equal one second.
+    UserStateResponse:
+      type: object
+      required: [ok, data]
+      properties:
+        ok: { type: boolean }
+        data:
+          type: object
+          required: [user_state]
+          properties:
+            user_state:
+              $ref: '#/components/schemas/UserState'

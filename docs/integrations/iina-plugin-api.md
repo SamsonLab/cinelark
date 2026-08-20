@@ -1,0 +1,266 @@
+# Verified IINA Plugin Capabilities
+
+- **Status:** Verified source snapshot
+- **Source:** `iina/iina`-compatible source at commit
+  `50320a76d5f1ba5eb00afffe06088107aa6c3ba7`
+- **Snapshot description:** `v1.4.2-build164-301-g50320a76`
+- **Audit date:** 2026-08-20
+
+This is the capability basis for CineLark's thin plugin. It records APIs visible
+in the audited source, not a compatibility promise for every released IINA
+version. CineLark must declare and test a minimum compatible IINA version before
+release.
+
+## 1. Plugin lifecycle and instances
+
+IINA supports a normal per-player entry and an optional global entry.
+
+The global API can create managed `PlayerCore` instances:
+
+```javascript
+const playerID = global.createPlayerInstance({
+  url: "<opaque-playback-url>",
+  label: "cinelark-session",
+  disableWindowAnimation: false,
+  disableUI: false,
+  enablePlugins: false
+});
+```
+
+Observed options:
+
+| Option | Meaning |
+| --- | --- |
+| `url` | URL/path opened after creating the player |
+| `label` | user label available to the child plugin instance |
+| `disableWindowAnimation` | suppress player window animation |
+| `disableUI` | disable standard IINA UI |
+| `enablePlugins` | load all enabled plugins; otherwise load only this plugin |
+
+The returned numeric ID addresses the child through
+`global.postMessage(target, name, data)`. A null target broadcasts to all
+managed children. Child instances use `global.postMessage(name, data)` to reach
+the global controller; both sides register `global.onMessage` handlers.
+
+The API does not expose a dedicated method to destroy one managed player from
+the global controller. Plugin cleanup closes and shuts down all instances it
+created.
+
+## 2. Playback control
+
+`iina.core` exposes:
+
+```text
+open(url)
+osd(message)
+pause()
+resume()
+stop()
+seek(seconds, exact)
+seekTo(seconds)
+setSpeed(speed)
+getChapters()
+playChapter(index)
+getHistory()
+getRecentDocuments()
+getVersion()
+```
+
+CineLark needs only URL open, transport, seek, and version checks. History and
+recent-document APIs must not be used because tokenized URLs are sensitive.
+
+### Status
+
+Readable `core.status` properties:
+
+```text
+paused, idle, position, duration, speed
+videoWidth, videoHeight, isNetworkResource
+url, title
+```
+
+`position` and `duration` are seconds. The bridge must omit `status.url` from
+messages and logs because it may contain a token.
+
+### Window
+
+`core.window` can read/control loaded, frame, fullscreen, picture-in-picture,
+always-on-top, sidebar, screen, visibility, and miniaturization state. CineLark
+initially needs fullscreen state only.
+
+## 3. Tracks
+
+`core.audio`, `core.subtitle`, and `core.video` expose track IDs, current track,
+and track lists. Serialized tracks include:
+
+```text
+id, title, formattedTitle, lang, codec
+isDefault, isForced, isSelected, isExternal
+demuxW, demuxH, demuxChannelCount, demuxChannels
+demuxSamplerate, demuxFPS
+```
+
+Additional controls include audio volume/mute/delay, subtitle ID/secondary ID
+and delay, and external track loading. IINA/mpv owns track behavior; the bridge
+only lists and selects tracks.
+
+## 4. mpv API
+
+`iina.mpv` exposes:
+
+```text
+getFlag(property)
+getNumber(property)
+getString(property)
+getNative(property)
+set(property, value)
+command(commandName, args)
+addHook(name, priority, callback)
+```
+
+This is sufficient for properties/events not covered by `core`, including
+playlist and end-file behavior. Prefer the narrower `core` API when it provides
+the required semantic operation.
+
+## 5. Events
+
+`event.on(name, callback)` returns a listener ID removed with
+`event.off(name, id)`.
+
+Supported naming forms are:
+
+```text
+iina.{event}
+mpv.{event}
+iina.{property}.changed
+mpv.{property}.changed
+```
+
+Relevant verified events/properties include:
+
+```text
+iina.file-loaded
+iina.file-started
+iina.window-loaded
+iina.window-will-close
+mpv.end-file
+mpv.pause.changed
+```
+
+Arbitrary mpv property change listeners are registered lazily when using the
+`mpv.{property}.changed` form. The bridge can observe position by sampling
+`core.status.position`; existing plugin evidence notes that relying only on a
+`time-pos` change event is not sufficient in all cases.
+
+## 6. Storage and credentials
+
+`utils.keychainWrite(service, name, password)` and
+`utils.keychainRead(service, name)` are available. IINA prefixes the Keychain
+service with the plugin identifier.
+
+Use Keychain only for bridge pairing material. Provider credentials and tokens
+belong to CineLark for Mac and must not be copied into plugin preferences.
+
+`preferences.get/set/sync` is suitable for non-secret configuration.
+
+## 7. Networking
+
+### HTTP
+
+`http.get/post/put/patch/delete/download` return JavaScript promises. Requests
+require:
+
+- plugin permission `network-request`
+- the target host in `allowedDomains`
+
+This can support diagnostics or a fallback app endpoint, but the provider API
+must remain in the native app.
+
+### WebSocket server
+
+`iina.ws` exposes:
+
+```text
+createServer({ port })
+startServer()
+onStateUpdate(handler)
+onNewConnection(handler)
+onConnectionStateUpdate(handler)
+onMessage(handler)
+sendText(connectionID, string)
+```
+
+The implementation supports incoming text/binary data and ping/pong. Despite
+its name, `sendText` passes UTF-8 bytes to a server method that marks the frame
+as binary.
+
+Security limitations in the audited implementation:
+
+- TLS is explicitly disabled/TODO.
+- `NWListener` is created by port without a loopback interface constraint.
+- peer-to-peer networking is enabled.
+- no stop-server API is exported to JavaScript.
+- the selected bound endpoint/ephemeral port is not exposed.
+
+These limitations are tracked in the bridge specification and must not be
+papered over by describing the server as localhost-only.
+
+## 8. Plugin UI
+
+Available surfaces include:
+
+- sidebar WebView
+- video overlay WebView
+- standalone window
+- plugin menu items
+- input listeners
+
+The CineLark bridge should avoid duplicating the native library UI. A minimal
+status/pairing window or menu item is appropriate; the Mac app owns browsing.
+
+## 9. Permissions relevant to CineLark
+
+Manifest permissions recognized by the audited source include:
+
+```text
+network-request
+show-osd
+show-alert
+video-overlay
+file-system
+```
+
+The plugin should request the minimum set. `show-osd` may be useful for pairing
+and connection status. `network-request` is needed only if the final bridge
+transport requires outbound HTTP. Provider domains should not be listed unless
+the architecture changes through a reviewed decision.
+
+## 10. Capability assessment
+
+| Requirement | Current API | Assessment |
+| --- | --- | --- |
+| Create dedicated player | global managed player | Supported |
+| Open tokenized URL | `core.open` / create option | Supported |
+| Resume after load | file-loaded + `seekTo` | Supported |
+| Pause/seek/stop/state | core/mpv APIs | Supported |
+| Audio/subtitle inventory and selection | track sub-APIs | Supported |
+| Playback lifecycle telemetry | IINA/mpv events | Supported |
+| Secret storage | plugin-scoped Keychain | Supported |
+| Native app IPC | WebSocket server | Functionally supported, security unresolved |
+| Loopback-only listener | none exposed | Gap |
+| TLS WebSocket | none | Gap |
+| Stop one WS server / managed player from global API | none exposed | Gap/non-blocking TBD |
+
+## 11. Fork policy
+
+Do not fork IINA for supported playback operations. Consider a minimal,
+upstreamable IINA change only if the bridge security design proves that one of
+these is required:
+
+1. bind WebSocket server to loopback only;
+2. expose the actual bound endpoint for an ephemeral port;
+3. stop the server explicitly;
+4. provide a safer native-app IPC primitive.
+
+Any such patch requires a separate ADR, compatibility tests, and an upstream PR
+before CineLark depends on fork-only behavior.
