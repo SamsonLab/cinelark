@@ -79,18 +79,24 @@ struct MediaCategoryView: View {
 
     private var collectionSelector: some View {
         ScrollView(.horizontal) {
-            HStack(spacing: 10) {
+            HStack(spacing: 12) {
                 ForEach(collections) { collection in
                     Button {
                         selectedCollectionID = collection.id
                     } label: {
                         HStack(spacing: 7) {
+                            Image(systemName: "checkmark")
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(Color.accentColor)
+                                .opacity(selectedCollection?.id == collection.id ? 1 : 0)
+                                .frame(width: 12)
+                                .accessibilityHidden(true)
                             Text(collection.name)
                             Text(collection.itemCount.formatted())
                                 .foregroundStyle(.secondary)
                         }
                         .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
+                        .padding(.vertical, 10)
                         .background(
                             selectedCollection?.id == collection.id
                                 ? Color.accentColor.opacity(0.18)
@@ -105,6 +111,13 @@ struct MediaCategoryView: View {
                         )
                     }
                     .buttonStyle(.plain)
+                    .accessibilityValue(
+                        language.localized(
+                            selectedCollection?.id == collection.id
+                                ? "general.selected"
+                                : "general.not_selected"
+                        )
+                    )
                 }
             }
             .padding(.horizontal, 28)
@@ -183,7 +196,7 @@ private struct MediaSortToolbar: ToolbarContent {
                 } label: {
                     Image(systemName: order == .ascending ? "arrow.up" : "arrow.down")
                         .font(.body.weight(.semibold))
-                        .frame(width: 38, height: 36)
+                        .frame(width: 40, height: 40)
                         .cineLarkHoverSurface(
                             cornerRadius: 10,
                             normalStrokeOpacity: 0,
@@ -228,7 +241,7 @@ private struct SortFieldPickerButton: View {
                     .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 14)
-            .frame(width: 176, height: 36)
+            .frame(width: 176, height: 40)
             .cineLarkHoverSurface(
                 cornerRadius: 10,
                 normalStrokeOpacity: 0,
@@ -248,14 +261,22 @@ private struct SortFieldPickerButton: View {
                             Image(systemName: "checkmark")
                                 .opacity(field == option ? 1 : 0)
                                 .frame(width: 14)
+                                .accessibilityHidden(true)
                             Text(option.displayName(language: language))
                             Spacer()
                         }
                         .padding(.horizontal, 10)
-                        .frame(height: 32)
+                        .frame(height: 40)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .accessibilityValue(
+                        language.localized(
+                            field == option
+                                ? "general.selected"
+                                : "general.not_selected"
+                        )
+                    )
                     .cineLarkHoverSurface(
                         cornerRadius: 7,
                         normalFillOpacity: 0,

@@ -25,6 +25,10 @@ struct MediaDetailView: View {
             LazyVStack(alignment: .leading, spacing: 34) {
                 hero
 
+                if let synopsis = model.item.synopsis, !synopsis.isEmpty {
+                    overview(synopsis)
+                }
+
                 if model.item.kind == .movie {
                     movieVersions
                 } else {
@@ -49,7 +53,7 @@ struct MediaDetailView: View {
                 set: { if !$0 { model.dismissError() } }
             )
         ) {
-            Button(language.localized("general.ok"), role: .cancel) { model.dismissError() }
+            Button(language.localized("general.dismiss"), role: .cancel) { model.dismissError() }
         } message: {
             Text(language.userFacingError(model.errorMessage))
         }
@@ -78,87 +82,118 @@ struct MediaDetailView: View {
                     )
                 }
 
-            HStack(alignment: .bottom, spacing: 28) {
-                ArtworkView(url: model.item.posterURL)
-                    .frame(width: 210, height: 315)
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
-                    .shadow(radius: 18, y: 8)
-
-                VStack(alignment: .leading, spacing: 14) {
-                    Text(model.item.title)
-                        .font(.system(size: 42, weight: .bold, design: .rounded))
-
-                    HStack(spacing: 14) {
-                        if let year = model.item.releaseYear {
-                            Text(String(year))
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .bottom, spacing: 28) {
+                    ArtworkView(url: model.item.posterURL)
+                        .frame(width: 210, height: 315)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .stroke(Color.white.opacity(0.10))
+                                .allowsHitTesting(false)
                         }
-                        if let rating = model.item.rating {
-                            Label(
-                                rating.formatted(.number.precision(.fractionLength(1))),
-                                systemImage: "star.fill"
-                            )
-                        }
-                        if let duration = model.item.durationSeconds {
-                            Text(language.duration(duration))
-                        }
-                        if let seasons = model.item.totalSeasons {
-                            Text(
-                                language.localized(
-                                    seasons == 1
-                                        ? "detail.season_count_one"
-                                        : "detail.season_count_many",
-                                    String(seasons)
-                                )
-                            )
-                        }
-                    }
-                    .foregroundStyle(.secondary)
+                        .shadow(radius: 18, y: 8)
 
-                    if !model.item.genres.isEmpty {
-                        Text(model.item.genres.map(\.name).joined(separator: " · "))
-                            .font(.callout.weight(.medium))
-                    }
+                    heroMetadata(titleSize: 42)
+                        .frame(minWidth: 360, maxWidth: .infinity, alignment: .leading)
+                }
 
-                    if let synopsis = model.item.synopsis, !synopsis.isEmpty {
-                        Text(synopsis)
-                            .font(.body)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(5)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .frame(maxWidth: 720, alignment: .leading)
-                    }
+                heroMetadata(titleSize: 36)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.horizontal, 40)
+            .padding(.bottom, 8)
+        }
+    }
 
-                    Button {
-                        Task { await model.toggleFavorite() }
-                    } label: {
-                        if model.isUpdatingFavorite {
-                            ProgressView().controlSize(.small)
-                        } else {
-                            Label(
-                                language.localized(
-                                    model.isFavorite
-                                        ? "detail.favorite"
-                                        : "detail.add_favorite"
-                                ),
-                                systemImage: model.isFavorite ? "heart.fill" : "heart"
-                            )
-                        }
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.large)
-                    .tint(model.isFavorite ? .orange : .accentColor)
-                    .disabled(
-                        model.isUpdatingFavorite ||
-                        (model.isFavorite && !model.canRemoveFavorite)
+    private func heroMetadata(titleSize: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(model.item.title)
+                .font(.system(size: titleSize, weight: .bold, design: .rounded))
+                .lineLimit(2)
+                .help(model.item.title)
+
+            HStack(spacing: 14) {
+                if let year = model.item.releaseYear {
+                    Text(String(year))
+                }
+                if let rating = model.item.rating {
+                    Label(
+                        rating.formatted(.number.precision(.fractionLength(1))),
+                        systemImage: "star.fill"
                     )
                 }
-                .padding(.bottom, 8)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .layoutPriority(1)
+                if let duration = model.item.durationSeconds {
+                    Text(language.duration(duration))
+                }
+                if let seasons = model.item.totalSeasons {
+                    Text(
+                        language.localized(
+                            seasons == 1
+                                ? "detail.season_count_one"
+                                : "detail.season_count_many",
+                            String(seasons)
+                        )
+                    )
+                }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 40)
+            .monospacedDigit()
+            .foregroundStyle(.secondary)
+
+            if !model.item.genres.isEmpty {
+                Text(model.item.genres.map(\.name).joined(separator: " · "))
+                    .font(.callout.weight(.medium))
+                    .lineLimit(2)
+            }
+
+            if let synopsis = model.item.synopsis, !synopsis.isEmpty {
+                Text(synopsis)
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(3)
+                    .frame(maxWidth: 720, alignment: .leading)
+            }
+
+            Button {
+                Task { await model.toggleFavorite() }
+            } label: {
+                if model.isUpdatingFavorite {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Label(
+                        language.localized(
+                            model.isFavorite
+                                ? "detail.favorite"
+                                : "detail.add_favorite"
+                        ),
+                        systemImage: model.isFavorite ? "heart.fill" : "heart"
+                    )
+                }
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.large)
+            .tint(model.isFavorite ? .orange : .accentColor)
+            .disabled(
+                model.isUpdatingFavorite ||
+                (model.isFavorite && !model.canRemoveFavorite)
+            )
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .layoutPriority(1)
+    }
+
+    private func overview(_ synopsis: String) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(language.localized("detail.overview"))
+                .font(.title2.bold())
+            Text(synopsis)
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .lineSpacing(4)
+                .textSelection(.enabled)
+                .frame(maxWidth: 760, alignment: .leading)
+        }
+        .padding(.horizontal, 40)
     }
 
     @ViewBuilder
@@ -274,6 +309,7 @@ struct MediaDetailView: View {
                                 Text(person.name)
                                     .font(.callout.weight(.medium))
                                     .lineLimit(1)
+                                    .help(person.name)
                                 if let character = person.character, !character.isEmpty {
                                     Text(character)
                                         .font(.caption)
@@ -283,7 +319,7 @@ struct MediaDetailView: View {
                             }
                             .frame(width: 130)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(CineLarkPressButtonStyle())
                     }
                 }
             }
@@ -299,6 +335,7 @@ struct MediaDetailView: View {
 }
 
 private struct EpisodeRow: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.appLanguage) private var language
     let episode: Episode
     let action: () -> Void
@@ -310,6 +347,11 @@ private struct EpisodeRow: View {
                 ArtworkView(url: episode.thumbnailURL)
                     .frame(width: 220, height: 124)
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(Color.white.opacity(0.10))
+                            .allowsHitTesting(false)
+                    }
                     .overlay(alignment: .topTrailing) {
                         if episode.versionCount > 0 {
                             Text(
@@ -331,7 +373,7 @@ private struct EpisodeRow: View {
                 VStack(alignment: .leading, spacing: 7) {
                     Text(language.localized("episode.number", String(episode.number)))
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(.cyan)
+                        .foregroundStyle(Color.accentColor)
                     Text(episode.title)
                         .font(.headline)
                     if let synopsis = episode.synopsis {
@@ -339,11 +381,12 @@ private struct EpisodeRow: View {
                             .font(.callout)
                             .foregroundStyle(.secondary)
                             .lineLimit(2)
+                            .help(synopsis)
                     }
                     if episode.userState.progress > 0 && !episode.userState.played {
                         ProgressView(value: episode.userState.progress)
                             .progressViewStyle(.linear)
-                            .tint(.cyan)
+                            .tint(Color.accentColor)
                             .frame(maxWidth: 280)
                     }
                 }
@@ -363,7 +406,7 @@ private struct EpisodeRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(CineLarkPressButtonStyle())
         .background(
             isHovering ? Color.accentColor.opacity(0.12) : Color.white.opacity(0.055),
             in: RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -377,13 +420,21 @@ private struct EpisodeRow: View {
                     lineWidth: isHovering ? 1.5 : 1
                 )
         }
-        .scaleEffect(isHovering ? 1.006 : 1)
-        .offset(y: isHovering ? -1 : 0)
+        .scaleEffect(isHovering && !reduceMotion ? 1.004 : 1)
+        .offset(y: isHovering && !reduceMotion ? -1 : 0)
         .shadow(color: .black.opacity(isHovering ? 0.30 : 0), radius: 12, y: 6)
         .onHover { isHovering = $0 }
-        .animation(.easeOut(duration: 0.16), value: isHovering)
-        .accessibilityLabel(
-            language.localized("episode.number", String(episode.number))
+        .animation(
+            reduceMotion ? nil : .easeOut(duration: 0.12),
+            value: isHovering
         )
+        .accessibilityLabel(
+            language.localized(
+                "episode.accessibility_label",
+                language.localized("episode.number", String(episode.number)),
+                episode.title
+            )
+        )
+        .accessibilityHint(language.localized("episode.choose_hint"))
     }
 }

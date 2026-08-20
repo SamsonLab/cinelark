@@ -21,7 +21,7 @@ struct ContinueWatchingShelf: View {
                                 isPlaying: model.playingItemID == item.id
                             )
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(CineLarkPressButtonStyle())
                         .disabled(model.playingItemID != nil)
                     }
                 }
@@ -42,6 +42,11 @@ private struct ContinueWatchingCard: View {
                 ArtworkView(url: item.thumbnailURL ?? item.posterURL)
                     .frame(width: 300, height: 169)
                     .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 13, style: .continuous)
+                            .stroke(Color.white.opacity(0.10))
+                            .allowsHitTesting(false)
+                    }
 
                 Circle()
                     .fill(.black.opacity(0.68))
@@ -59,7 +64,7 @@ private struct ContinueWatchingCard: View {
             .overlay(alignment: .bottom) {
                 ProgressView(value: item.userState.progress)
                     .progressViewStyle(.linear)
-                    .tint(.cyan)
+                    .tint(Color.accentColor)
                     .padding(8)
             }
 
@@ -67,6 +72,7 @@ private struct ContinueWatchingCard: View {
                 .font(.headline)
                 .lineLimit(1)
                 .frame(width: 300, alignment: .leading)
+                .help(item.title)
             if let subtitle = item.subtitle {
                 Text(subtitle)
                     .font(.caption)

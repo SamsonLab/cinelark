@@ -14,7 +14,6 @@ struct PersonDetailView: View {
     var body: some View {
         VStack(spacing: 0) {
             hero
-            Divider()
 
             if model.isLoading && model.works.isEmpty {
                 ProgressView(language.localized("person.loading"))
@@ -48,7 +47,7 @@ struct PersonDetailView: View {
                 set: { if !$0 { model.dismissError() } }
             )
         ) {
-            Button(language.localized("general.ok"), role: .cancel) { model.dismissError() }
+            Button(language.localized("general.dismiss"), role: .cancel) { model.dismissError() }
         } message: {
             Text(language.userFacingError(model.errorMessage))
         }
@@ -67,7 +66,9 @@ struct PersonDetailView: View {
             VStack(alignment: .leading, spacing: 16) {
                 Text(language.localized("person.cast_crew"))
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(.orange)
+                    .textCase(.uppercase)
+                    .tracking(0.8)
+                    .foregroundStyle(.secondary)
                 Text(model.name)
                     .font(.system(size: 46, weight: .bold, design: .rounded))
                 Text(

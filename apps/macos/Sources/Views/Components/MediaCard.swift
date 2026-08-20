@@ -2,6 +2,7 @@ import SwiftUI
 import CineLarkDomain
 
 struct MediaCard: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let item: MediaSummary
     @State private var isHovering = false
 
@@ -14,7 +15,7 @@ struct MediaCard: View {
                     if item.userState.progress > 0 && !item.userState.played {
                         ProgressView(value: item.userState.progress)
                             .progressViewStyle(.linear)
-                            .tint(.cyan)
+                            .tint(Color.accentColor)
                             .padding(8)
                     }
                 }
@@ -46,6 +47,7 @@ struct MediaCard: View {
                 .font(.headline)
                 .lineLimit(1)
                 .frame(width: 178, alignment: .leading)
+                .help(item.title)
 
             HStack(spacing: 8) {
                 if let year = item.releaseYear {
@@ -56,13 +58,17 @@ struct MediaCard: View {
                 }
             }
             .font(.caption)
+            .monospacedDigit()
             .foregroundStyle(.secondary)
         }
         .contentShape(Rectangle())
-        .scaleEffect(isHovering ? 1.025 : 1)
-        .offset(y: isHovering ? -3 : 0)
+        .scaleEffect(isHovering && !reduceMotion ? 1.012 : 1)
+        .offset(y: isHovering && !reduceMotion ? -1 : 0)
         .onHover { isHovering = $0 }
-        .animation(.easeOut(duration: 0.16), value: isHovering)
+        .animation(
+            reduceMotion ? nil : .easeOut(duration: 0.12),
+            value: isHovering
+        )
     }
 }
 
@@ -81,7 +87,7 @@ struct MediaShelf: View {
                         NavigationLink(value: item) {
                             MediaCard(item: item)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(CineLarkPressButtonStyle())
                     }
                 }
                 .padding(.horizontal, 10)
@@ -107,7 +113,7 @@ struct MediaGrid: View {
                     NavigationLink(value: item) {
                         MediaCard(item: item)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(CineLarkPressButtonStyle())
                 }
             }
             .padding(32)

@@ -1,7 +1,9 @@
 "language.label" = "Language";
 "language.help" = "Change the interface language";
-"general.ok" = "OK";
+"general.dismiss" = "Dismiss";
 "general.refresh" = "Refresh";
+"general.selected" = "Selected";
+"general.not_selected" = "Not selected";
 
 "root.opening" = "Opening CineLark…";
 
@@ -33,7 +35,7 @@
 "category.no_collections_description" = "The provider did not return a matching collection.";
 "collection.loading" = "Loading %@…";
 "collection.empty" = "No items";
-"collection.empty_description" = "This collection is currently empty.";
+"collection.empty_description" = "Choose another collection to keep browsing.";
 "sort.label" = "Sort by";
 "sort.release_date" = "Release Date";
 "sort.name" = "Name";
@@ -57,18 +59,22 @@
 "detail.season" = "Season";
 "detail.loading_episodes" = "Loading episodes…";
 "detail.cast_crew" = "Cast & Crew";
+"detail.overview" = "Overview";
 "episode.number" = "Episode %@";
 "episode.version_one" = "%@ version";
 "episode.version_many" = "%@ versions";
+"episode.accessibility_label" = "%@, %@";
+"episode.choose_hint" = "Choose a media version to play";
 
 "asset.audio_count" = "%@ audio";
 "asset.subtitle_count" = "%@ subtitles";
 "asset.options" = "Options";
+"asset.choose_hint" = "Choose playback options for this version";
 
 "playback.loading" = "Loading available versions…";
 "playback.none" = "No playable versions";
 "playback.none_description" = "The provider returned no media assets.";
-"playback.title" = "PLAYBACK OPTIONS";
+"playback.title" = "Playback options";
 "playback.media_versions" = "Media Versions";
 "playback.available_count" = "%@ available";
 "playback.copy_playback" = "Copy Playback Link";
@@ -77,8 +83,10 @@
 "playback.link_help" = "Playback and download links";
 "playback.hide_details" = "Hide version details";
 "playback.show_details" = "Show version details";
-"playback.download_notice" = "Download links are short-lived and exposed only when requested.";
+"playback.download_notice" = "Download links expire quickly and are created only when you request them.";
 "playback.play" = "Play";
+"playback.close" = "Close playback options";
+"playback.select_hint" = "Select this media version";
 "playback.container" = "Container";
 "playback.codec" = "Codec";
 "playback.profile" = "Profile";
@@ -112,7 +120,7 @@
 "person.no_works" = "No works available";
 "person.no_works_description" = "The provider returned no linked titles.";
 "person.works" = "Works  %@";
-"person.cast_crew" = "CAST & CREW";
+"person.cast_crew" = "Cast & crew";
 "person.appears_one" = "Appears in %@ title";
 "person.appears_many" = "Appears in %@ titles";
 
@@ -125,20 +133,20 @@
 "duration.minutes" = "%@m";
 
 "error.unauthenticated" = "Please sign in to continue.";
-"error.invalid_credentials" = "The username, password, or TOTP code was not accepted.";
+"error.invalid_credentials" = "Sign-in details were not accepted. Check your username, password, and verification code, then try again.";
 "error.session_expired" = "Your session has expired. Please sign in again.";
-"error.forbidden" = "This account cannot access the requested content.";
-"error.not_found" = "The requested content is no longer available.";
+"error.forbidden" = "This account cannot access the requested content. Choose another title or use an account with access.";
+"error.not_found" = "This content is no longer available. Return to the library and choose another title.";
 "error.rate_limited" = "Too many requests. Please try again shortly.";
-"error.invalid_request" = "CineLark could not create a valid provider request.";
-"error.invalid_response" = "The provider returned data CineLark could not understand.";
-"error.unavailable" = "The provider is currently unavailable.";
-"error.unsupported" = "This provider capability is not supported yet.";
+"error.invalid_request" = "Unable to prepare the request. Try again.";
+"error.invalid_response" = "Unable to read the provider response. Try again later.";
+"error.unavailable" = "The provider is unavailable. Check your connection and try again.";
+"error.unsupported" = "This action is not supported by the provider. Choose another action.";
 "error.iina_missing" = "IINA is not installed. Install IINA to play this item.";
-"error.iina_launch" = "CineLark could not open this item in IINA.";
-"error.generic" = "CineLark could not complete the request.";
-"error.favorites" = "CineLark could not load favorites.";
-"error.person" = "CineLark could not load this person.";
-"error.playback_options" = "CineLark could not prepare this version.";
-"error.copy_link" = "CineLark could not copy the link.";
-"error.open_download" = "CineLark could not open the download link.";
+"error.iina_launch" = "Unable to open this item in IINA. Try again.";
+"error.generic" = "Unable to complete the request. Check your connection and try again.";
+"error.favorites" = "Unable to load favorites. Check your connection and try again.";
+"error.person" = "Unable to load this person. Check your connection and try again.";
+"error.playback_options" = "Unable to prepare this version. Try again.";
+"error.copy_link" = "Unable to copy the link. Try again.";
+"error.open_download" = "Unable to open the download link. Try again.";

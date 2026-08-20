@@ -59,7 +59,8 @@ struct AssetRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(CineLarkPressButtonStyle())
+        .accessibilityHint(language.localized("asset.choose_hint"))
         .background(
             isHovering ? Color.accentColor.opacity(0.10) : Color.white.opacity(0.05),
             in: RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -73,6 +74,6 @@ struct AssetRow: View {
                 )
         }
         .onHover { isHovering = $0 }
-        .animation(.easeOut(duration: 0.16), value: isHovering)
+        .animation(.easeOut(duration: 0.12), value: isHovering)
     }
 }

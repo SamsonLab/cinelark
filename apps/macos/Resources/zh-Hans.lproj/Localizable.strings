@@ -1,7 +1,9 @@
 "language.label" = "语言";
 "language.help" = "切换界面语言";
-"general.ok" = "好";
+"general.dismiss" = "关闭";
 "general.refresh" = "刷新";
+"general.selected" = "已选择";
+"general.not_selected" = "未选择";
 
 "root.opening" = "正在打开 CineLark…";
 
@@ -33,7 +35,7 @@
 "category.no_collections_description" = "服务提供方没有返回匹配的分类。";
 "collection.loading" = "正在载入%@…";
 "collection.empty" = "暂无内容";
-"collection.empty_description" = "这个分类目前没有内容。";
+"collection.empty_description" = "请选择其他分类继续浏览。";
 "sort.label" = "排序方式";
 "sort.release_date" = "上映日期";
 "sort.name" = "名称";
@@ -57,13 +59,17 @@
 "detail.season" = "季";
 "detail.loading_episodes" = "正在载入剧集…";
 "detail.cast_crew" = "演职人员";
+"detail.overview" = "简介";
 "episode.number" = "第 %@ 集";
 "episode.version_one" = "%@ 个版本";
 "episode.version_many" = "%@ 个版本";
+"episode.accessibility_label" = "%@，%@";
+"episode.choose_hint" = "选择要播放的片源版本";
 
 "asset.audio_count" = "%@ 条音轨";
 "asset.subtitle_count" = "%@ 条字幕";
 "asset.options" = "选项";
+"asset.choose_hint" = "选择这个片源版本的播放选项";
 
 "playback.loading" = "正在载入可用片源…";
 "playback.none" = "没有可播放的片源";
@@ -77,8 +83,10 @@
 "playback.link_help" = "播放与下载链接";
 "playback.hide_details" = "收起版本详情";
 "playback.show_details" = "展开版本详情";
-"playback.download_notice" = "下载链接有效期较短，仅在你主动操作时提供。";
+"playback.download_notice" = "下载链接有效期较短，仅在你主动请求时生成。";
 "playback.play" = "播放";
+"playback.close" = "关闭播放选项";
+"playback.select_hint" = "选择这个片源版本";
 "playback.container" = "封装格式";
 "playback.codec" = "编码";
 "playback.profile" = "配置";
@@ -125,20 +133,20 @@
 "duration.minutes" = "%@ 分钟";
 
 "error.unauthenticated" = "请先登录后继续。";
-"error.invalid_credentials" = "用户名、密码或动态验证码不正确。";
+"error.invalid_credentials" = "登录信息未通过验证，请检查用户名、密码和动态验证码后重试。";
 "error.session_expired" = "登录状态已过期，请重新登录。";
-"error.forbidden" = "当前账号无法访问所请求的内容。";
-"error.not_found" = "所请求的内容已不可用。";
+"error.forbidden" = "当前账号无法访问此内容，请选择其他影视或使用有访问权限的账号。";
+"error.not_found" = "此内容已不可用，请返回媒体库选择其他影视。";
 "error.rate_limited" = "请求过于频繁，请稍后再试。";
-"error.invalid_request" = "CineLark 无法创建有效的服务请求。";
-"error.invalid_response" = "服务返回了 CineLark 无法识别的数据。";
-"error.unavailable" = "服务目前不可用。";
-"error.unsupported" = "该服务能力暂不受支持。";
+"error.invalid_request" = "无法准备请求，请重试。";
+"error.invalid_response" = "无法读取服务响应，请稍后重试。";
+"error.unavailable" = "服务目前不可用，请检查网络连接后重试。";
+"error.unsupported" = "服务提供方不支持此操作，请选择其他操作。";
 "error.iina_missing" = "尚未安装 IINA，请安装后再播放。";
-"error.iina_launch" = "CineLark 无法在 IINA 中打开此内容。";
-"error.generic" = "CineLark 无法完成该请求。";
-"error.favorites" = "CineLark 无法载入收藏。";
-"error.person" = "CineLark 无法载入该人物。";
-"error.playback_options" = "CineLark 无法准备这个片源版本。";
-"error.copy_link" = "CineLark 无法复制链接。";
-"error.open_download" = "CineLark 无法打开下载链接。";
+"error.iina_launch" = "无法在 IINA 中打开此内容，请重试。";
+"error.generic" = "无法完成该请求，请检查网络连接后重试。";
+"error.favorites" = "无法载入收藏，请检查网络连接后重试。";
+"error.person" = "无法载入该人物，请检查网络连接后重试。";
+"error.playback_options" = "无法准备这个片源版本，请重试。";
+"error.copy_link" = "无法复制链接，请重试。";
+"error.open_download" = "无法打开下载链接，请重试。";

@@ -18,7 +18,6 @@ struct PlaybackOptionsView: View {
     var body: some View {
         VStack(spacing: 0) {
             hero
-            Divider()
 
             Group {
                 if model.isLoading && model.assets.isEmpty {
@@ -48,7 +47,7 @@ struct PlaybackOptionsView: View {
                 set: { if !$0 { model.dismissError() } }
             )
         ) {
-            Button(language.localized("general.ok"), role: .cancel) { model.dismissError() }
+            Button(language.localized("general.dismiss"), role: .cancel) { model.dismissError() }
         } message: {
             Text(language.userFacingError(model.errorMessage))
         }
@@ -76,10 +75,13 @@ struct PlaybackOptionsView: View {
             VStack(alignment: .leading, spacing: 7) {
                 Text(language.localized("playback.title"))
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(.orange)
+                    .textCase(.uppercase)
+                    .tracking(0.8)
+                    .foregroundStyle(.secondary)
                 Text(model.context.title)
                     .font(.system(size: 36, weight: .bold, design: .rounded))
                     .lineLimit(2)
+                    .help(model.context.title)
                 if let subtitle = model.context.subtitle {
                     Text(subtitle)
                         .font(.title3)
@@ -99,6 +101,8 @@ struct PlaybackOptionsView: View {
             }
             .buttonStyle(.bordered)
             .buttonBorderShape(.circle)
+            .accessibilityLabel(language.localized("playback.close"))
+            .keyboardShortcut(.cancelAction)
             .padding(18)
         }
     }
@@ -196,33 +200,50 @@ private struct VersionCard: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 14) {
-                Image(systemName: isSelected ? "record.circle.fill" : "circle")
-                    .foregroundStyle(isSelected ? .orange : .secondary)
-                    .font(.title3)
+            HStack(spacing: 8) {
+                Button(action: onSelect) {
+                    HStack(spacing: 14) {
+                        Image(systemName: isSelected ? "record.circle.fill" : "circle")
+                            .foregroundStyle(isSelected ? Color.accentColor : .secondary)
+                            .font(.title3)
 
-                VStack(alignment: .leading, spacing: 7) {
-                    Text(asset.displayName)
-                        .font(.headline)
-                    HStack(spacing: 8) {
-                        chip(asset.resolution?.uppercased())
-                        chip(asset.videoRange?.uppercased())
-                        chip(asset.encoding?.uppercased())
-                        if let bitRate = asset.bitRate {
-                            Text(bitRate.cineLarkBitRate)
+                        VStack(alignment: .leading, spacing: 7) {
+                            Text(asset.displayName)
+                                .font(.headline)
+                            HStack(spacing: 8) {
+                                chip(asset.resolution?.uppercased())
+                                chip(asset.videoRange?.uppercased())
+                                chip(asset.encoding?.uppercased())
+                                if let bitRate = asset.bitRate {
+                                    Text(bitRate.cineLarkBitRate)
+                                }
+                                if let size = asset.fileSize {
+                                    Text(size.cineLarkByteCount)
+                                }
+                                if let duration = asset.durationSeconds {
+                                    Text(language.duration(duration))
+                                }
+                            }
+                            .font(.caption)
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
                         }
-                        if let size = asset.fileSize {
-                            Text(size.cineLarkByteCount)
-                        }
-                        if let duration = asset.durationSeconds {
-                            Text(language.duration(duration))
-                        }
+
+                        Spacer(minLength: 8)
                     }
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .padding(.leading, 16)
+                    .padding(.vertical, 16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
                 }
-
-                Spacer()
+                .buttonStyle(CineLarkPressButtonStyle())
+                .accessibilityLabel(asset.displayName)
+                .accessibilityValue(
+                    language.localized(
+                        isSelected ? "general.selected" : "general.not_selected"
+                    )
+                )
+                .accessibilityHint(language.localized("playback.select_hint"))
 
                 Menu {
                     Button(action: onCopyPlayback) {
@@ -254,21 +275,29 @@ private struct VersionCard: View {
                             Image(systemName: didCopyLink ? "checkmark" : "doc.on.doc")
                         }
                     }
-                    .frame(width: 34, height: 32)
-                    .cineLarkHoverSurface(cornerRadius: 9)
+                    .frame(width: 40, height: 40)
+                    .cineLarkHoverSurface(cornerRadius: 10)
                 }
                 .menuStyle(.borderlessButton)
                 .menuIndicator(.hidden)
                 .fixedSize()
                 .disabled(isResolvingLink)
+                .accessibilityLabel(language.localized("playback.link_help"))
                 .help(language.localized("playback.link_help"))
 
                 Button(action: onToggleDetails) {
                     Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                        .frame(width: 42, height: 32)
-                        .cineLarkHoverSurface(cornerRadius: 9)
+                        .frame(width: 40, height: 40)
+                        .cineLarkHoverSurface(cornerRadius: 10)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(
+                    language.localized(
+                        isExpanded
+                            ? "playback.hide_details"
+                            : "playback.show_details"
+                    )
+                )
                 .help(
                     language.localized(
                         isExpanded
@@ -276,10 +305,8 @@ private struct VersionCard: View {
                             : "playback.show_details"
                     )
                 )
+                .padding(.trailing, 12)
             }
-            .padding(16)
-            .contentShape(Rectangle())
-            .onTapGesture(perform: onSelect)
 
             if isExpanded {
                 Divider()
@@ -288,13 +315,13 @@ private struct VersionCard: View {
             }
         }
         .background(
-            isSelected ? Color.orange.opacity(0.10) : Color.white.opacity(0.04),
+            isSelected ? Color.accentColor.opacity(0.12) : Color.white.opacity(0.04),
             in: RoundedRectangle(cornerRadius: 16, style: .continuous)
         )
         .overlay {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(
-                    isSelected ? Color.orange.opacity(0.8) : Color.white.opacity(0.10),
+                    isSelected ? Color.accentColor.opacity(0.8) : Color.white.opacity(0.10),
                     lineWidth: isSelected ? 1.5 : 1
                 )
         }

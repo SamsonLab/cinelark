@@ -6,8 +6,6 @@ struct CineLarkHoverSurface: ViewModifier {
     var hoverFillOpacity: Double = 0.11
     var normalStrokeOpacity: Double = 0.10
     var hoverStrokeOpacity: Double = 0.24
-    var accentOnHover = false
-    var liftsOnHover = false
 
     @State private var isHovering = false
 
@@ -16,33 +14,36 @@ struct CineLarkHoverSurface: ViewModifier {
         content
             .background {
                 shape.fill(
-                    accentOnHover && isHovering
-                        ? Color.accentColor.opacity(0.12)
-                        : Color.white.opacity(
-                            isHovering ? hoverFillOpacity : normalFillOpacity
-                        )
+                    Color.white.opacity(
+                        isHovering ? hoverFillOpacity : normalFillOpacity
+                    )
                 )
             }
             .overlay {
                 shape.stroke(
-                    accentOnHover && isHovering
-                        ? Color.accentColor.opacity(0.65)
-                        : Color.white.opacity(
-                            isHovering ? hoverStrokeOpacity : normalStrokeOpacity
-                        ),
+                    Color.white.opacity(
+                        isHovering ? hoverStrokeOpacity : normalStrokeOpacity
+                    ),
                     lineWidth: 1
                 )
             }
             .contentShape(shape)
-            .scaleEffect(liftsOnHover && isHovering ? 1.008 : 1)
-            .offset(y: liftsOnHover && isHovering ? -1 : 0)
-            .shadow(
-                color: .black.opacity(liftsOnHover && isHovering ? 0.30 : 0),
-                radius: 12,
-                y: 6
-            )
             .onHover { isHovering = $0 }
-            .animation(.easeOut(duration: 0.16), value: isHovering)
+            .animation(.easeOut(duration: 0.12), value: isHovering)
+    }
+}
+
+struct CineLarkPressButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.96 : 1)
+            .opacity(configuration.isPressed ? 0.82 : 1)
+            .animation(
+                reduceMotion ? nil : .easeOut(duration: 0.12),
+                value: configuration.isPressed
+            )
     }
 }
 
@@ -52,9 +53,7 @@ extension View {
         normalFillOpacity: Double = 0.05,
         hoverFillOpacity: Double = 0.11,
         normalStrokeOpacity: Double = 0.10,
-        hoverStrokeOpacity: Double = 0.24,
-        accentOnHover: Bool = false,
-        liftsOnHover: Bool = false
+        hoverStrokeOpacity: Double = 0.24
     ) -> some View {
         modifier(
             CineLarkHoverSurface(
@@ -62,9 +61,7 @@ extension View {
                 normalFillOpacity: normalFillOpacity,
                 hoverFillOpacity: hoverFillOpacity,
                 normalStrokeOpacity: normalStrokeOpacity,
-                hoverStrokeOpacity: hoverStrokeOpacity,
-                accentOnHover: accentOnHover,
-                liftsOnHover: liftsOnHover
+                hoverStrokeOpacity: hoverStrokeOpacity
             )
         )
     }

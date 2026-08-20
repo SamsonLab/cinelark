@@ -22,7 +22,7 @@ struct LoginView: View {
                 VStack(spacing: 10) {
                     Image(systemName: "bird.fill")
                         .font(.system(size: 54, weight: .semibold))
-                        .foregroundStyle(.cyan)
+                        .foregroundStyle(Color.accentColor)
                     Text("CineLark")
                         .font(.system(size: 38, weight: .bold, design: .rounded))
                     Text(language.localized("login.tagline"))

@@ -45,6 +45,7 @@ struct ArtworkView: View {
             )
             .clipped()
         }
+        .accessibilityHidden(true)
     }
 
     private func bucketedPixelSize(for size: CGSize) -> CGSize {

@@ -14,6 +14,7 @@ Native Swift 6 / SwiftUI client for the observed UHDNow API.
 - movie/episode version chooser with expandable codec, color, track, and size metadata
 - explicit copy-playback-link, copy-download-link, and browser-download actions
 - runtime English/Simplified Chinese interface switching
+- keyboard-accessible media-version selection and reduced-motion-aware interactions
 - native Icon Composer app icon in `Resources/AppIcon.icon`
 - persistent bounded metadata cache with stale outage fallback
 - Kingfisher artwork pipeline with bounded memory/disk caches and downsampling

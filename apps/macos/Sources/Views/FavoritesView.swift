@@ -29,7 +29,6 @@ struct FavoritesView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
-            Divider()
             content
         }
         .background(Color.black.opacity(0.92))
@@ -44,7 +43,7 @@ struct FavoritesView: View {
                 set: { if !$0 { model.dismissError() } }
             )
         ) {
-            Button(language.localized("general.ok"), role: .cancel) { model.dismissError() }
+            Button(language.localized("general.dismiss"), role: .cancel) { model.dismissError() }
         } message: {
             Text(language.userFacingError(model.errorMessage))
         }

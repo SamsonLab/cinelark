@@ -20,16 +20,28 @@ struct LibraryView: View {
             List(selection: $selection) {
                 Section {
                     NavigationLink(value: LibrarySelection.home) {
-                        Label(language.localized("nav.home"), systemImage: "house.fill")
+                        Label(
+                            language.localized("nav.home"),
+                            systemImage: selection == .home ? "house.fill" : "house"
+                        )
                     }
                     NavigationLink(value: LibrarySelection.movies) {
-                        Label(language.localized("nav.movies"), systemImage: "film.stack.fill")
+                        Label(
+                            language.localized("nav.movies"),
+                            systemImage: selection == .movies ? "film.stack.fill" : "film.stack"
+                        )
                     }
                     NavigationLink(value: LibrarySelection.series) {
-                        Label(language.localized("nav.series"), systemImage: "tv.fill")
+                        Label(
+                            language.localized("nav.series"),
+                            systemImage: selection == .series ? "tv.fill" : "tv"
+                        )
                     }
                     NavigationLink(value: LibrarySelection.favorites) {
-                        Label(language.localized("nav.favorites"), systemImage: "heart.fill")
+                        Label(
+                            language.localized("nav.favorites"),
+                            systemImage: selection == .favorites ? "heart.fill" : "heart"
+                        )
                     }
                     NavigationLink(value: LibrarySelection.search) {
                         Label(language.localized("nav.search"), systemImage: "magnifyingglass")
@@ -40,7 +52,12 @@ struct LibraryView: View {
                     Section(language.localized("nav.collections")) {
                         ForEach(model.collections) { collection in
                             NavigationLink(value: LibrarySelection.collection(collection.id)) {
-                                Label(collection.name, systemImage: "rectangle.stack.fill")
+                                Label(
+                                    collection.name,
+                                    systemImage: selection == .collection(collection.id)
+                                        ? "rectangle.stack.fill"
+                                        : "rectangle.stack"
+                                )
                             }
                         }
                     }
@@ -89,7 +106,7 @@ struct LibraryView: View {
                 set: { if !$0 { model.dismissError() } }
             )
         ) {
-            Button(language.localized("general.ok"), role: .cancel) { model.dismissError() }
+            Button(language.localized("general.dismiss"), role: .cancel) { model.dismissError() }
         } message: {
             Text(language.userFacingError(model.errorMessage))
         }
