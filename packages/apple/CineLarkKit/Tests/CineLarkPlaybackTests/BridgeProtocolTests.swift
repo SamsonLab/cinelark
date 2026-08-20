@@ -53,6 +53,30 @@ struct BridgeProtocolTests {
         #expect(envelope.mac == "f-U2R3wA0BH372_NRygSR_sK3PLkSf6CsmDgNLGRoKU")
     }
 
+    @Test("IINA termination finalizes the active playback once")
+    func iinaTerminationFinalizesActivePlayback() {
+        let playbackID = UUID()
+        var tracker = IINAApplicationTerminationTracker()
+        tracker.begin(playbackID: playbackID)
+
+        #expect(tracker.applicationDidTerminate(bundleIdentifier: "com.example.other") == nil)
+        #expect(
+            tracker.applicationDidTerminate(bundleIdentifier: "com.colliderli.iina")
+                == playbackID
+        )
+        #expect(tracker.applicationDidTerminate(bundleIdentifier: "com.colliderli.iina") == nil)
+    }
+
+    @Test("terminal plugin events suppress duplicate IINA termination")
+    func terminalPluginEventsSuppressTermination() {
+        let playbackID = UUID()
+        var tracker = IINAApplicationTerminationTracker()
+        tracker.begin(playbackID: playbackID)
+        tracker.finish(playbackID: playbackID)
+
+        #expect(tracker.applicationDidTerminate(bundleIdentifier: "com.colliderli.iina") == nil)
+    }
+
     @Test("Playback descriptors start managed players in fullscreen")
     func playbackStartsInFullscreen() {
         let descriptor = PlaybackDescriptor(

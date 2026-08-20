@@ -17,6 +17,8 @@ public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
     private var secret: Data?
     private var sequence: UInt64 = 1
     private var isBridgeReady = false
+    private var lifecycle = IINAApplicationTerminationTracker()
+    private var terminationObserver: NSObjectProtocol?
 
     public init(
         bundle: Bundle = .main,
@@ -31,6 +33,19 @@ public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
         let pair = AsyncStream<PlaybackEvent>.makeStream()
         self.events = pair.stream
         self.eventContinuation = pair.continuation
+        self.terminationObserver = workspace.notificationCenter.addObserver(
+            forName: NSWorkspace.didTerminateApplicationNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            let bundleIdentifier = (
+                notification.userInfo?[NSWorkspace.applicationUserInfoKey]
+                    as? NSRunningApplication
+            )?.bundleIdentifier
+            Task { @MainActor [weak self] in
+                self?.applicationDidTerminate(bundleIdentifier: bundleIdentifier)
+            }
+        }
     }
 
     public func open(_ descriptor: PlaybackDescriptor) async throws {
@@ -67,6 +82,7 @@ public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
             secret: secret
         )
         try await client.send(envelope)
+        lifecycle.begin(playbackID: descriptor.id)
     }
 
     public func send(
@@ -134,6 +150,9 @@ public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
             guard let playbackID,
                   let stateValue = envelope.payload["state"]?.stringValue,
                   let state = PlaybackSnapshot.State(rawValue: stateValue) else { return }
+            if state == .stopped {
+                lifecycle.finish(playbackID: playbackID)
+            }
             eventContinuation.yield(
                 .stateChanged(
                     playbackID: playbackID,
@@ -169,6 +188,7 @@ public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
             )
         case "player.ended":
             guard let playbackID else { return }
+            lifecycle.finish(playbackID: playbackID)
             eventContinuation.yield(
                 .ended(
                     playbackID: playbackID,
@@ -177,6 +197,7 @@ public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
             )
         case "player.closed":
             guard let playbackID else { return }
+            lifecycle.finish(playbackID: playbackID)
             eventContinuation.yield(
                 .closed(
                     playbackID: playbackID,
@@ -186,6 +207,16 @@ public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
         default:
             break
         }
+    }
+
+    private func applicationDidTerminate(bundleIdentifier: String?) {
+        isBridgeReady = false
+        guard let playbackID = lifecycle.applicationDidTerminate(
+            bundleIdentifier: bundleIdentifier
+        ) else { return }
+        eventContinuation.yield(
+            .closed(playbackID: playbackID, reason: "application_terminated")
+        )
     }
 
     private func tracks(_ value: JSONValue?) -> [BridgeTrack] {
@@ -284,6 +315,27 @@ public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
                 }
             }
         }
+    }
+}
+
+struct IINAApplicationTerminationTracker {
+    private static let bundleIdentifier = "com.colliderli.iina"
+    private(set) var activePlaybackID: UUID?
+
+    mutating func begin(playbackID: UUID) {
+        activePlaybackID = playbackID
+    }
+
+    mutating func finish(playbackID: UUID) {
+        guard activePlaybackID == playbackID else { return }
+        activePlaybackID = nil
+    }
+
+    mutating func applicationDidTerminate(bundleIdentifier: String?) -> UUID? {
+        guard bundleIdentifier == Self.bundleIdentifier,
+              let activePlaybackID else { return nil }
+        self.activePlaybackID = nil
+        return activePlaybackID
     }
 }
 
