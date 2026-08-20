@@ -16,6 +16,7 @@ struct ArtworkView: View {
                 if let url {
                     KFImage(url)
                         .targetCache(CineLarkImagePipeline.cache)
+                        .cacheOriginalImage()
                         .setProcessor(
                             DownsamplingImageProcessor(
                                 size: bucketedPixelSize(for: proxy.size)
@@ -23,7 +24,9 @@ struct ArtworkView: View {
                         )
                         .loadDiskFileSynchronously(false)
                         .fade(duration: 0.15)
-                        .cancelOnDisappear(true)
+                        // Finish off-screen requests so scrolling warms the disk cache.
+                        .cancelOnDisappear(false)
+                        .reducePriorityOnDisappear(true)
                         .placeholder {
                             loadingPlaceholder(size: proxy.size)
                         }
