@@ -52,6 +52,11 @@ function makeHarness() {
     iina: {
       core,
       event: { on: (name, callback) => eventHandlers.set(name, callback) },
+      mpv: {
+        set: (name, value) => {
+          if (name === 'fullscreen') core.window.fullscreen = Boolean(value);
+        },
+      },
       global: {
         getLabel: () => 'cinelark:6f55936d-5950-44fd-a696-f989d41785cc',
         onMessage: (name, callback) => messageHandlers.set(name, callback),
@@ -173,6 +178,32 @@ test('natural EOF reports completion after mpv enters its stopped state', () => 
   );
   assert.equal(terminalEvents[1].type, 'player.ended');
   assert.equal(terminalEvents[1].payload.reason, 'eof');
+});
+
+test('idle fallback reports short playback when IINA closes the player window', () => {
+  const harness = makeHarness();
+  harness.messageHandlers.get('cinelark.command')(playCommand({ startPositionSeconds: 0 }));
+  harness.runTimeouts();
+  harness.eventHandlers.get('iina.file-loaded')();
+
+  harness.core.status.position = 8.25;
+  harness.runInterval();
+  harness.core.status.position = 0;
+  harness.core.status.duration = 0;
+  harness.core.status.idle = true;
+  harness.eventHandlers.get('mpv.idle-active.changed')();
+  harness.runTimeouts();
+
+  const events = harness.emitted.map(([, value]) => value);
+  const closed = events.find((value) => value.type === 'player.closed');
+  const finalPosition = events
+    .filter((value) => value.type === 'player.positionChanged')
+    .at(-1);
+  assert.equal(closed.payload.reason, 'player_stopped');
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(finalPosition.payload)),
+    { positionSeconds: 8.25, durationSeconds: 120 }
+  );
 });
 
 test('transport commands map to the public IINA core APIs', () => {

@@ -8,8 +8,7 @@ persists playback URLs.
 
 - discover the broker only on the reserved loopback port range;
 - authenticate requests and envelopes with the Keychain-provisioned bridge key;
-- create one managed IINA player and reuse it across replacement/next-episode playback;
-- load the user's enabled IINA plugins in that managed player;
+- create one isolated managed IINA player and reuse it across replacement/next-episode playback;
 - apply resume after `iina.file-loaded`;
 - map transport commands to public IINA APIs on IINA's main run loop;
 - emit sanitized state, position, track, EOF, and close events.
@@ -19,9 +18,8 @@ its JavaScript API objects are main-run-loop-bound. The plugin uses IINA's timer
 polyfill before every subsequent HTTP, Keychain, managed-player, or `core`
 operation. IINA also gates `core.open` behind
 the `file-system` permission even for network URLs; the bridge requests that
-permission but does not read or write user files. Enabled third-party plugins
-share IINA's player context and may inspect the opaque playback URL, so they
-must be treated as trusted code.
+permission but does not read or write user files. Other IINA plugins are disabled
+inside CineLark-managed players so they cannot inspect opaque playback URLs.
 
 Broker discovery happens before Keychain access, and a successfully read pairing
 key is cached only for the lifetime of the IINA process. IINA therefore asks for

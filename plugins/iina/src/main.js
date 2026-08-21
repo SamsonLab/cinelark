@@ -1,6 +1,6 @@
 'use strict';
 
-const { core, event, global } = iina;
+const { core, event, global, mpv } = iina;
 
 const label = global.getLabel();
 const isCineLarkManagedPlayer = typeof label === 'string' && label.startsWith('cinelark:');
@@ -11,6 +11,9 @@ let pendingAutoplay = false;
 let lastPositionEmission = 0;
 let lastPositionSeconds = 0;
 let lastDurationSeconds = 0;
+let hasLoadedCurrentMedia = false;
+let terminalEventSent = false;
+let idleFinalizationPending = false;
 
 function emit(type, payload = {}, replyTo = null) {
   if (!activeSession) return;
@@ -89,13 +92,41 @@ function emitPosition(replyTo = null, completed = false) {
   );
 }
 
+function applyPendingFullscreen() {
+  if (pendingFullscreen && core.window.loaded && !core.window.fullscreen) {
+    mpv.set('fullscreen', true);
+  }
+}
+
+function scheduleIdleFinalization() {
+  if (
+    !activeSession ||
+    !hasLoadedCurrentMedia ||
+    terminalEventSent ||
+    idleFinalizationPending ||
+    !core.status.idle
+  ) {
+    return;
+  }
+  idleFinalizationPending = true;
+  setTimeout(() => {
+    idleFinalizationPending = false;
+    if (!activeSession || terminalEventSent || !core.status.idle) return;
+    terminalEventSent = true;
+    emitPosition();
+    emit('player.closed', { reason: 'player_stopped' });
+    activeSession = null;
+  }, 250);
+}
+
 event.on('iina.file-loaded', () => {
   if (!activeSession) return;
+  hasLoadedCurrentMedia = true;
   const resumePosition = finiteNumber(activeSession.startPositionSeconds);
   if (resumePosition > 0) core.seekTo(resumePosition);
   if (pendingAutoplay) core.resume();
   pendingAutoplay = false;
-  if (pendingFullscreen && core.window.loaded) core.window.fullscreen = true;
+  applyPendingFullscreen();
   emit('player.fileLoaded', {
     playbackID: activeSession.playbackID,
     resumedAtSeconds: Math.max(0, resumePosition),
@@ -106,7 +137,7 @@ event.on('iina.file-loaded', () => {
 });
 
 event.on('iina.window-loaded', () => {
-  if (pendingFullscreen) core.window.fullscreen = true;
+  applyPendingFullscreen();
 });
 
 event.on('mpv.pause.changed', () => {
@@ -115,12 +146,21 @@ event.on('mpv.pause.changed', () => {
 });
 
 event.on('mpv.end-file', (details) => {
+  if (!activeSession || terminalEventSent) return;
+  terminalEventSent = true;
   const reason = details && typeof details.reason === 'string' ? details.reason : 'unknown';
   emitPosition(null, reason === 'eof');
   emit('player.ended', { reason });
+  if (reason !== 'eof') activeSession = null;
+});
+
+event.on('mpv.idle-active.changed', () => {
+  scheduleIdleFinalization();
 });
 
 event.on('iina.window-will-close', () => {
+  if (!activeSession || terminalEventSent) return;
+  terminalEventSent = true;
   emitPosition();
   emit('player.closed', { reason: 'window_closed' });
   activeSession = null;
@@ -141,6 +181,9 @@ function handleCommand(command) {
     pendingAutoplay = true;
     lastPositionSeconds = Math.max(0, activeSession.startPositionSeconds);
     lastDurationSeconds = 0;
+    hasLoadedCurrentMedia = false;
+    terminalEventSent = false;
+    idleFinalizationPending = false;
     core.open(payload.url);
     return;
   }
@@ -198,9 +241,13 @@ global.onMessage('cinelark.command', (command) => {
 });
 
 setInterval(() => {
-  if (!activeSession || core.status.idle) return;
+  if (!activeSession) return;
+  if (core.status.idle) {
+    scheduleIdleFinalization();
+    return;
+  }
   const now = Date.now();
-  if (now - lastPositionEmission >= 2000) {
+  if (now - lastPositionEmission >= 1000) {
     lastPositionEmission = now;
     emitPosition();
   }

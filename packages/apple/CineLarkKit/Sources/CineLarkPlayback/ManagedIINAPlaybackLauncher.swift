@@ -6,7 +6,7 @@ import CineLarkDomain
 public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
     public let events: AsyncStream<PlaybackEvent>
 
-    private static let minimumPluginVersion = "0.1.5"
+    private static let minimumPluginVersion = "0.1.6"
 
     private let bundle: Bundle
     private let workspace: NSWorkspace

@@ -144,7 +144,7 @@ test('all broker, Keychain, and player IINA APIs execute on the main run loop', 
   const createCalls = calls.filter(([name]) => name === 'createPlayerInstance');
   const messageCalls = calls.filter(([name]) => name === 'postMessage');
   assert.equal(createCalls.length, 1);
-  assert.equal(createCalls[0][1].enablePlugins, true);
+  assert.equal(createCalls[0][1].enablePlugins, false);
   assert.equal(createCalls[0][1].label, 'cinelark:managed');
   assert.equal(messageCalls.length, 2);
   assert.deepEqual(messageCalls[0].slice(0, 3), ['postMessage', 17, 'cinelark.command']);
