@@ -70,6 +70,10 @@ final class MediaDetailModel {
         initialItem.kind == .series
     }
 
+    var resumableSeriesItem: ContinueWatchingItem? {
+        seriesPlaybackState?.resumableItem
+    }
+
     var primarySeriesItem: ContinueWatchingItem? {
         seriesPlaybackState?.primaryItem
     }
@@ -109,7 +113,7 @@ final class MediaDetailModel {
             seriesPlaybackState = try? await playbackStateRequest
             do {
                 seasons = try await seasonsRequest
-                let preferredSeasonID = primarySeriesItem?.seasonID ?? seasons.first?.id
+                let preferredSeasonID = seasonID(for: primarySeriesItem) ?? seasons.first?.id
                 if let preferredSeasonID {
                     await selectSeason(preferredSeasonID)
                 }
@@ -141,7 +145,7 @@ final class MediaDetailModel {
                 detail = try await provider.detail(for: initialItem)
             case .series:
                 seriesPlaybackState = try await provider.playbackState(seriesID: initialItem.id)
-                let preferredSeasonID = primarySeriesItem?.seasonID ?? selectedSeasonID
+                let preferredSeasonID = seasonID(for: primarySeriesItem) ?? selectedSeasonID
                 if let preferredSeasonID {
                     await loadEpisodes(seasonID: preferredSeasonID, force: true)
                 }
@@ -212,6 +216,15 @@ final class MediaDetailModel {
 
     func dismissError() {
         errorMessage = nil
+    }
+
+    private func seasonID(for item: ContinueWatchingItem?) -> String? {
+        guard let item else { return nil }
+        if let seasonID = item.seasonID {
+            return seasonID
+        }
+        guard let seasonNumber = item.seasonNumber else { return nil }
+        return seasons.first { $0.number == seasonNumber }?.id
     }
 
     private func loadEpisodes(seasonID: String, force: Bool) async {

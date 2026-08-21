@@ -528,8 +528,17 @@ public struct SeriesPlaybackState: Codable, Sendable, Hashable {
         self.nextUp = nextUp
     }
 
+    public var resumableItem: ContinueWatchingItem? {
+        guard let resume,
+              !resume.userState.played,
+              resume.userState.positionSeconds > 0 || resume.userState.progress > 0 else {
+            return nil
+        }
+        return resume
+    }
+
     public var primaryItem: ContinueWatchingItem? {
-        resume ?? nextUp
+        resumableItem ?? nextUp
     }
 }
 

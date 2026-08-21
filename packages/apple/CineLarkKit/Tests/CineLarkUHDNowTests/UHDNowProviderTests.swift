@@ -490,20 +490,16 @@ struct UHDNowProviderTests {
               "ok": true,
               "data": {
                 "resume": {
-                  "item_type": "episode",
-                  "item_id": "episode-1",
+                  "episode_id": "episode-1",
                   "media_id": "series-1",
-                  "title": "Synthetic Episode One",
-                  "subtitle": "S1 E1",
+                  "episode_title": "Synthetic Episode One",
                   "season_id": "season-1",
                   "season_number": 1,
                   "episode_number": 1,
                   "duration": 2400,
-                  "user_state": {
-                    "played": false,
-                    "position_ticks": 12000000000,
-                    "progress_pct": 50
-                  }
+                  "position_ticks": 12000000000,
+                  "progress_pct": 50,
+                  "last_played_at": "2026-08-21T13:42:47.438518+08:00"
                 },
                 "next_up": {
                   "id": "episode-2",
@@ -534,11 +530,66 @@ struct UHDNowProviderTests {
         #expect(state.resume?.item.id == "episode-1")
         #expect(state.resume?.userState.positionSeconds == 1200)
         #expect(state.resume?.userState.progress == 0.5)
+        #expect(state.resume?.title == "Synthetic Episode One")
         #expect(state.resume?.seasonNumber == 1)
         #expect(state.nextUp?.item.id == "episode-2")
         #expect(state.nextUp?.episodeNumber == 2)
         let request = try #require(await transport.requests.first)
         #expect(request.url?.path == "/api/v1/stream/tv/series-1/playback-state")
+    }
+
+    @Test("empty series state falls back to the account playback shelf")
+    func emptySeriesPlaybackStateFallback() async throws {
+        let session = ProviderSession(
+            token: "synthetic-token",
+            expiresAt: Date(timeIntervalSince1970: 4_102_444_800)
+        )
+        let transport = StubTransport([
+            .json("""
+            {
+              "ok": true,
+              "data": { "resume": null, "next_up": null }
+            }
+            """),
+            .json("""
+            {
+              "ok": true,
+              "data": {
+                "resume": [{
+                  "media_id": "series-1",
+                  "title": "Synthetic Series",
+                  "resume": {
+                    "item_type": "episode",
+                    "item_id": "episode-4",
+                    "media_id": "series-1",
+                    "title": "Synthetic Series",
+                    "subtitle": "S1E4 Synthetic Episode Four",
+                    "duration": 2400,
+                    "user_state": {
+                      "played": false,
+                      "position_ticks": 375000000,
+                      "progress_pct": 2
+                    }
+                  }
+                }],
+                "next_up": []
+              }
+            }
+            """)
+        ])
+        let provider = UHDNowProvider(
+            sessionStore: MemorySessionStore(session: session),
+            transport: transport
+        )
+        _ = try await provider.restoreSession()
+
+        let state = try await provider.playbackState(seriesID: "series-1")
+
+        #expect(state.resumableItem?.item.id == "episode-4")
+        #expect(state.resumableItem?.userState.positionSeconds == 37.5)
+        let requests = await transport.requests
+        #expect(requests.count == 2)
+        #expect(requests[1].url?.path == "/api/v1/stream/me/playback-states")
     }
 
     @Test("seconds and UHDNow ticks round trip")

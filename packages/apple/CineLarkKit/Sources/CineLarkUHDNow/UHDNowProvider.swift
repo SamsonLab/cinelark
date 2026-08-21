@@ -338,9 +338,17 @@ public actor UHDNowProvider: MediaLibraryProvider {
             method: .get,
             path: UHDNowRequestBuilder.path("stream", "tv", seriesID, "playback-state")
         )
-        return SeriesPlaybackState(
+        let directState = SeriesPlaybackState(
             resume: mapSeriesPlaybackItem(data.resume, seriesID: seriesID),
             nextUp: mapSeriesPlaybackItem(data.nextUp, seriesID: seriesID)
+        )
+        guard directState.resume == nil || directState.nextUp == nil,
+              let shelf = try? await playbackShelf(limit: 100) else {
+            return directState
+        }
+        return SeriesPlaybackState(
+            resume: directState.resume ?? shelf.resume.first { $0.mediaID == seriesID },
+            nextUp: directState.nextUp ?? shelf.nextUp.first { $0.mediaID == seriesID }
         )
     }
 
@@ -684,6 +692,9 @@ public actor UHDNowProvider: MediaLibraryProvider {
             posterURL: imageURL(value.posterPath),
             thumbnailURL: imageURL(value.thumbPath),
             durationSeconds: value.duration,
+            seasonID: value.seasonId,
+            seasonNumber: value.seasonNumber,
+            episodeNumber: value.episodeNumber,
             userState: mapUserState(value.userState)
         )
     }
@@ -693,10 +704,21 @@ public actor UHDNowProvider: MediaLibraryProvider {
         seriesID: String
     ) -> ContinueWatchingItem? {
         guard let value,
-              let itemID = value.itemId ?? value.id else {
+              let itemID = value.itemId ?? value.episodeId ?? value.id else {
             return nil
         }
-        let title = value.title ?? value.subtitle ?? "Episode"
+        let title = value.episodeTitle ?? value.title ?? value.subtitle ?? "Episode"
+        let userState: UserPlaybackState
+        if let value = value.userState {
+            userState = mapUserState(value)
+        } else {
+            userState = UserPlaybackState(
+                played: false,
+                positionSeconds: UHDNowTime.seconds(fromTicks: value.positionTicks ?? 0),
+                progress: (value.progressPct ?? 0) / 100,
+                lastPlayedAt: value.lastPlayedAt.flatMap(parseDate)
+            )
+        }
         return ContinueWatchingItem(
             id: "episode:\(itemID)",
             item: PlayableItem(id: itemID, kind: .episode),
@@ -709,7 +731,7 @@ public actor UHDNowProvider: MediaLibraryProvider {
             seasonID: value.seasonId,
             seasonNumber: value.seasonNumber,
             episodeNumber: value.episodeNumber,
-            userState: mapUserState(value.userState)
+            userState: userState
         )
     }
 

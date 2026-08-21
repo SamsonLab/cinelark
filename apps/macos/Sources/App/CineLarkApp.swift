@@ -15,7 +15,7 @@ struct CineLarkApp: App {
         let sessionStore = KeychainSessionStore()
         let upstreamProvider = UHDNowProvider(sessionStore: sessionStore)
         let metadataCache = PersistentMetadataCache(
-            configuration: MetadataCacheConfiguration(schemaVersion: 3)
+            configuration: MetadataCacheConfiguration(schemaVersion: 4)
         )
         let provider = CachedMediaLibraryProvider(
             upstream: upstreamProvider,

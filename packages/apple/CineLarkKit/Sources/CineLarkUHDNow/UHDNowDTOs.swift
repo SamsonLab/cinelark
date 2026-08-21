@@ -230,6 +230,9 @@ struct ContinueItemDTO: Decodable {
     let posterPath: String?
     let thumbPath: String?
     let duration: Double?
+    let seasonId: String?
+    let seasonNumber: Int?
+    let episodeNumber: Int?
     let userState: UserStateDTO?
 }
 
@@ -254,8 +257,10 @@ struct SeriesPlaybackItemDTO: Decodable {
     let id: String?
     let itemType: String?
     let itemId: String?
+    let episodeId: String?
     let mediaId: String?
     let title: String?
+    let episodeTitle: String?
     let subtitle: String?
     let posterPath: String?
     let thumbPath: String?
@@ -263,6 +268,9 @@ struct SeriesPlaybackItemDTO: Decodable {
     let seasonId: String?
     let seasonNumber: Int?
     let episodeNumber: Int?
+    let positionTicks: Int64?
+    let progressPct: Double?
+    let lastPlayedAt: String?
     let userState: UserStateDTO?
 }
 

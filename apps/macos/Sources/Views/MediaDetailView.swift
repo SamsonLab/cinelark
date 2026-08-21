@@ -268,7 +268,7 @@ struct MediaDetailView: View {
     @ViewBuilder
     private var playbackSummary: some View {
         if model.item.kind == .series,
-           let resume = model.seriesPlaybackState?.resume {
+           let resume = model.resumableSeriesItem {
             Label(
                 language.localized(
                     "detail.last_watched",
@@ -290,7 +290,7 @@ struct MediaDetailView: View {
                 .padding(.horizontal, 14)
                 .frame(height: 38)
                 .background(.thinMaterial, in: Capsule())
-        } else if model.item.userState.progress > 0 || model.seriesPlaybackState?.resume != nil {
+        } else if model.item.userState.progress > 0 || model.resumableSeriesItem != nil {
             Label(language.localized("detail.watching"), systemImage: "eye.fill")
                 .foregroundStyle(.yellow)
                 .padding(.horizontal, 14)
@@ -313,7 +313,7 @@ struct MediaDetailView: View {
             }
             return language.localized("detail.play")
         case .series:
-            if let resume = model.seriesPlaybackState?.resume {
+            if let resume = model.resumableSeriesItem {
                 return language.localized(
                     "detail.continue_episode",
                     episodeDescriptor(resume),
@@ -341,6 +341,9 @@ struct MediaDetailView: View {
                 String(seasonNumber),
                 String(episodeNumber)
             )
+        }
+        if let episode = model.episodes.first(where: { $0.id == item.item.id }) {
+            return episodeDescriptor(episode)
         }
         return item.subtitle ?? item.title
     }
