@@ -161,7 +161,7 @@ The cross-platform Remote is explicitly not part of MVP completion.
 
 ## 10. Open product decisions
 
-- Minimum macOS and IINA versions
+- Minimum IINA version
 - Resume-start and watched-completion thresholds
 - Default asset selection policy when multiple versions exist
 - Distribution/signing strategy for app and plugin

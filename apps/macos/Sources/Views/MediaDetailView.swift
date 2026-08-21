@@ -42,7 +42,7 @@ struct MediaDetailView: View {
             }
             .padding(.bottom, 48)
         }
-        .background(Color.black.opacity(0.94))
+        .background(CineLarkPageBackground())
         .navigationTitle(model.item.title)
         .task(id: model.playback.playbackStateRevision) {
             if model.detail == nil {
@@ -69,29 +69,11 @@ struct MediaDetailView: View {
 
     private var hero: some View {
         ZStack(alignment: .top) {
-            ArtworkView(url: model.heroBackdropURL)
-                .frame(maxWidth: .infinity)
-                .frame(height: 620)
-                .clipped()
-                .overlay {
-                    LinearGradient(
-                        colors: [
-                            .black.opacity(0.92),
-                            .black.opacity(0.56),
-                            .clear
-                        ],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                }
-                .overlay {
-                    LinearGradient(
-                        colors: [.clear, .black.opacity(0.96)],
-                        startPoint: .center,
-                        endPoint: .bottom
-                    )
-                }
-                .allowsHitTesting(false)
+            CineLarkCinematicBackdrop(
+                url: model.heroBackdropURL,
+                height: 620,
+                leadingShade: 0.90
+            )
 
             VStack(spacing: 0) {
                 VStack(alignment: .leading, spacing: 12) {
@@ -104,7 +86,7 @@ struct MediaDetailView: View {
                     .foregroundStyle(Color.accentColor)
 
                     Text(model.item.title)
-                        .font(.system(size: 58, weight: .bold, design: .rounded))
+                        .font(.system(size: 60, weight: .bold))
                         .lineLimit(2)
                         .help(model.item.title)
 
@@ -217,7 +199,7 @@ struct MediaDetailView: View {
                     }
                     .padding(.horizontal, 18)
                     .frame(height: 38)
-                    .background(.thinMaterial, in: Capsule())
+                    .glassEffect(.regular, in: Capsule())
                 } else {
                     Button {
                         Task { await model.playPrimary() }
@@ -228,8 +210,8 @@ struct MediaDetailView: View {
                             Label(primaryPlaybackLabel, systemImage: "play.fill")
                         }
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
+                    .buttonStyle(.glassProminent)
+                    .controlSize(.extraLarge)
                     .disabled(!model.canStartPlayback || model.isStartingPlayback)
                 }
 
@@ -250,8 +232,8 @@ struct MediaDetailView: View {
                         )
                     }
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
+                .buttonStyle(.glass)
+                .controlSize(.extraLarge)
                 .tint(model.isFavorite ? .orange : .accentColor)
                 .disabled(
                     model.isUpdatingFavorite ||
@@ -289,13 +271,13 @@ struct MediaDetailView: View {
                 .foregroundStyle(.green)
                 .padding(.horizontal, 14)
                 .frame(height: 38)
-                .background(.thinMaterial, in: Capsule())
+                .glassEffect(.regular, in: Capsule())
         } else if model.item.userState.progress > 0 || model.resumableSeriesItem != nil {
             Label(language.localized("detail.watching"), systemImage: "eye.fill")
                 .foregroundStyle(.yellow)
                 .padding(.horizontal, 14)
                 .frame(height: 38)
-                .background(.thinMaterial, in: Capsule())
+                .glassEffect(.regular, in: Capsule())
         }
     }
 
@@ -409,26 +391,28 @@ struct MediaDetailView: View {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Text(language.localized("detail.episodes"))
                     .font(.title2.bold())
-                Text(
-                    language.localized(
-                        model.seasons.count == 1
-                            ? "detail.season_count_one"
-                            : "detail.season_count_many",
-                        String(model.seasons.count)
+                if !model.seasons.isEmpty {
+                    Text(
+                        language.localized(
+                            model.seasons.count == 1
+                                ? "detail.season_count_one"
+                                : "detail.season_count_many",
+                            String(model.seasons.count)
+                        )
                     )
-                )
-                .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondary)
+                }
             }
 
-            seasonStrip
+            if !model.seasons.isEmpty {
+                seasonStrip
+            }
 
             if (model.isLoading && model.seasons.isEmpty) || model.isLoadingEpisodes {
                 ProgressView(language.localized("detail.loading_episodes"))
                     .frame(maxWidth: .infinity, minHeight: 180)
             } else {
-                episodeStrip
-
-                LazyVStack(spacing: 14) {
+                LazyVStack(spacing: 16) {
                     ForEach(visibleEpisodes) { episode in
                         EpisodeRow(episode: episode) {
                             presentEpisodeOptions(episode)
@@ -451,7 +435,7 @@ struct MediaDetailView: View {
                         )
                         .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.glass)
                     .controlSize(.large)
                 }
             }
@@ -478,23 +462,6 @@ struct MediaDetailView: View {
                         isSelected: model.selectedSeasonID == season.id
                     ) {
                         Task { await model.selectSeason(season.id) }
-                    }
-                }
-            }
-            .padding(.vertical, 4)
-        }
-        .scrollIndicators(.hidden)
-    }
-
-    private var episodeStrip: some View {
-        ScrollView(.horizontal) {
-            LazyHStack(spacing: 10) {
-                ForEach(model.episodes) { episode in
-                    EpisodePill(
-                        episode: episode,
-                        isCurrent: model.seriesPlaybackState?.resume?.item.id == episode.id
-                    ) {
-                        presentEpisodeOptions(episode)
                     }
                 }
             }
@@ -535,28 +502,7 @@ struct MediaDetailView: View {
             ScrollView(.horizontal) {
                 LazyHStack(alignment: .top, spacing: 20) {
                     ForEach(Array(people.prefix(36))) { person in
-                        NavigationLink(value: person) {
-                            VStack(spacing: 9) {
-                                ArtworkView(
-                                    url: person.avatarURL,
-                                    placeholderSystemImage: "person.fill"
-                                )
-                                .frame(width: 104, height: 104)
-                                .clipShape(Circle())
-                                Text(person.name)
-                                    .font(.callout.weight(.medium))
-                                    .lineLimit(1)
-                                    .help(person.name)
-                                if let character = person.character, !character.isEmpty {
-                                    Text(character)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(1)
-                                }
-                            }
-                            .frame(width: 130)
-                        }
-                        .buttonStyle(CineLarkPressButtonStyle())
+                        PersonCreditLink(person: person)
                     }
                 }
             }
@@ -568,6 +514,45 @@ struct MediaDetailView: View {
     private func credits(in detail: MediaDetail) -> [PersonCredit] {
         var seen: Set<String> = []
         return (detail.directors + detail.cast).filter { seen.insert($0.id).inserted }
+    }
+}
+
+private struct PersonCreditLink: View {
+    let person: PersonCredit
+    @State private var isHovering = false
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        NavigationLink(value: person) {
+            VStack(spacing: 9) {
+                ArtworkView(
+                    url: person.avatarURL,
+                    placeholderSystemImage: "person.fill"
+                )
+                .frame(width: 104, height: 104)
+                .clipShape(Circle())
+                .cineLarkCardLift(
+                    isActive: isHovering || isFocused,
+                    cornerRadius: 52,
+                    scale: 1.06
+                )
+                Text(person.name)
+                    .font(.callout.weight(.medium))
+                    .lineLimit(1)
+                    .help(person.name)
+                if let character = person.character, !character.isEmpty {
+                    Text(character)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            .frame(width: 130)
+        }
+        .buttonStyle(CineLarkPressButtonStyle())
+        .focused($isFocused)
+        .focusEffectDisabled()
+        .onHover { isHovering = $0 }
     }
 }
 
@@ -608,40 +593,36 @@ private struct SeasonPill: View {
     let isSelected: Bool
     let action: () -> Void
 
+    @ViewBuilder
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 8) {
-                Text(season.title)
-                    .font(.headline)
+        if isSelected {
+            Button(action: action) { label }
+                .buttonStyle(.glassProminent)
+                .controlSize(.large)
+                .accessibilityLabel(season.title)
+                .accessibilityAddTraits(.isSelected)
+        } else {
+            Button(action: action) { label }
+                .buttonStyle(.glass)
+                .controlSize(.large)
+                .accessibilityLabel(season.title)
+        }
+    }
 
-                if season.userState.played {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(isSelected ? .black.opacity(0.72) : .green)
-                } else if season.userState.progress > 0 {
-                    Circle()
-                        .fill(isSelected ? .black.opacity(0.72) : Color.accentColor)
-                        .frame(width: 7, height: 7)
-                }
-            }
-            .foregroundStyle(isSelected ? .black : .primary)
-            .padding(.horizontal, 22)
-            .frame(height: 48)
-            .background(
-                isSelected ? Color.accentColor : Color.white.opacity(0.065),
-                in: Capsule()
-            )
-            .overlay {
-                Capsule()
-                    .stroke(
-                        isSelected ? Color.accentColor : Color.white.opacity(0.14),
-                        lineWidth: 1
-                    )
-                    .allowsHitTesting(false)
+    private var label: some View {
+        HStack(spacing: 8) {
+            Text(season.title)
+                .font(.headline)
+            if season.userState.played {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+            } else if season.userState.progress > 0 {
+                Circle()
+                    .fill(Color.accentColor)
+                    .frame(width: 7, height: 7)
             }
         }
-        .buttonStyle(CineLarkPressButtonStyle())
-        .accessibilityLabel(season.title)
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .padding(.horizontal, 8)
     }
 }
 
@@ -716,11 +697,11 @@ private struct EpisodePill: View {
 }
 
 private struct EpisodeRow: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.appLanguage) private var language
     let episode: Episode
     let action: () -> Void
     @State private var isHovering = false
+    @FocusState private var isFocused: Bool
 
     var body: some View {
         Button(action: action) {
@@ -746,7 +727,7 @@ private struct EpisodeRow: View {
                             .font(.caption2.weight(.semibold))
                             .padding(.horizontal, 8)
                             .padding(.vertical, 5)
-                            .background(.ultraThinMaterial, in: Capsule())
+                            .glassEffect(.regular, in: Capsule())
                             .padding(8)
                         }
                     }
@@ -800,8 +781,8 @@ private struct EpisodeRow: View {
                     .font(.body.weight(.semibold))
                     .foregroundStyle(.white)
                     .frame(width: 52, height: 40)
-                    .background(
-                        isHovering ? Color.accentColor : Color.accentColor.opacity(0.82),
+                    .glassEffect(
+                        .regular.tint(.blue).interactive(),
                         in: Capsule()
                     )
             }
@@ -810,27 +791,18 @@ private struct EpisodeRow: View {
             .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .buttonStyle(CineLarkPressButtonStyle())
+        .focused($isFocused)
+        .focusEffectDisabled()
         .background(
-            isHovering ? Color.accentColor.opacity(0.12) : Color.white.opacity(0.055),
+            Color.white.opacity(isHovering || isFocused ? 0.10 : 0.05),
             in: RoundedRectangle(cornerRadius: 16, style: .continuous)
         )
-        .overlay {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(
-                    isHovering
-                        ? Color.accentColor.opacity(0.65)
-                        : Color.white.opacity(0.10),
-                    lineWidth: isHovering ? 1.5 : 1
-                )
-        }
-        .scaleEffect(isHovering && !reduceMotion ? 1.004 : 1)
-        .offset(y: isHovering && !reduceMotion ? -1 : 0)
-        .shadow(color: .black.opacity(isHovering ? 0.30 : 0), radius: 12, y: 6)
-        .onHover { isHovering = $0 }
-        .animation(
-            reduceMotion ? nil : .easeOut(duration: 0.12),
-            value: isHovering
+        .cineLarkCardLift(
+            isActive: isHovering || isFocused,
+            cornerRadius: 16,
+            scale: 1.01
         )
+        .onHover { isHovering = $0 }
         .accessibilityLabel(episodeAccessibilityLabel)
         .accessibilityHint(language.localized("episode.choose_hint"))
     }

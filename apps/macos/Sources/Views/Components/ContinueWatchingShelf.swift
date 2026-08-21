@@ -4,29 +4,42 @@ import CineLarkDomain
 struct ContinueWatchingShelf: View {
     @Environment(\.appLanguage) private var language
     @Bindable var model: AppModel
+    let onHighlight: ((ContinueWatchingItem) -> Void)?
+
+    init(
+        model: AppModel,
+        onHighlight: ((ContinueWatchingItem) -> Void)? = nil
+    ) {
+        self.model = model
+        self.onHighlight = onHighlight
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 14) {
             Text(language.localized("home.continue_watching"))
-                .font(.title2.bold())
+                .font(.system(size: 26, weight: .semibold))
+                .padding(.horizontal, CineLarkTheme.contentMargin)
 
             ScrollView(.horizontal) {
-                LazyHStack(alignment: .top, spacing: 20) {
+                LazyHStack(alignment: .top, spacing: 26) {
                     ForEach(model.continueWatching) { item in
                         ContinueWatchingCard(
                             item: item,
                             isPlaying: model.playingItemID == item.id,
-                            isPlaybackDisabled: model.playingItemID != nil
+                            isPlaybackDisabled: model.playingItemID != nil,
+                            onHighlight: onHighlight
                         ) {
                             Task { await model.play(item) }
                         }
                     }
                 }
-                .padding(.horizontal, 10)
-                .padding(.top, 14)
-                .padding(.bottom, 18)
+                .scrollTargetLayout()
+                .padding(.vertical, 26)
             }
+            .contentMargins(.horizontal, CineLarkTheme.contentMargin, for: .scrollContent)
             .scrollIndicators(.hidden)
+            .scrollTargetBehavior(.viewAligned)
+            .focusSection()
         }
     }
 }
@@ -37,46 +50,49 @@ private struct ContinueWatchingCard: View {
     let item: ContinueWatchingItem
     let isPlaying: Bool
     let isPlaybackDisabled: Bool
+    let onHighlight: ((ContinueWatchingItem) -> Void)?
     let play: () -> Void
-    @State private var isArtworkHovering = false
-    @State private var isTextHovering = false
+    @State private var isHovering = false
+    @FocusState private var isPlayFocused: Bool
+    @FocusState private var isDetailFocused: Bool
+
+    private var isActive: Bool {
+        isHovering || isPlayFocused || isDetailFocused
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 11) {
             Button(action: play) {
                 artwork
             }
             .buttonStyle(CineLarkPressButtonStyle())
+            .focused($isPlayFocused)
+            .focusEffectDisabled()
             .disabled(isPlaybackDisabled)
-            .accessibilityLabel(
-                language.localized("home.continue_playback", item.title)
-            )
+            .accessibilityLabel(language.localized("home.continue_playback", item.title))
 
-            NavigationLink(value: detailItem) {
-                VStack(alignment: .leading, spacing: 3) {
+            NavigationLink(value: item.mediaSummary) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text(item.title)
-                        .font(.headline)
-                        .foregroundStyle(isTextHovering ? Color.accentColor : .primary)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(isDetailFocused ? .white : .primary)
                         .lineLimit(1)
                         .help(item.title)
 
                     if let subtitle = item.subtitle {
                         Text(subtitle)
-                            .font(.caption)
-                            .foregroundStyle(isTextHovering ? Color.accentColor.opacity(0.85) : .secondary)
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(.secondary)
                             .lineLimit(1)
                     }
                 }
-                .frame(width: 300, alignment: .topLeading)
-                .frame(minHeight: 36, alignment: .topLeading)
+                .frame(width: CineLarkTheme.landscapeWidth, alignment: .topLeading)
+                .frame(minHeight: 38, alignment: .topLeading)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .onHover { isTextHovering = $0 }
-            .animation(
-                reduceMotion ? nil : .easeOut(duration: 0.12),
-                value: isTextHovering
-            )
+            .focused($isDetailFocused)
+            .focusEffectDisabled()
             .accessibilityLabel(
                 [item.title, item.subtitle]
                     .compactMap { $0 }
@@ -84,83 +100,69 @@ private struct ContinueWatchingCard: View {
             )
             .accessibilityHint(language.localized("home.open_details"))
         }
+        .onHover { hovering in
+            isHovering = hovering
+            if hovering { onHighlight?(item) }
+        }
+        .onChange(of: isPlayFocused) {
+            if isPlayFocused { onHighlight?(item) }
+        }
+        .onChange(of: isDetailFocused) {
+            if isDetailFocused { onHighlight?(item) }
+        }
     }
 
     private var artwork: some View {
         ZStack {
             ArtworkView(url: item.thumbnailURL ?? item.posterURL)
-                .frame(width: 300, height: 169)
-                .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 13, style: .continuous)
-                        .stroke(
-                            isArtworkHovering
-                                ? Color.accentColor.opacity(0.70)
-                                : Color.white.opacity(0.10),
-                            lineWidth: isArtworkHovering ? 1.5 : 1
-                        )
-                        .allowsHitTesting(false)
-                }
-                .shadow(
-                    color: .black.opacity(isArtworkHovering ? 0.42 : 0.24),
-                    radius: isArtworkHovering ? 18 : 12,
-                    y: isArtworkHovering ? 9 : 6
+                .frame(
+                    width: CineLarkTheme.landscapeWidth,
+                    height: CineLarkTheme.landscapeHeight
+                )
+                .clipShape(
+                    RoundedRectangle(
+                        cornerRadius: CineLarkTheme.cardRadius,
+                        style: .continuous
+                    )
                 )
 
-            Circle()
-                .fill(
-                    isArtworkHovering
-                        ? Color.accentColor.opacity(0.88)
-                        : Color.black.opacity(0.68)
-                )
-                .frame(width: 54, height: 54)
-                .overlay {
-                    if isPlaying {
-                        ProgressView()
-                    } else {
-                        Image(systemName: "play.fill")
-                            .font(.title2)
-                            .offset(x: 2)
-                    }
-                }
+            playControl
+                .offset(x: isPlaying ? 0 : 2)
         }
         .overlay(alignment: .bottom) {
             ProgressView(value: item.userState.progress)
                 .progressViewStyle(.linear)
-                .tint(Color.accentColor)
-                .padding(8)
+                .tint(.blue)
+                .padding(10)
         }
-        .contentShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
-        .scaleEffect(isArtworkHovering && !reduceMotion ? 1.008 : 1)
-        .offset(y: isArtworkHovering && !reduceMotion ? -1 : 0)
-        .onHover { isArtworkHovering = $0 }
-        .animation(
-            reduceMotion ? nil : .easeOut(duration: 0.12),
-            value: isArtworkHovering
+        .contentShape(
+            RoundedRectangle(cornerRadius: CineLarkTheme.cardRadius, style: .continuous)
+        )
+        .cineLarkCardLift(
+            isActive: isActive,
+            cornerRadius: CineLarkTheme.cardRadius,
+            scale: reduceMotion ? 1 : 1.04
         )
     }
 
-    private var detailItem: MediaSummary {
-        switch item.item.kind {
-        case .movie:
-            MediaSummary(
-                id: item.item.id,
-                kind: .movie,
-                title: item.title,
-                durationSeconds: item.durationSeconds,
-                posterURL: item.posterURL,
-                backdropURL: item.thumbnailURL,
-                userState: item.userState
+    @ViewBuilder
+    private var playControl: some View {
+        let icon = Image(systemName: isPlaying ? "hourglass" : "play.fill")
+            .font(.system(size: 21, weight: .semibold))
+            .frame(width: 54, height: 54)
+
+        if isActive {
+            icon.glassEffect(
+                .regular.tint(.white.opacity(0.28)).interactive(),
+                in: Circle()
             )
-        case .episode:
-            MediaSummary(
-                id: item.mediaID,
-                kind: .series,
-                title: item.title,
-                posterURL: item.posterURL,
-                backdropURL: item.thumbnailURL,
-                userState: item.userState
-            )
+        } else {
+            icon
+                .background(Color.black.opacity(0.52), in: Circle())
+                .overlay {
+                    Circle()
+                        .strokeBorder(Color.white.opacity(0.18), lineWidth: 0.75)
+                }
         }
     }
 }

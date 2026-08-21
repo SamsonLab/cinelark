@@ -8,97 +8,146 @@ struct LoginView: View {
     @State private var totpCode = ""
     @State private var showTOTP = false
     @State private var isSigningIn = false
+    @FocusState private var focusedField: Field?
+
+    private enum Field {
+        case username
+        case password
+        case totp
+    }
 
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: [Color.black, Color(red: 0.05, green: 0.09, blue: 0.16)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
+            CineLarkPageBackground()
+            atmosphere
 
-            VStack(spacing: 28) {
-                VStack(spacing: 10) {
-                    Image(systemName: "bird.fill")
-                        .font(.system(size: 54, weight: .semibold))
-                        .foregroundStyle(Color.accentColor)
-                    Text("CineLark")
-                        .font(.system(size: 38, weight: .bold, design: .rounded))
-                    Text(language.localized("login.tagline"))
-                        .foregroundStyle(.secondary)
-                }
+            VStack(spacing: 34) {
+                identity
+                credentialPanel
+            }
+            .padding(48)
 
-                VStack(spacing: 14) {
-                    TextField(language.localized("login.username"), text: $username)
-                        .textContentType(.username)
-                    SecureField(language.localized("login.password"), text: $password)
-                        .textContentType(.password)
+            LanguageMenu()
+                .buttonStyle(.glass)
+                .controlSize(.large)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                .padding(24)
+        }
+        .task {
+            focusedField = .username
+        }
+        .onSubmit {
+            if focusedField == .username {
+                focusedField = .password
+            } else if focusedField == .password, showTOTP {
+                focusedField = .totp
+            } else {
+                signIn()
+            }
+        }
+    }
 
-                    Toggle(language.localized("login.use_totp"), isOn: $showTOTP)
-                        .toggleStyle(.switch)
+    private var atmosphere: some View {
+        GeometryReader { proxy in
+            ZStack {
+                Circle()
+                    .fill(Color.blue.opacity(0.24))
+                    .frame(width: proxy.size.width * 0.68)
+                    .blur(radius: 120)
+                    .offset(x: proxy.size.width * 0.30, y: -proxy.size.height * 0.28)
+                Circle()
+                    .fill(Color.cyan.opacity(0.10))
+                    .frame(width: proxy.size.width * 0.46)
+                    .blur(radius: 130)
+                    .offset(x: -proxy.size.width * 0.38, y: proxy.size.height * 0.30)
+            }
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+    }
 
-                    if showTOTP {
-                        TextField(language.localized("login.totp"), text: $totpCode)
-                            .textContentType(.oneTimeCode)
-                    }
+    private var identity: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "bird.fill")
+                .font(.system(size: 52, weight: .semibold))
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(.white)
+            Text("CineLark")
+                .font(.system(size: 44, weight: .bold))
+            Text(language.localized("login.tagline"))
+                .font(.title3)
+                .foregroundStyle(.secondary)
+        }
+    }
 
-                    if let error = model.errorMessage {
-                        Text(language.userFacingError(error))
-                            .font(.callout)
-                            .foregroundStyle(.red)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
+    private var credentialPanel: some View {
+        VStack(spacing: 16) {
+            TextField(language.localized("login.username"), text: $username)
+                .textContentType(.username)
+                .focused($focusedField, equals: .username)
+            SecureField(language.localized("login.password"), text: $password)
+                .textContentType(.password)
+                .focused($focusedField, equals: .password)
 
-                    Button {
-                        isSigningIn = true
-                        Task {
-                            await model.signIn(
-                                username: username,
-                                password: password,
-                                totpCode: showTOTP ? totpCode : nil
-                            )
-                            isSigningIn = false
-                        }
-                    } label: {
-                        HStack {
-                            if isSigningIn {
-                                ProgressView()
-                                    .controlSize(.small)
-                            }
-                            Text(
-                                language.localized(
-                                    isSigningIn ? "login.signing_in" : "login.sign_in"
-                                )
-                            )
-                                .fontWeight(.semibold)
-                        }
-                        .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                    .disabled(
-                        isSigningIn ||
-                        username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-                        password.isEmpty
-                    )
-                }
-                .textFieldStyle(.roundedBorder)
-                .padding(28)
-                .frame(width: 420)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24))
+            Toggle(language.localized("login.use_totp"), isOn: $showTOTP)
+                .toggleStyle(.switch)
+
+            if showTOTP {
+                TextField(language.localized("login.totp"), text: $totpCode)
+                    .textContentType(.oneTimeCode)
+                    .focused($focusedField, equals: .totp)
+                    .transition(.move(edge: .top).combined(with: .opacity))
             }
 
-            VStack {
+            if let error = model.errorMessage {
+                Text(language.userFacingError(error))
+                    .font(.callout)
+                    .foregroundStyle(.red)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            Button(action: signIn) {
                 HStack {
-                    Spacer()
-                    LanguageMenu()
-                        .padding(10)
-                        .background(.ultraThinMaterial, in: Capsule())
+                    if isSigningIn {
+                        ProgressView().controlSize(.small)
+                    }
+                    Text(
+                        language.localized(isSigningIn ? "login.signing_in" : "login.sign_in")
+                    )
+                    .fontWeight(.semibold)
                 }
-                Spacer()
+                .frame(maxWidth: .infinity)
             }
-            .padding(20)
+            .buttonStyle(.glassProminent)
+            .controlSize(.extraLarge)
+            .disabled(
+                isSigningIn ||
+                username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                password.isEmpty
+            )
+        }
+        .textFieldStyle(.roundedBorder)
+        .padding(30)
+        .frame(width: 440)
+        .glassEffect(
+            .regular,
+            in: RoundedRectangle(cornerRadius: 30, style: .continuous)
+        )
+        .animation(CineLarkTheme.focusAnimation, value: showTOTP)
+    }
+
+    private func signIn() {
+        guard !isSigningIn,
+              !username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              !password.isEmpty else { return }
+        isSigningIn = true
+        Task {
+            await model.signIn(
+                username: username,
+                password: password,
+                totpCode: showTOTP ? totpCode : nil
+            )
+            isSigningIn = false
         }
     }
 }

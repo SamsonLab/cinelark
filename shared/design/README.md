@@ -6,3 +6,6 @@ implement the same visual primitive independently.
 Share semantic values such as surface, text, focus, spacing, radius, typography,
 and motion roles. Do not share platform layout code or encode Apple/Material
 widget details in the token source.
+
+The proposed macOS interaction and visual system is documented in
+[`CINELARK_TV_EXPERIENCE.md`](CINELARK_TV_EXPERIENCE.md).

@@ -53,7 +53,7 @@ docs/             product, architecture, integration, and decision records
 
 ## Install
 
-CineLark requires macOS 14 or later and uses an existing IINA installation:
+CineLark requires macOS 26 or later and uses an existing IINA installation:
 
 ```sh
 brew install --cask samsonlab/cinelark/cinelark

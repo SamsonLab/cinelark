@@ -8,9 +8,26 @@ struct RootView: View {
         Group {
             switch model.phase {
             case .launching:
-                ProgressView(language.localized("root.opening"))
-                    .controlSize(.large)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                ZStack {
+                    CineLarkPageBackground()
+                    VStack(spacing: 16) {
+                        Image(systemName: "bird.fill")
+                            .font(.system(size: 40, weight: .semibold))
+                            .symbolRenderingMode(.hierarchical)
+                            .frame(width: 88, height: 88)
+                            .glassEffect(.regular, in: Circle())
+
+                        Text("CineLark")
+                            .font(.system(size: 34, weight: .bold))
+
+                        ProgressView()
+                            .controlSize(.large)
+
+                        Text(language.localized("root.opening"))
+                            .font(.callout.weight(.medium))
+                            .foregroundStyle(.secondary)
+                    }
+                }
             case .signedOut:
                 LoginView(model: model)
             case .signedIn:

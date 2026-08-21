@@ -38,7 +38,7 @@ struct PlaybackOptionsView: View {
         }
         .frame(minWidth: 760, idealWidth: 840, maxWidth: 900)
         .frame(height: dialogHeight)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(CineLarkPageBackground())
         .onPreferenceChange(PlaybackOptionsContentHeightKey.self) { height in
             guard height > 0 else { return }
             bodyContentHeight = height
@@ -115,7 +115,7 @@ struct PlaybackOptionsView: View {
                     .tracking(0.8)
                     .foregroundStyle(.secondary)
                 Text(model.context.title)
-                    .font(.system(size: 36, weight: .bold, design: .rounded))
+                    .font(.system(size: 38, weight: .bold))
                     .lineLimit(2)
                     .help(model.context.title)
                 if let subtitle = model.context.subtitle {
@@ -135,7 +135,7 @@ struct PlaybackOptionsView: View {
                     .font(.title3.bold())
                     .frame(width: 38, height: 38)
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.glass)
             .buttonBorderShape(.circle)
             .accessibilityLabel(language.localized("playback.close"))
             .keyboardShortcut(.cancelAction)
@@ -221,6 +221,12 @@ struct PlaybackVersionCard: View {
     let onOpenDownload: () -> Void
 
     @State private var isHovering = false
+    @FocusState private var isPlayFocused: Bool
+    @FocusState private var isDetailsFocused: Bool
+
+    private var isActive: Bool {
+        isHovering || isPlayFocused || isDetailsFocused
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -275,7 +281,10 @@ struct PlaybackVersionCard: View {
                         .foregroundStyle(.white)
                         .padding(.horizontal, 17)
                         .frame(height: 38)
-                        .background(Color.accentColor, in: Capsule())
+                        .glassEffect(
+                            .regular.tint(.blue).interactive(),
+                            in: Capsule()
+                        )
                     }
                     .padding(.leading, 18)
                     .padding(.vertical, 15)
@@ -283,6 +292,8 @@ struct PlaybackVersionCard: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(CineLarkPressButtonStyle())
+                .focused($isPlayFocused)
+                .focusEffectDisabled()
                 .disabled(isPlaying)
                 .accessibilityLabel(
                     language.localized("playback.play_version", asset.displayName)
@@ -294,6 +305,8 @@ struct PlaybackVersionCard: View {
                         .cineLarkHoverSurface(cornerRadius: 11)
                 }
                 .buttonStyle(.plain)
+                .focused($isDetailsFocused)
+                .focusEffectDisabled()
                 .accessibilityLabel(
                     language.localized(
                         isExpanded
@@ -318,16 +331,14 @@ struct PlaybackVersionCard: View {
             }
         }
         .background(
-            isHovering ? Color.accentColor.opacity(0.10) : Color.white.opacity(0.04),
+            isActive ? Color.white.opacity(0.09) : Color.white.opacity(0.04),
             in: RoundedRectangle(cornerRadius: 16, style: .continuous)
         )
-        .overlay {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(
-                    isHovering ? Color.accentColor.opacity(0.65) : Color.white.opacity(0.10),
-                    lineWidth: isHovering ? 1.5 : 1
-                )
-        }
+        .cineLarkCardLift(
+            isActive: isActive,
+            cornerRadius: 16,
+            scale: 1.008
+        )
         .onHover { isHovering = $0 }
         .animation(.easeOut(duration: 0.12), value: isHovering)
     }
@@ -437,7 +448,7 @@ struct PlaybackVersionCard: View {
                     ProgressView().controlSize(.small)
                 }
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.glass)
             .disabled(isResolvingLink)
 
             Label(

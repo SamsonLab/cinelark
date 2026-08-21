@@ -37,7 +37,7 @@ struct PersonDetailView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(Color.black.opacity(0.94))
+        .background(CineLarkPageBackground())
         .navigationTitle(model.name)
         .task {
             await model.load()
@@ -72,7 +72,7 @@ struct PersonDetailView: View {
                     .tracking(0.8)
                     .foregroundStyle(.secondary)
                 Text(model.name)
-                    .font(.system(size: 46, weight: .bold, design: .rounded))
+                    .font(.system(size: 48, weight: .bold))
                 Text(
                     language.localized(
                         model.workCount == 1
@@ -101,8 +101,8 @@ struct PersonDetailView: View {
                         )
                     }
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
+                .buttonStyle(.glassProminent)
+                .controlSize(.extraLarge)
                 .tint(model.isFavorite ? .orange : .accentColor)
                 .disabled(model.isFavorite || model.isUpdatingFavorite || model.detail == nil)
             }
@@ -110,6 +110,14 @@ struct PersonDetailView: View {
             Spacer()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(40)
+        .padding(CineLarkTheme.contentMargin)
+        .background {
+            RadialGradient(
+                colors: [Color.blue.opacity(0.16), .clear],
+                center: .leading,
+                startRadius: 20,
+                endRadius: 560
+            )
+        }
     }
 }

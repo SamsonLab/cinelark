@@ -33,7 +33,7 @@ struct FavoritesView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(Color.black.opacity(0.92))
+        .background(CineLarkPageBackground())
         .navigationTitle(language.localized("favorites.title"))
         .task {
             await model.load()
@@ -58,7 +58,7 @@ struct FavoritesView: View {
                     .font(.headline)
                     .foregroundStyle(.orange)
                 Text(language.localized("favorites.title"))
-                    .font(.system(size: 42, weight: .bold, design: .rounded))
+                    .font(.system(size: 44, weight: .bold))
                 Text(
                     language.localized(
                         "favorites.summary",
@@ -78,7 +78,8 @@ struct FavoritesView: View {
             .frame(maxWidth: 520)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(32)
+        .padding(.horizontal, CineLarkTheme.contentMargin)
+        .padding(.vertical, 32)
     }
 
     @ViewBuilder
@@ -127,23 +128,10 @@ struct FavoritesView: View {
                     spacing: 32
                 ) {
                     ForEach(model.people) { person in
-                        NavigationLink(value: credit(for: person)) {
-                            VStack(spacing: 12) {
-                                ArtworkView(url: person.avatarURL)
-                                    .frame(width: 150, height: 150)
-                                    .clipShape(Circle())
-                                    .overlay(alignment: .bottomTrailing) {
-                                        Image(systemName: "heart.fill")
-                                            .foregroundStyle(.orange)
-                                            .padding(8)
-                                            .background(.ultraThinMaterial, in: Circle())
-                                    }
-                                Text(person.name)
-                                    .font(.headline)
-                                    .lineLimit(1)
-                            }
-                        }
-                        .buttonStyle(.plain)
+                        FavoritePersonLink(
+                            person: person,
+                            credit: credit(for: person)
+                        )
                     }
                 }
                 .padding(32)
@@ -167,5 +155,40 @@ struct FavoritesView: View {
             avatarURL: person.avatarURL,
             order: nil
         )
+    }
+}
+
+private struct FavoritePersonLink: View {
+    let person: PersonDetail
+    let credit: PersonCredit
+    @State private var isHovering = false
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        NavigationLink(value: credit) {
+            VStack(spacing: 12) {
+                ArtworkView(url: person.avatarURL)
+                    .frame(width: 150, height: 150)
+                    .clipShape(Circle())
+                    .overlay(alignment: .bottomTrailing) {
+                        Image(systemName: "heart.fill")
+                            .foregroundStyle(.orange)
+                            .frame(width: 34, height: 34)
+                            .glassEffect(.regular, in: Circle())
+                    }
+                    .cineLarkCardLift(
+                        isActive: isHovering || isFocused,
+                        cornerRadius: 75,
+                        scale: 1.05
+                    )
+                Text(person.name)
+                    .font(.headline)
+                    .lineLimit(1)
+            }
+        }
+        .buttonStyle(CineLarkPressButtonStyle())
+        .focused($isFocused)
+        .focusEffectDisabled()
+        .onHover { isHovering = $0 }
     }
 }

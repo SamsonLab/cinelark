@@ -7,121 +7,144 @@ struct MediaDetailRoute: Hashable {
 }
 
 struct MediaCard: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.appLanguage) private var language
     @Environment(\.mediaTransitionNamespace) private var transitionNamespace
     let item: MediaSummary
     let transitionID: UUID?
+    let isFocused: Bool
+    let onHighlight: ((MediaSummary) -> Void)?
     @State private var isHovering = false
 
-    init(item: MediaSummary, transitionID: UUID? = nil) {
+    init(
+        item: MediaSummary,
+        transitionID: UUID? = nil,
+        isFocused: Bool = false,
+        onHighlight: ((MediaSummary) -> Void)? = nil
+    ) {
         self.item = item
         self.transitionID = transitionID
+        self.isFocused = isFocused
+        self.onHighlight = onHighlight
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            ArtworkView(url: item.posterURL)
-                .frame(width: 178, height: 267)
-                .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
-                .mediaMatchedGeometry(
-                    id: transitionID,
-                    namespace: transitionNamespace,
-                    isSource: true
-                )
-                .overlay(alignment: .bottom) {
-                    if item.userState.progress > 0 && !item.userState.played {
-                        ProgressView(value: item.userState.progress)
-                            .progressViewStyle(.linear)
-                            .tint(Color.accentColor)
-                            .padding(8)
-                    }
-                }
-                .overlay(alignment: .topTrailing) {
-                    VStack(spacing: 6) {
-                        if item.userState.favorite == true {
-                            Image(systemName: "heart.fill")
-                                .foregroundStyle(.orange)
-                                .padding(9)
-                                .background(.ultraThinMaterial, in: Circle())
-                                .accessibilityLabel(language.localized("detail.favorite"))
-                        }
-                        if item.userState.played {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(.green)
-                                .padding(9)
-                                .background(.ultraThinMaterial, in: Circle())
-                                .accessibilityLabel(language.localized("detail.watched"))
-                        }
-                    }
-                    .padding(8)
-                }
-                .overlay {
-                    RoundedRectangle(cornerRadius: 13, style: .continuous)
-                        .stroke(
-                            isHovering
-                                ? Color.accentColor.opacity(0.7)
-                                : Color.white.opacity(0.08),
-                            lineWidth: isHovering ? 1.5 : 1
-                        )
-                }
-                .shadow(
-                    color: .black.opacity(isHovering ? 0.55 : 0.35),
-                    radius: isHovering ? 18 : 12,
-                    y: isHovering ? 9 : 6
-                )
+        VStack(alignment: .leading, spacing: 11) {
+            artwork
 
             Text(item.title)
-                .font(.headline)
+                .font(.system(size: 16, weight: .semibold))
                 .lineLimit(1)
-                .frame(width: 178, alignment: .leading)
+                .frame(width: CineLarkTheme.posterWidth, alignment: .leading)
                 .help(item.title)
 
-            HStack(spacing: 8) {
-                if let year = item.releaseYear {
-                    Text(String(year))
-                }
-                if let rating = item.rating {
-                    HStack(spacing: 3) {
-                        Image(systemName: "star.fill")
-                            .accessibilityHidden(true)
-                        Text(rating.cineLarkRating)
-                    }
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(
-                        language.localized(
-                            "rating.accessibility",
-                            rating.cineLarkRating
-                        )
-                    )
-                }
-            }
-            .font(.caption)
-            .monospacedDigit()
-            .foregroundStyle(.secondary)
+            metadata
+                .frame(width: CineLarkTheme.posterWidth, alignment: .leading)
         }
         .contentShape(Rectangle())
-        .scaleEffect(isHovering && !reduceMotion ? 1.012 : 1)
-        .offset(y: isHovering && !reduceMotion ? -1 : 0)
-        .onHover { isHovering = $0 }
-        .animation(
-            reduceMotion ? nil : .easeOut(duration: 0.12),
-            value: isHovering
-        )
+        .onHover { hovering in
+            isHovering = hovering
+            if hovering { onHighlight?(item) }
+        }
+    }
+
+    private var artwork: some View {
+        ArtworkView(url: item.posterURL)
+            .frame(width: CineLarkTheme.posterWidth, height: CineLarkTheme.posterHeight)
+            .clipShape(RoundedRectangle(cornerRadius: CineLarkTheme.cardRadius, style: .continuous))
+            .mediaMatchedGeometry(
+                id: transitionID,
+                namespace: transitionNamespace,
+                isSource: true
+            )
+            .overlay(alignment: .bottom) {
+                if item.userState.progress > 0 && !item.userState.played {
+                    ProgressView(value: item.userState.progress)
+                        .progressViewStyle(.linear)
+                        .tint(.blue)
+                        .padding(10)
+                }
+            }
+            .overlay(alignment: .topTrailing) {
+                stateBadges
+                    .padding(10)
+            }
+            .cineLarkCardLift(isActive: isFocused || isHovering)
+    }
+
+    @ViewBuilder
+    private var stateBadges: some View {
+        VStack(spacing: 7) {
+            if item.userState.favorite == true {
+                Image(systemName: "heart.fill")
+                    .foregroundStyle(.orange)
+                    .frame(width: 32, height: 32)
+                    .background(Color.black.opacity(0.52), in: Circle())
+                    .overlay {
+                        Circle()
+                            .strokeBorder(Color.white.opacity(0.18), lineWidth: 0.75)
+                    }
+                    .accessibilityLabel(language.localized("detail.favorite"))
+            }
+            if item.userState.played {
+                Image(systemName: "checkmark")
+                    .foregroundStyle(.green)
+                    .frame(width: 32, height: 32)
+                    .background(Color.black.opacity(0.52), in: Circle())
+                    .overlay {
+                        Circle()
+                            .strokeBorder(Color.white.opacity(0.18), lineWidth: 0.75)
+                    }
+                    .accessibilityLabel(language.localized("detail.watched"))
+            }
+        }
+    }
+
+    private var metadata: some View {
+        HStack(spacing: 8) {
+            if let year = item.releaseYear {
+                Text(String(year))
+            }
+            if let rating = item.rating {
+                HStack(spacing: 3) {
+                    Image(systemName: "star.fill")
+                        .accessibilityHidden(true)
+                    Text(rating.cineLarkRating)
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(
+                    language.localized("rating.accessibility", rating.cineLarkRating)
+                )
+            }
+        }
+        .font(.caption.weight(.medium))
+        .monospacedDigit()
+        .foregroundStyle(.secondary)
     }
 }
 
 private struct MediaNavigationLink: View {
     let item: MediaSummary
+    let onHighlight: ((MediaSummary) -> Void)?
     @State private var transitionID = UUID()
+    @FocusState private var isFocused: Bool
 
     var body: some View {
         NavigationLink(
             value: MediaDetailRoute(item: item, transitionID: transitionID)
         ) {
-            MediaCard(item: item, transitionID: transitionID)
+            MediaCard(
+                item: item,
+                transitionID: transitionID,
+                isFocused: isFocused,
+                onHighlight: onHighlight
+            )
         }
         .buttonStyle(CineLarkPressButtonStyle())
+        .focused($isFocused)
+        .focusEffectDisabled()
+        .onChange(of: isFocused) {
+            if isFocused { onHighlight?(item) }
+        }
     }
 }
 
@@ -130,36 +153,38 @@ struct MediaShelf: View {
     let title: String
     let items: [MediaSummary]
     let viewAllCollection: MediaCollection?
+    let onHighlight: ((MediaSummary) -> Void)?
 
     init(
         title: String,
         items: [MediaSummary],
-        viewAllCollection: MediaCollection? = nil
+        viewAllCollection: MediaCollection? = nil,
+        onHighlight: ((MediaSummary) -> Void)? = nil
     ) {
         self.title = title
         self.items = items
         self.viewAllCollection = viewAllCollection
+        self.onHighlight = onHighlight
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .firstTextBaseline) {
                 Text(title)
-                    .font(.title2.bold())
+                    .font(.system(size: 25, weight: .semibold))
 
                 Spacer()
 
                 if let viewAllCollection {
                     NavigationLink(value: viewAllCollection) {
-                        HStack(spacing: 5) {
-                            Text(language.localized("general.view_all"))
-                            Image(systemName: "chevron.right")
-                                .font(.caption.weight(.semibold))
-                        }
+                        Label(
+                            language.localized("general.view_all"),
+                            systemImage: "chevron.right"
+                        )
+                        .labelStyle(.titleAndIcon)
                         .font(.callout.weight(.semibold))
-                        .foregroundStyle(Color.accentColor)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.glass)
                     .accessibilityLabel(
                         language.localized(
                             "collection.view_all_accessibility",
@@ -168,18 +193,21 @@ struct MediaShelf: View {
                     )
                 }
             }
+            .padding(.horizontal, CineLarkTheme.contentMargin)
 
             ScrollView(.horizontal) {
-                LazyHStack(alignment: .top, spacing: 22) {
+                LazyHStack(alignment: .top, spacing: 26) {
                     ForEach(items) { item in
-                        MediaNavigationLink(item: item)
+                        MediaNavigationLink(item: item, onHighlight: onHighlight)
                     }
                 }
-                .padding(.horizontal, 10)
-                .padding(.top, 14)
-                .padding(.bottom, 18)
+                .scrollTargetLayout()
+                .padding(.vertical, 26)
             }
+            .contentMargins(.horizontal, CineLarkTheme.contentMargin, for: .scrollContent)
             .scrollIndicators(.hidden)
+            .scrollTargetBehavior(.viewAligned)
+            .focusSection()
         }
     }
 }
@@ -191,7 +219,14 @@ struct MediaGrid: View {
     private let onLoadMore: (() async -> Void)?
 
     private let columns = [
-        GridItem(.adaptive(minimum: 178, maximum: 210), spacing: 28, alignment: .top)
+        GridItem(
+            .adaptive(
+                minimum: CineLarkTheme.posterWidth,
+                maximum: CineLarkTheme.posterWidth + 26
+            ),
+            spacing: 32,
+            alignment: .top
+        )
     ]
 
     init(
@@ -209,25 +244,27 @@ struct MediaGrid: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
-                LazyVGrid(columns: columns, alignment: .leading, spacing: 32) {
+                LazyVGrid(columns: columns, alignment: .leading, spacing: 38) {
                     ForEach(items) { item in
-                        MediaNavigationLink(item: item)
+                        MediaNavigationLink(item: item, onHighlight: nil)
                             .task(id: item.id == loadMoreTriggerID) {
                                 guard item.id == loadMoreTriggerID else { return }
                                 await onLoadMore?()
                             }
                     }
                 }
-                .padding(32)
+                .focusSection()
+                .padding(.horizontal, CineLarkTheme.contentMargin)
+                .padding(.vertical, 34)
 
                 if isLoadingMore {
                     ProgressView()
                         .controlSize(.small)
-                        .padding(.bottom, 32)
+                        .padding(.bottom, 40)
                 }
             }
         }
-        .background(Color.black.opacity(0.92))
+        .background(CineLarkPageBackground())
     }
 
     private var loadMoreTriggerID: String? {

@@ -7,68 +7,35 @@ private enum LibrarySelection: Hashable {
     case series
     case favorites
     case search
-    case collection(String)
 }
 
 struct LibraryView: View {
     @Environment(\.appLanguage) private var language
     @Bindable var model: AppModel
     @State private var selection: LibrarySelection? = .home
+    @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @Namespace private var mediaTransitionNamespace
 
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
             VStack(spacing: 0) {
                 List(selection: $selection) {
                     Section {
-                        NavigationLink(value: LibrarySelection.home) {
-                            Label(
-                                language.localized("nav.home"),
-                                systemImage: selection == .home ? "house.fill" : "house"
-                            )
-                        }
-                        NavigationLink(value: LibrarySelection.movies) {
-                            Label(
-                                language.localized("nav.movies"),
-                                systemImage: selection == .movies ? "film.stack.fill" : "film.stack"
-                            )
-                        }
-                        NavigationLink(value: LibrarySelection.series) {
-                            Label(
-                                language.localized("nav.series"),
-                                systemImage: selection == .series ? "tv.fill" : "tv"
-                            )
-                        }
-                        NavigationLink(value: LibrarySelection.favorites) {
-                            Label(
-                                language.localized("nav.favorites"),
-                                systemImage: selection == .favorites ? "heart.fill" : "heart"
-                            )
-                        }
-                        NavigationLink(value: LibrarySelection.search) {
-                            Label(language.localized("nav.search"), systemImage: "magnifyingglass")
-                        }
-                    }
-
-                    if !model.collections.isEmpty {
-                        Section(language.localized("nav.collections")) {
-                            ForEach(model.collections) { collection in
-                                NavigationLink(value: LibrarySelection.collection(collection.id)) {
-                                    Label(
-                                        collection.name,
-                                        systemImage: selection == .collection(collection.id)
-                                            ? "rectangle.stack.fill"
-                                            : "rectangle.stack"
-                                    )
-                                }
-                            }
-                        }
+                        navigationLink(.home, titleKey: "nav.home", symbol: "house")
+                        navigationLink(.movies, titleKey: "nav.movies", symbol: "film.stack")
+                        navigationLink(.series, titleKey: "nav.series", symbol: "tv")
+                        navigationLink(.favorites, titleKey: "nav.favorites", symbol: "heart")
+                        navigationLink(.search, titleKey: "nav.search", symbol: "magnifyingglass")
                     }
                 }
+                .listStyle(.sidebar)
 
-                sidebarFooter
+                Divider()
+
+                sidebarUtilities
             }
             .navigationTitle("CineLark")
+            .navigationSplitViewColumnWidth(min: 190, ideal: 228, max: 280)
         } detail: {
             NavigationStack {
                 destination
@@ -78,6 +45,8 @@ struct LibraryView: View {
                             provider: model.provider,
                             playback: model.playback
                         )
+                        .onAppear { columnVisibility = .detailOnly }
+                        .onDisappear { columnVisibility = .all }
                     }
                     .navigationDestination(for: MediaDetailRoute.self) { route in
                         MediaDetailView(
@@ -86,17 +55,22 @@ struct LibraryView: View {
                             playback: model.playback,
                             transitionID: route.transitionID
                         )
+                        .onAppear { columnVisibility = .detailOnly }
+                        .onDisappear { columnVisibility = .all }
                     }
                     .navigationDestination(for: MediaCollection.self) { collection in
                         CollectionView(collection: collection, model: model)
                     }
                     .navigationDestination(for: PersonCredit.self) { person in
                         PersonDetailView(person: person, provider: model.provider)
+                            .onAppear { columnVisibility = .detailOnly }
+                            .onDisappear { columnVisibility = .all }
                     }
             }
             .environment(\.mediaTransitionNamespace, mediaTransitionNamespace)
+            .background(CineLarkPageBackground())
         }
-        .navigationSplitViewStyle(.balanced)
+        .navigationSplitViewStyle(.prominentDetail)
         .alert(
             "CineLark",
             isPresented: Binding(
@@ -109,33 +83,58 @@ struct LibraryView: View {
                     model.performErrorRecovery()
                 }
             }
-            Button(language.localized("general.dismiss"), role: .cancel) { model.dismissError() }
+            Button(language.localized("general.dismiss"), role: .cancel) {
+                model.dismissError()
+            }
         } message: {
             Text(language.userFacingError(model.errorMessage))
         }
     }
 
-    private var sidebarFooter: some View {
-        VStack(spacing: 0) {
-            Divider()
+    private var sidebarUtilities: some View {
+        VStack(spacing: 6) {
+            LanguageMenu()
+                .sidebarUtilitySurface()
 
-            VStack(alignment: .leading, spacing: 12) {
-                LanguageMenu()
-                    .menuStyle(.borderlessButton)
-
-                Button {
-                    Task { await model.signOut() }
-                } label: {
-                    Label(
-                        language.localized("nav.sign_out"),
-                        systemImage: "rectangle.portrait.and.arrow.right"
-                    )
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
+            Button {
+                Task { await model.refreshHome() }
+            } label: {
+                Label(
+                    language.localized("general.refresh"),
+                    systemImage: "arrow.clockwise"
+                )
             }
-            .padding(16)
+            .buttonStyle(.plain)
+            .sidebarUtilitySurface()
+            .disabled(model.isLoadingHome)
+
+            Button {
+                Task { await model.signOut() }
+            } label: {
+                Label(
+                    language.localized("nav.sign_out"),
+                    systemImage: "rectangle.portrait.and.arrow.right"
+                )
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .sidebarUtilitySurface()
+        }
+        .padding(12)
+    }
+
+    private func navigationLink(
+        _ value: LibrarySelection,
+        titleKey: String,
+        symbol: String
+    ) -> some View {
+        NavigationLink(value: value) {
+            Label(
+                language.localized(titleKey),
+                systemImage: selection == value && symbol != "magnifyingglass"
+                    ? "\(symbol).fill"
+                    : symbol
+            )
         }
     }
 
@@ -152,15 +151,21 @@ struct LibraryView: View {
             FavoritesView(provider: model.provider)
         case .search:
             SearchView(model: model)
-        case .collection(let id):
-            if let collection = model.collections.first(where: { $0.id == id }) {
-                CollectionView(collection: collection, model: model)
-            } else {
-                ContentUnavailableView(
-                    language.localized("nav.collection_unavailable"),
-                    systemImage: "rectangle.stack"
-                )
-            }
         }
+    }
+}
+
+private extension View {
+    func sidebarUtilitySurface() -> some View {
+        frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 10)
+            .frame(height: 36)
+            .cineLarkHoverSurface(
+                cornerRadius: 10,
+                normalFillOpacity: 0,
+                hoverFillOpacity: 0.10,
+                normalStrokeOpacity: 0,
+                hoverStrokeOpacity: 0.08
+            )
     }
 }

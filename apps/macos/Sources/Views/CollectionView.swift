@@ -8,11 +8,21 @@ struct CollectionView: View {
     @State private var sortOrder: MediaSort.Order = .descending
 
     var body: some View {
-        CollectionBrowserContent(
-            collection: collection,
-            sort: sort,
-            model: model
-        )
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(collection.name)
+                    .font(.system(size: 42, weight: .bold))
+                Text(collection.itemCount.formatted())
+                    .font(.title3.weight(.medium))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, CineLarkTheme.contentMargin)
+            .padding(.top, 34)
+            .padding(.bottom, 8)
+
+            CollectionBrowserContent(collection: collection, sort: sort, model: model)
+        }
+        .background(CineLarkPageBackground())
         .navigationTitle(collection.name)
         .toolbar {
             MediaSortToolbar(field: $sortField, order: $sortOrder)
@@ -35,9 +45,15 @@ struct MediaCategoryView: View {
     var body: some View {
         Group {
             if let selectedCollection {
-                VStack(spacing: 0) {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(title)
+                        .font(.system(size: 44, weight: .bold))
+                        .padding(.horizontal, CineLarkTheme.contentMargin)
+                        .padding(.top, 34)
+                        .padding(.bottom, 18)
+
                     collectionSelector
-                    Divider()
+
                     CollectionBrowserContent(
                         collection: selectedCollection,
                         sort: sort,
@@ -52,13 +68,12 @@ struct MediaCategoryView: View {
                             : "category.no_series_collections"
                     ),
                     systemImage: kind == .movie ? "film.stack" : "tv",
-                    description: Text(
-                        language.localized("category.no_collections_description")
-                    )
+                    description: Text(language.localized("category.no_collections_description"))
                 )
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(CineLarkPageBackground())
         .navigationTitle(title)
         .toolbar {
             MediaSortToolbar(field: $sortField, order: $sortOrder)
@@ -81,50 +96,20 @@ struct MediaCategoryView: View {
         ScrollView(.horizontal) {
             HStack(spacing: 12) {
                 ForEach(collections) { collection in
-                    Button {
+                    CollectionFilterButton(
+                        collection: collection,
+                        isSelected: selectedCollection?.id == collection.id
+                    ) {
                         selectedCollectionID = collection.id
-                    } label: {
-                        HStack(spacing: 7) {
-                            Image(systemName: "checkmark")
-                                .font(.caption.weight(.bold))
-                                .foregroundStyle(Color.accentColor)
-                                .opacity(selectedCollection?.id == collection.id ? 1 : 0)
-                                .frame(width: 12)
-                                .accessibilityHidden(true)
-                            Text(collection.name)
-                            Text(collection.itemCount.formatted())
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
-                        .background(
-                            selectedCollection?.id == collection.id
-                                ? Color.accentColor.opacity(0.18)
-                                : Color.clear,
-                            in: Capsule()
-                        )
-                        .cineLarkHoverSurface(
-                            cornerRadius: 999,
-                            normalFillOpacity: selectedCollection?.id == collection.id ? 0.04 : 0.055,
-                            normalStrokeOpacity: 0,
-                            hoverStrokeOpacity: 0
-                        )
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityValue(
-                        language.localized(
-                            selectedCollection?.id == collection.id
-                                ? "general.selected"
-                                : "general.not_selected"
-                        )
-                    )
                 }
             }
-            .padding(.horizontal, 28)
-            .padding(.vertical, 14)
+            .padding(.vertical, 10)
         }
+        .contentMargins(.horizontal, CineLarkTheme.contentMargin, for: .scrollContent)
         .scrollIndicators(.hidden)
-        .background(Color.black.opacity(0.86))
+        .scrollClipDisabled()
+        .focusSection()
     }
 
     private var sort: MediaSort {
@@ -133,6 +118,34 @@ struct MediaCategoryView: View {
 
     private var title: String {
         language.localized(kind == .movie ? "nav.movies" : "nav.series")
+    }
+}
+
+private struct CollectionFilterButton: View {
+    @Environment(\.appLanguage) private var language
+    let collection: MediaCollection
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        if isSelected {
+            Button(action: action) {
+                Label(
+                    "\(collection.name)  \(collection.itemCount.formatted())",
+                    systemImage: "checkmark"
+                )
+            }
+            .buttonStyle(.glassProminent)
+            .controlSize(.large)
+            .accessibilityValue(language.localized("general.selected"))
+        } else {
+            Button(action: action) {
+                Text("\(collection.name)  \(collection.itemCount.formatted())")
+            }
+            .buttonStyle(.glass)
+            .controlSize(.large)
+            .accessibilityValue(language.localized("general.not_selected"))
+        }
     }
 }
 
@@ -145,18 +158,14 @@ private struct CollectionBrowserContent: View {
     var body: some View {
         Group {
             if model.isLoading(collection, sort: sort) && items.isEmpty {
-                ProgressView(
-                    language.localized("collection.loading", collection.name)
-                )
-                .controlSize(.large)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                ProgressView(language.localized("collection.loading", collection.name))
+                    .controlSize(.large)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if items.isEmpty {
                 ContentUnavailableView(
                     language.localized("collection.empty"),
                     systemImage: "rectangle.stack",
-                    description: Text(
-                        language.localized("collection.empty_description")
-                    )
+                    description: Text(language.localized("collection.empty_description"))
                 )
             } else {
                 MediaGrid(
@@ -180,11 +189,7 @@ private struct CollectionBrowserContent: View {
     }
 
     private var requestID: String {
-        [
-            collection.id,
-            sort.field.rawValue,
-            sort.order.rawValue
-        ].joined(separator: ":")
+        [collection.id, sort.field.rawValue, sort.order.rawValue].joined(separator: ":")
     }
 }
 
@@ -194,129 +199,37 @@ private struct MediaSortToolbar: ToolbarContent {
     @Binding var order: MediaSort.Order
 
     var body: some ToolbarContent {
-        #if compiler(>=6.2)
-        if #available(macOS 26.0, *) {
-            toolbarItem
-                .sharedBackgroundVisibility(.hidden)
-        } else {
-            toolbarItem
-        }
-        #else
-        toolbarItem
-        #endif
-    }
-
-    private var toolbarItem: some ToolbarContent {
-        ToolbarItem(placement: .primaryAction) {
-            HStack(spacing: 4) {
-                SortFieldPickerButton(field: $field)
-
-                Button {
-                    order = order == .ascending ? .descending : .ascending
-                } label: {
-                    Image(systemName: order == .ascending ? "arrow.up" : "arrow.down")
-                        .font(.body.weight(.semibold))
-                        .frame(width: 36, height: 36)
-                        .cineLarkHoverSurface(
-                            cornerRadius: 18,
-                            normalFillOpacity: 0,
-                            normalStrokeOpacity: 0,
-                            hoverStrokeOpacity: 0
-                        )
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(
-                    language.localized(
-                        order == .ascending
-                            ? "sort.ascending"
-                            : "sort.descending"
-                    )
-                )
-                .help(
-                    language.localized(
-                        order == .ascending
-                            ? "sort.ascending_help"
-                            : "sort.descending_help"
-                    )
-                )
-            }
-            .padding(.horizontal, 4)
-            .frame(height: 44, alignment: .center)
-            .background(.ultraThinMaterial, in: Capsule())
-            .overlay {
-                Capsule()
-                    .stroke(Color.white.opacity(0.14), lineWidth: 1)
-                    .allowsHitTesting(false)
-            }
-            .fixedSize()
-        }
-    }
-}
-
-private struct SortFieldPickerButton: View {
-    @Environment(\.appLanguage) private var language
-    @Binding var field: MediaSort.Field
-    @State private var isPresentingOptions = false
-
-    var body: some View {
-        Button {
-            isPresentingOptions.toggle()
-        } label: {
-            HStack(spacing: 10) {
-                Text(field.displayName(language: language))
-                Spacer(minLength: 4)
-                Image(systemName: "chevron.down")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, 12)
-            .frame(width: 176, height: 36)
-            .cineLarkHoverSurface(
-                cornerRadius: 18,
-                normalFillOpacity: 0,
-                normalStrokeOpacity: 0,
-                hoverStrokeOpacity: 0
-            )
-        }
-        .buttonStyle(.plain)
-        .help(language.localized("sort.label"))
-        .popover(isPresented: $isPresentingOptions, arrowEdge: .top) {
-            VStack(alignment: .leading, spacing: 4) {
+        ToolbarItemGroup(placement: .primaryAction) {
+            Menu {
                 ForEach(MediaSort.Field.allCases, id: \.self) { option in
                     Button {
                         field = option
-                        isPresentingOptions = false
                     } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: "checkmark")
-                                .opacity(field == option ? 1 : 0)
-                                .frame(width: 14)
-                                .accessibilityHidden(true)
+                        if field == option {
+                            Label(option.displayName(language: language), systemImage: "checkmark")
+                        } else {
                             Text(option.displayName(language: language))
-                            Spacer()
                         }
-                        .padding(.horizontal, 8)
-                        .frame(height: 40)
-                        .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityValue(
-                        language.localized(
-                            field == option
-                                ? "general.selected"
-                                : "general.not_selected"
-                        )
-                    )
-                    .cineLarkHoverSurface(
-                        cornerRadius: 7,
-                        normalFillOpacity: 0,
-                        normalStrokeOpacity: 0,
-                        hoverStrokeOpacity: 0
-                    )
                 }
+            } label: {
+                Label(field.displayName(language: language), systemImage: "arrow.up.arrow.down")
             }
-            .padding(8)
-            .frame(width: 220)
+            .help(language.localized("sort.label"))
+
+            Button {
+                order = order == .ascending ? .descending : .ascending
+            } label: {
+                Image(systemName: order == .ascending ? "arrow.up" : "arrow.down")
+            }
+            .accessibilityLabel(
+                language.localized(order == .ascending ? "sort.ascending" : "sort.descending")
+            )
+            .help(
+                language.localized(
+                    order == .ascending ? "sort.ascending_help" : "sort.descending_help"
+                )
+            )
         }
     }
 }

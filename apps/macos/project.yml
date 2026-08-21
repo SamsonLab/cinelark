@@ -6,7 +6,7 @@ options:
     icon:
       file: true
   deploymentTarget:
-    macOS: "14.0"
+    macOS: "26.0"
 packages:
   CineLarkKit:
     path: ../../packages/apple/CineLarkKit

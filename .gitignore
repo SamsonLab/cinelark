@@ -40,11 +40,12 @@ macos/Flutter/ephemeral/
 *.mobileprovision
 secrets/
 
-# Network captures and private fixtures
+# Network captures, private fixtures, and local design references
 *.har
 *_extracted/
 fixtures/private/
 fixtures/raw/
+refs/
 
 # Logs and temporary files
 *.log

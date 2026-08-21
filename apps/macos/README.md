@@ -4,6 +4,7 @@ Native Swift 6 / SwiftUI client for the observed UHDNow API.
 
 ## Current vertical slice
 
+- macOS 26-native Liquid Glass navigation and cinematic TV-first browsing
 - username/password and optional TOTP login
 - issued-token persistence in Keychain
 - hot and Continue Watching shelves
