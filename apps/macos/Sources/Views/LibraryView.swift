@@ -94,6 +94,7 @@ struct LibraryView: View {
     private var sidebarUtilities: some View {
         VStack(spacing: 6) {
             LanguageMenu()
+                .buttonStyle(.plain)
                 .sidebarUtilitySurface()
 
             Button {
@@ -119,8 +120,24 @@ struct LibraryView: View {
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
             .sidebarUtilitySurface()
+
+            Text(appVersionLabel)
+                .font(.caption2.monospacedDigit())
+                .foregroundStyle(.tertiary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 10)
+                .padding(.top, 2)
         }
         .padding(12)
+    }
+
+    private var appVersionLabel: String {
+        guard let version = Bundle.main.object(
+            forInfoDictionaryKey: "CFBundleShortVersionString"
+        ) as? String else {
+            return "CineLark"
+        }
+        return "CineLark v\(version)"
     }
 
     private func navigationLink(
@@ -135,6 +152,8 @@ struct LibraryView: View {
                     ? "\(symbol).fill"
                     : symbol
             )
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
         }
     }
 
@@ -160,6 +179,7 @@ private extension View {
         frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 10)
             .frame(height: 36)
+            .contentShape(Rectangle())
             .cineLarkHoverSurface(
                 cornerRadius: 10,
                 normalFillOpacity: 0,

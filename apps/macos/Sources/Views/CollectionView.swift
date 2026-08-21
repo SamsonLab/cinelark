@@ -9,16 +9,10 @@ struct CollectionView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(collection.name)
-                    .font(CineLarkDesign.Typography.pageTitle)
-                Text(collection.itemCount.formatted())
-                    .font(.title3.weight(.medium))
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, CineLarkDesign.Layout.contentMargin)
-            .padding(.top, CineLarkDesign.Layout.pageTopInset)
-            .padding(.bottom, 8)
+            CineLarkPageHeader(
+                collection.name,
+                subtitle: collection.itemCount.formatted()
+            )
 
             CollectionBrowserContent(collection: collection, sort: sort, model: model)
         }
@@ -46,11 +40,7 @@ struct MediaCategoryView: View {
         Group {
             if let selectedCollection {
                 VStack(alignment: .leading, spacing: 0) {
-                    Text(title)
-                        .font(CineLarkDesign.Typography.pageTitle)
-                        .padding(.horizontal, CineLarkDesign.Layout.contentMargin)
-                        .padding(.top, CineLarkDesign.Layout.pageTopInset)
-                        .padding(.bottom, 18)
+                    CineLarkPageHeader(title)
 
                     collectionSelector
 
@@ -93,27 +83,17 @@ struct MediaCategoryView: View {
     }
 
     private var collectionSelector: some View {
-        ScrollView(.horizontal) {
-            HStack(spacing: 12) {
-                ForEach(collections) { collection in
-                    CollectionFilterButton(
-                        collection: collection,
-                        isSelected: selectedCollection?.id == collection.id
-                    ) {
-                        selectedCollectionID = collection.id
-                    }
+        CineLarkFilterBar {
+            ForEach(collections) { collection in
+                CineLarkFilterButton(
+                    title: collection.name,
+                    count: collection.itemCount,
+                    isSelected: selectedCollection?.id == collection.id
+                ) {
+                    selectedCollectionID = collection.id
                 }
             }
-            .padding(.vertical, 10)
         }
-        .contentMargins(
-            .horizontal,
-            CineLarkDesign.Layout.contentMargin,
-            for: .scrollContent
-        )
-        .scrollIndicators(.hidden)
-        .scrollClipDisabled()
-        .focusSection()
     }
 
     private var sort: MediaSort {
@@ -122,34 +102,6 @@ struct MediaCategoryView: View {
 
     private var title: String {
         language.localized(kind == .movie ? "nav.movies" : "nav.series")
-    }
-}
-
-private struct CollectionFilterButton: View {
-    @Environment(\.appLanguage) private var language
-    let collection: MediaCollection
-    let isSelected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        if isSelected {
-            Button(action: action) {
-                Label(
-                    "\(collection.name)  \(collection.itemCount.formatted())",
-                    systemImage: "checkmark"
-                )
-            }
-            .buttonStyle(.glassProminent)
-            .controlSize(.large)
-            .accessibilityValue(language.localized("general.selected"))
-        } else {
-            Button(action: action) {
-                Text("\(collection.name)  \(collection.itemCount.formatted())")
-            }
-            .buttonStyle(.glass)
-            .controlSize(.large)
-            .accessibilityValue(language.localized("general.not_selected"))
-        }
     }
 }
 
@@ -208,33 +160,68 @@ private struct MediaSortToolbar: ToolbarContent {
                 ForEach(MediaSort.Field.allCases, id: \.self) { option in
                     Button {
                         field = option
+                        order = .descending
                     } label: {
                         if field == option {
-                            Label(option.displayName(language: language), systemImage: "checkmark")
+                            Label(
+                                option.displayName(language: language),
+                                systemImage: "checkmark"
+                            )
                         } else {
                             Text(option.displayName(language: language))
                         }
                     }
                 }
             } label: {
-                Label(field.displayName(language: language), systemImage: "arrow.up.arrow.down")
+                HStack(spacing: 7) {
+                    Image(systemName: "arrow.up.arrow.down")
+                    Text(field.displayName(language: language))
+                }
+                .font(.callout.weight(.semibold))
+                .fixedSize()
             }
-            .help(language.localized("sort.label"))
+            .buttonStyle(.glass)
+            .accessibilityLabel(sortFieldAccessibilityLabel)
+            .help(sortFieldAccessibilityLabel)
 
             Button {
-                order = order == .ascending ? .descending : .ascending
+                toggleOrder()
             } label: {
-                Image(systemName: order == .ascending ? "arrow.up" : "arrow.down")
+                HStack(spacing: 7) {
+                    Text(orderDisplayName)
+                    Image(systemName: orderIcon)
+                }
+                .font(.callout.weight(.semibold))
+                .fixedSize()
             }
-            .accessibilityLabel(
-                language.localized(order == .ascending ? "sort.ascending" : "sort.descending")
-            )
+            .buttonStyle(.glass)
+            .accessibilityLabel(orderDisplayName)
             .help(
                 language.localized(
-                    order == .ascending ? "sort.ascending_help" : "sort.descending_help"
+                    order == .ascending ? "sort.descending_help" : "sort.ascending_help"
                 )
             )
         }
+    }
+
+    private var orderIcon: String {
+        order == .ascending ? "arrow.up" : "arrow.down"
+    }
+
+    private var sortFieldAccessibilityLabel: String {
+        [
+            language.localized("sort.label"),
+            field.displayName(language: language)
+        ]
+        .joined(separator: ", ")
+    }
+
+    private var orderDisplayName: String {
+        language.localized(order == .ascending ? "sort.ascending" : "sort.descending")
+    }
+
+    private func toggleOrder() {
+        order = order == .ascending ? .descending : .ascending
     }
 }
 

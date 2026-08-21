@@ -27,8 +27,9 @@ struct FavoritesView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
+        VStack(alignment: .leading, spacing: 0) {
+            CineLarkPageHeader(language.localized("favorites.title"))
+            favoriteSelector
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -51,35 +52,18 @@ struct FavoritesView: View {
         }
     }
 
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            VStack(alignment: .leading, spacing: 7) {
-                Label(language.localized("favorites.my_library"), systemImage: "heart.fill")
-                    .font(.headline)
-                    .foregroundStyle(.orange)
-                Text(language.localized("favorites.title"))
-                    .font(CineLarkDesign.Typography.pageTitle)
-                Text(
-                    language.localized(
-                        "favorites.summary",
-                        String(model.movieCount + model.seriesCount),
-                        String(model.peopleCount)
-                    )
-                )
-                .foregroundStyle(.secondary)
-            }
-
-            Picker(language.localized("favorites.type"), selection: $selectedTab) {
-                ForEach(Tab.allCases) { tab in
-                    Text("\(tab.title(language: language))  \(count(for: tab))").tag(tab)
+    private var favoriteSelector: some View {
+        CineLarkFilterBar {
+            ForEach(Tab.allCases) { tab in
+                CineLarkFilterButton(
+                    title: tab.title(language: language),
+                    count: count(for: tab),
+                    isSelected: selectedTab == tab
+                ) {
+                    selectedTab = tab
                 }
             }
-            .pickerStyle(.segmented)
-            .frame(maxWidth: 520)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, CineLarkDesign.Layout.contentMargin)
-        .padding(.vertical, 32)
     }
 
     @ViewBuilder
@@ -124,8 +108,17 @@ struct FavoritesView: View {
         } else {
             ScrollView {
                 LazyVGrid(
-                    columns: [GridItem(.adaptive(minimum: 180, maximum: 220), spacing: 28)],
-                    spacing: 32
+                    columns: [
+                        GridItem(
+                            .adaptive(
+                                minimum: CineLarkDesign.Media.posterWidth,
+                                maximum: CineLarkDesign.Media.posterWidth + 26
+                            ),
+                            spacing: CineLarkDesign.Layout.posterGridColumnSpacing,
+                            alignment: .top
+                        )
+                    ],
+                    spacing: CineLarkDesign.Layout.posterGridRowSpacing
                 ) {
                     ForEach(model.people) { person in
                         FavoritePersonLink(
@@ -134,7 +127,8 @@ struct FavoritesView: View {
                         )
                     }
                 }
-                .padding(32)
+                .padding(.horizontal, CineLarkDesign.Layout.contentMargin)
+                .padding(.vertical, 34)
             }
         }
     }
@@ -182,9 +176,10 @@ private struct FavoritePersonLink: View {
                         scale: 1.05
                     )
                 Text(person.name)
-                    .font(.headline)
+                    .font(CineLarkDesign.Typography.cardTitle)
                     .lineLimit(1)
             }
+            .frame(width: CineLarkDesign.Media.posterWidth)
         }
         .buttonStyle(CineLarkPressButtonStyle())
         .focused($isFocused)

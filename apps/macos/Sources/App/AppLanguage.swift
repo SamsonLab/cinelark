@@ -143,8 +143,15 @@ struct LanguageMenu: View {
                 }
             }
         } label: {
-            Label(language.localized("language.label"), systemImage: "globe")
+            HStack(spacing: 7) {
+                Image(systemName: "globe")
+                Text(language.displayName(for: language))
+            }
+            .font(.callout.weight(.semibold))
+            .fixedSize()
         }
+        .accessibilityLabel(language.localized("language.label"))
+        .accessibilityValue(language.displayName(for: language))
         .help(language.localized("language.help"))
     }
 }

@@ -72,6 +72,88 @@ struct CineLarkPageBackground: View {
     }
 }
 
+struct CineLarkPageHeader: View {
+    let title: String
+    let subtitle: String?
+
+    init(_ title: String, subtitle: String? = nil) {
+        self.title = title
+        self.subtitle = subtitle
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(CineLarkDesign.Typography.pageTitle)
+
+            if let subtitle {
+                Text(subtitle)
+                    .font(.title3.weight(.medium))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, CineLarkDesign.Layout.contentMargin)
+        .padding(.top, CineLarkDesign.Layout.pageTopInset)
+        .padding(.bottom, 18)
+    }
+}
+
+struct CineLarkFilterBar<Content: View>: View {
+    private let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: 12) {
+                content
+            }
+            .padding(.vertical, 10)
+        }
+        .contentMargins(
+            .horizontal,
+            CineLarkDesign.Layout.contentMargin,
+            for: .scrollContent
+        )
+        .scrollIndicators(.hidden)
+        .scrollClipDisabled()
+        .focusSection()
+    }
+}
+
+struct CineLarkFilterButton: View {
+    @Environment(\.appLanguage) private var language
+
+    let title: String
+    let count: Int
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Group {
+            if isSelected {
+                Button(action: action) {
+                    Label(label, systemImage: "checkmark")
+                }
+                .buttonStyle(.glassProminent)
+                .accessibilityValue(language.localized("general.selected"))
+            } else {
+                Button(label, action: action)
+                    .buttonStyle(.glass)
+                    .accessibilityValue(language.localized("general.not_selected"))
+            }
+        }
+        .controlSize(.large)
+    }
+
+    private var label: String {
+        "\(title)  \(count.formatted())"
+    }
+}
+
 struct CineLarkCinematicBackdrop: View {
     let url: URL?
     var height: CGFloat = 620
