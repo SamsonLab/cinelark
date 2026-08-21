@@ -88,7 +88,10 @@ struct PlaybackOptionsView: View {
 
     private var hero: some View {
         ZStack(alignment: .bottomLeading) {
-            ArtworkView(url: model.context.artworkURL)
+            ArtworkView(
+                url: model.context.artworkURL,
+                cachedPreviewSize: model.context.artworkPreviewSize
+            )
                 .frame(maxWidth: .infinity)
                 .frame(height: Self.heroHeight)
                 .clipped()

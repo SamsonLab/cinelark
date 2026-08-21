@@ -9,6 +9,7 @@ struct PlaybackOptionsContext: Identifiable, Sendable {
     let title: String
     let subtitle: String?
     let artworkURL: URL?
+    let artworkPreviewSize: CGSize?
     let startPositionSeconds: Double
     let seriesID: String?
     let initialAssets: [MediaAsset]
@@ -19,6 +20,7 @@ struct PlaybackOptionsContext: Identifiable, Sendable {
         title: String,
         subtitle: String? = nil,
         artworkURL: URL? = nil,
+        artworkPreviewSize: CGSize? = nil,
         startPositionSeconds: Double = 0,
         seriesID: String? = nil,
         initialAssets: [MediaAsset] = [],
@@ -28,6 +30,7 @@ struct PlaybackOptionsContext: Identifiable, Sendable {
         self.title = title
         self.subtitle = subtitle
         self.artworkURL = artworkURL
+        self.artworkPreviewSize = artworkPreviewSize
         self.startPositionSeconds = max(startPositionSeconds, 0)
         self.seriesID = seriesID
         self.initialAssets = initialAssets

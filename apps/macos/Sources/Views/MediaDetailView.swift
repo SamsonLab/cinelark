@@ -232,18 +232,6 @@ struct MediaDetailView: View {
                     .disabled(!model.canStartPlayback || model.isStartingPlayback)
                 }
 
-                if model.canStartPlayback && shouldShowVersionButton {
-                    Button {
-                        presentPrimaryOptions()
-                    } label: {
-                        Label(
-                            language.localized("detail.choose_version"),
-                            systemImage: "slider.horizontal.3"
-                        )
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.large)
-                }
 
                 Button {
                     Task { await model.toggleFavorite() }
@@ -341,15 +329,6 @@ struct MediaDetailView: View {
                 )
             }
             return language.localized("detail.play")
-        }
-    }
-
-    private var shouldShowVersionButton: Bool {
-        switch model.item.kind {
-        case .movie:
-            model.item.userState.played || model.item.userState.progress <= 0
-        case .series:
-            false
         }
     }
 
@@ -520,39 +499,6 @@ struct MediaDetailView: View {
         .scrollIndicators(.hidden)
     }
 
-    private func presentPrimaryOptions() {
-        switch model.item.kind {
-        case .movie:
-            presentMovieOptions(preferredAssetID: nil)
-        case .series:
-            if let target = model.primarySeriesItem {
-                playbackOptions = PlaybackOptionsContext(
-                    item: target.item,
-                    title: target.title,
-                    subtitle: target.subtitle,
-                    artworkURL: target.thumbnailURL ?? target.posterURL ?? model.item.backdropURL,
-                    startPositionSeconds: target.userState.positionSeconds,
-                    seriesID: model.item.id
-                )
-            } else if let firstEpisode = model.episodes.first {
-                presentEpisodeOptions(firstEpisode)
-            }
-        }
-    }
-
-    private func presentMovieOptions(preferredAssetID: String?) {
-        playbackOptions = PlaybackOptionsContext(
-            item: PlayableItem(id: model.item.id, kind: .movie),
-            title: model.item.title,
-            artworkURL: model.item.backdropURL ?? model.item.posterURL,
-            startPositionSeconds: model.item.userState.played
-                ? 0
-                : model.item.userState.positionSeconds,
-            initialAssets: model.movieAssets,
-            preferredAssetID: preferredAssetID
-        )
-    }
-
     private func presentEpisodeOptions(_ episode: Episode) {
         let seasonTitle = model.seasons.first {
             $0.id == episode.seasonID
@@ -567,6 +513,9 @@ struct MediaDetailView: View {
                 .compactMap { $0 }
                 .joined(separator: " · "),
             artworkURL: episode.thumbnailURL ?? model.item.backdropURL,
+            artworkPreviewSize: episode.thumbnailURL == nil
+                ? nil
+                : CGSize(width: 220, height: 124),
             startPositionSeconds: episode.userState.played
                 ? 0
                 : episode.userState.positionSeconds,

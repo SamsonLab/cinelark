@@ -5,6 +5,7 @@ struct ArtworkView: View {
     let url: URL?
     var contentMode: SwiftUI.ContentMode = .fill
     var placeholderSystemImage = "film"
+    var cachedPreviewSize: CGSize?
 
     @Environment(\.displayScale) private var displayScale
 
@@ -29,7 +30,15 @@ struct ArtworkView: View {
                         .cancelOnDisappear(false)
                         .reducePriorityOnDisappear(true)
                         .placeholder {
-                            loadingPlaceholder(size: proxy.size)
+                            if let cachedPreviewSize {
+                                cachedPreview(
+                                    url: url,
+                                    sourceSize: cachedPreviewSize,
+                                    displaySize: proxy.size
+                                )
+                            } else {
+                                loadingPlaceholder(size: proxy.size)
+                            }
                         }
                         .onFailureView {
                             unavailablePlaceholder(size: proxy.size)
@@ -62,6 +71,29 @@ struct ArtworkView: View {
     private func bucket(_ value: CGFloat) -> CGFloat {
         let bucketSize: CGFloat = 128
         return min(max(ceil(value / bucketSize) * bucketSize, bucketSize), 4_096)
+    }
+
+    private func cachedPreview(
+        url: URL,
+        sourceSize: CGSize,
+        displaySize: CGSize
+    ) -> some View {
+        KFImage(url)
+            .targetCache(CineLarkImagePipeline.cache)
+            .setProcessor(
+                DownsamplingImageProcessor(
+                    size: bucketedPixelSize(for: sourceSize)
+                )
+            )
+            .loadDiskFileSynchronously(true)
+            .startLoadingBeforeViewAppear()
+            .placeholder {
+                loadingPlaceholder(size: displaySize)
+            }
+            .resizable()
+            .aspectRatio(contentMode: contentMode)
+            .frame(width: displaySize.width, height: displaySize.height)
+            .clipped()
     }
 
     private func loadingPlaceholder(size: CGSize) -> some View {
