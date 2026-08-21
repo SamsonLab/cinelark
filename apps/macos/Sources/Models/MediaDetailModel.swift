@@ -244,11 +244,71 @@ final class MediaDetailModel {
             )
             guard selectedSeasonID == seasonID, !Task.isCancelled else { return }
             episodes = page.items
+            reconcileRecentPlayback()
         } catch is CancellationError {
             return
         } catch {
             present(error)
         }
+    }
+
+    private func reconcileRecentPlayback() {
+        guard let recent = playback.recentPlayback,
+              recent.seriesID == initialItem.id,
+              let episodeIndex = episodes.firstIndex(where: { $0.id == recent.item.id }) else {
+            return
+        }
+        let episode = episodes[episodeIndex]
+        let localState = recent.userState
+        if let serverDate = episode.userState.lastPlayedAt,
+           serverDate > recent.updatedAt {
+            return
+        }
+        episodes[episodeIndex] = Episode(
+            id: episode.id,
+            seriesID: episode.seriesID,
+            seasonID: episode.seasonID,
+            number: episode.number,
+            title: episode.title,
+            synopsis: episode.synopsis,
+            airDate: episode.airDate,
+            thumbnailURL: episode.thumbnailURL,
+            durationSeconds: episode.durationSeconds,
+            versionCount: episode.versionCount,
+            hasMultipleVersions: episode.hasMultipleVersions,
+            userState: localState
+        )
+
+        let state = seriesPlaybackState ?? SeriesPlaybackState(resume: nil, nextUp: nil)
+        if recent.played {
+            if state.resume?.item.id == recent.item.id {
+                seriesPlaybackState = SeriesPlaybackState(resume: nil, nextUp: state.nextUp)
+            }
+            return
+        }
+        guard recent.positionSeconds > 0 else { return }
+        if let serverDate = state.resume?.userState.lastPlayedAt,
+           serverDate > recent.updatedAt {
+            return
+        }
+        let season = seasons.first { $0.id == episode.seasonID }
+        let localResume = ContinueWatchingItem(
+            id: "episode:\(episode.id)",
+            item: recent.item,
+            mediaID: initialItem.id,
+            title: episode.title,
+            subtitle: nil,
+            posterURL: heroPosterURL,
+            thumbnailURL: episode.thumbnailURL,
+            durationSeconds: recent.durationSeconds > 0
+                ? recent.durationSeconds
+                : episode.durationSeconds,
+            seasonID: episode.seasonID,
+            seasonNumber: season?.number,
+            episodeNumber: episode.number,
+            userState: localState
+        )
+        seriesPlaybackState = SeriesPlaybackState(resume: localResume, nextUp: state.nextUp)
     }
 
     private func present(_ error: Error) {

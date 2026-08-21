@@ -168,6 +168,7 @@ event.on('iina.window-will-close', () => {
 
 function handleCommand(command) {
   if (!isCineLarkManagedPlayer || !command || !command.sessionID) return;
+  global.postMessage('cinelark.player-ack', { commandID: command.id });
 
   if (command.type === 'player.play') {
     const payload = command.payload || {};

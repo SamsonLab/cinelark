@@ -10,7 +10,7 @@ const {
 
 const { global, http, menu, utils } = iina;
 
-const PLUGIN_VERSION = '0.1.6';
+const PLUGIN_VERSION = '0.1.7';
 const KEYCHAIN_SERVICE = 'bridge';
 const KEYCHAIN_ACCOUNT = 'pairing-key';
 const PORT_START = 43191;
@@ -21,6 +21,7 @@ let connectionGeneration = 0;
 let eventSequence = 0;
 let lastCommandSequence = 0;
 let currentPlayer = null;
+let pendingPlayerReuse = null;
 let baseURL = null;
 let secret = null;
 let eventQueue = Promise.resolve();
@@ -107,6 +108,17 @@ function emit(type, payload = {}, sessionID = null, replyTo = null) {
     });
 }
 
+function createManagedPlayer(command) {
+  const playerID = global.createPlayerInstance({
+    label: 'cinelark:managed',
+    disableWindowAnimation: false,
+    disableUI: false,
+    enablePlugins: false,
+  });
+  currentPlayer = { id: playerID, sessionID: command.sessionID };
+  global.postMessage(playerID, 'cinelark.command', command);
+}
+
 function handleCommand(command) {
   if (!verifyEnvelope(command, secret) || command.sequence <= lastCommandSequence) {
     return;
@@ -114,20 +126,20 @@ function handleCommand(command) {
   lastCommandSequence = command.sequence;
 
   if (command.type === 'player.play') {
-    if (currentPlayer) {
-      currentPlayer.sessionID = command.sessionID;
-      global.postMessage(currentPlayer.id, 'cinelark.command', command);
+    if (!currentPlayer) {
+      createManagedPlayer(command);
       return;
     }
 
-    const playerID = global.createPlayerInstance({
-      label: 'cinelark:managed',
-      disableWindowAnimation: false,
-      disableUI: false,
-      enablePlugins: false,
-    });
-    currentPlayer = { id: playerID, sessionID: command.sessionID };
-    global.postMessage(playerID, 'cinelark.command', command);
+    currentPlayer.sessionID = command.sessionID;
+    pendingPlayerReuse = { commandID: command.id, command };
+    global.postMessage(currentPlayer.id, 'cinelark.command', command);
+    setTimeout(() => {
+      if (!pendingPlayerReuse || pendingPlayerReuse.commandID !== command.id) return;
+      pendingPlayerReuse = null;
+      currentPlayer = null;
+      createManagedPlayer(command);
+    }, 500);
     return;
   }
 
@@ -222,6 +234,11 @@ async function connect() {
   await delay(RETRY_DELAY_MS);
   if (generation === connectionGeneration) connect();
 }
+
+global.onMessage('cinelark.player-ack', (ack) => {
+  if (!ack || !pendingPlayerReuse || ack.commandID !== pendingPlayerReuse.commandID) return;
+  pendingPlayerReuse = null;
+});
 
 global.onMessage('cinelark.event', (event) => {
   if (!event || typeof event.type !== 'string') return;

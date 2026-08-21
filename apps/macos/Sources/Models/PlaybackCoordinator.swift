@@ -15,11 +15,33 @@ final class PlaybackCoordinator {
     var onStoppedReported: (@MainActor @Sendable () -> Void)?
     private(set) var playbackStateRevision = 0
 
+    struct RecentPlayback: Equatable {
+        let item: PlayableItem
+        let seriesID: String?
+        let title: String
+        let positionSeconds: Double
+        let durationSeconds: Double
+        let played: Bool
+        let updatedAt: Date
+
+        var userState: UserPlaybackState {
+            UserPlaybackState(
+                played: played,
+                positionSeconds: positionSeconds,
+                progress: durationSeconds > 0 ? positionSeconds / durationSeconds : 0,
+                lastPlayedAt: updatedAt
+            )
+        }
+    }
+
+    private(set) var recentPlayback: RecentPlayback?
+
     private struct ActivePlayback {
         let playbackID: UUID
         let item: PlayableItem
         let assetID: String
         let seriesID: String?
+        let title: String
         var positionSeconds: Double
         var durationSeconds: Double
     }
@@ -30,6 +52,7 @@ final class PlaybackCoordinator {
     @ObservationIgnored private var activePlayback: ActivePlayback?
     @ObservationIgnored private var eventTask: Task<Void, Never>?
     @ObservationIgnored private var progressTask: Task<Void, Never>?
+    @ObservationIgnored private var eventWatchdogTask: Task<Void, Never>?
 
     init(provider: any MediaLibraryProvider, launcher: any PlaybackLaunching) {
         self.provider = provider
@@ -94,6 +117,7 @@ final class PlaybackCoordinator {
             item: item,
             assetID: asset.id,
             seriesID: seriesID,
+            title: title,
             positionSeconds: descriptor.startPositionSeconds,
             durationSeconds: asset.durationSeconds ?? 0
         )
@@ -125,28 +149,44 @@ final class PlaybackCoordinator {
             guard activePlayback?.playbackID == playbackID else { return }
             activePlayback?.positionSeconds = max(positionSeconds, 0)
             activePlayback?.durationSeconds = max(durationSeconds, 0)
+            resetEventWatchdog(for: playbackID)
             scheduleProgressReport()
         case .stateChanged(let playbackID, let snapshot):
             guard activePlayback?.playbackID == playbackID else { return }
-            activePlayback?.positionSeconds = snapshot.positionSeconds
-            activePlayback?.durationSeconds = snapshot.durationSeconds
+            if snapshot.durationSeconds > 0 {
+                activePlayback?.durationSeconds = snapshot.durationSeconds
+            }
+            resetEventWatchdog(for: playbackID)
             // mpv transitions through an idle/stopped snapshot immediately before
             // emitting end-file. Keep the playback active so the terminal event can
             // distinguish natural EOF from an explicit stop.
         case .ended(let playbackID, let reason):
             guard activePlayback?.playbackID == playbackID else { return }
-            if let completedPlayback = await finalizeActivePlayback(),
+            if let completedPlayback = await finalizeActivePlayback(completed: reason == "eof"),
                reason == "eof" {
                 await playNextEpisode(after: completedPlayback)
             }
         case .closed(let playbackID, _):
             guard activePlayback?.playbackID == playbackID else { return }
             await finalizeActivePlayback()
+        case .fileLoaded(let playbackID, _):
+            guard activePlayback?.playbackID == playbackID else { return }
+            resetEventWatchdog(for: playbackID)
         case .bridgeReady,
-             .fileLoaded,
              .tracksChanged,
              .bridgeError:
             break
+        }
+    }
+
+    private func resetEventWatchdog(for playbackID: UUID) {
+        eventWatchdogTask?.cancel()
+        eventWatchdogTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(4))
+            guard !Task.isCancelled,
+                  self?.activePlayback?.playbackID == playbackID else { return }
+            Self.logger.notice("IINA event stream stopped; finalizing the last sampled position")
+            await self?.finalizeActivePlayback()
         }
     }
 
@@ -172,11 +212,22 @@ final class PlaybackCoordinator {
     }
 
     @discardableResult
-    private func finalizeActivePlayback() async -> ActivePlayback? {
+    private func finalizeActivePlayback(completed: Bool = false) async -> ActivePlayback? {
         progressTask?.cancel()
         progressTask = nil
+        eventWatchdogTask?.cancel()
+        eventWatchdogTask = nil
         guard let activePlayback else { return nil }
         self.activePlayback = nil
+        recentPlayback = RecentPlayback(
+            item: activePlayback.item,
+            seriesID: activePlayback.seriesID,
+            title: activePlayback.title,
+            positionSeconds: activePlayback.positionSeconds,
+            durationSeconds: activePlayback.durationSeconds,
+            played: completed,
+            updatedAt: Date()
+        )
         let update = PlaybackUpdate(
             item: activePlayback.item,
             assetID: activePlayback.assetID,

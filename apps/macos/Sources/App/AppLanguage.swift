@@ -56,7 +56,9 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     }
 
     func progressPercent(_ progress: Double) -> String {
-        "\(Int((min(max(progress, 0), 1) * 100).rounded()))%"
+        let normalized = min(max(progress, 0), 1)
+        let percentage = Int((normalized * 100).rounded())
+        return "\(normalized > 0 ? max(percentage, 1) : 0)%"
     }
 
     func userFacingError(_ message: String?) -> String {
