@@ -86,15 +86,19 @@ function makeHarness() {
   };
 }
 
-function playCommand() {
+function playCommand({
+  sessionID = '6f55936d-5950-44fd-a696-f989d41785cc',
+  url = 'https://media.example/video?token=<redacted>',
+  startPositionSeconds = 42.5,
+} = {}) {
   return {
     id: '4ff6c27e-1415-473f-8764-451d6a3369cb',
     type: 'player.play',
-    sessionID: '6f55936d-5950-44fd-a696-f989d41785cc',
+    sessionID,
     payload: {
-      playbackID: '6f55936d-5950-44fd-a696-f989d41785cc',
-      url: 'https://media.example/video?token=<redacted>',
-      startPositionSeconds: 42.5,
+      playbackID: sessionID,
+      url,
+      startPositionSeconds,
       presentation: { fullscreen: true },
     },
   };
@@ -109,6 +113,7 @@ test('player opens the opaque URL and applies resume only after file-loaded', ()
 
   harness.eventHandlers.get('iina.file-loaded')();
   assert.deepEqual(harness.calls[1], ['seekTo', 42.5]);
+  assert.deepEqual(harness.calls[2], ['resume']);
   assert.equal(harness.core.window.fullscreen, true);
 
   const events = harness.emitted.map(([, value]) => value);
@@ -117,6 +122,57 @@ test('player opens the opaque URL and applies resume only after file-loaded', ()
   const serialized = JSON.stringify(events);
   assert.equal(serialized.includes('media.example'), false);
   assert.equal(serialized.includes('token='), false);
+});
+
+test('managed player accepts a replacement playback session', () => {
+  const harness = makeHarness();
+  const send = harness.messageHandlers.get('cinelark.command');
+  send(playCommand());
+  harness.runTimeouts();
+
+  const nextSessionID = '823daa90-8016-44de-88f2-78048f167d22';
+  send(
+    playCommand({
+      sessionID: nextSessionID,
+      url: 'https://media.example/next-video?token=<redacted>',
+      startPositionSeconds: 0,
+    })
+  );
+  harness.runTimeouts();
+
+  assert.deepEqual(
+    harness.calls.filter(([name]) => name === 'open'),
+    [
+      ['open', 'https://media.example/video?token=<redacted>'],
+      ['open', 'https://media.example/next-video?token=<redacted>'],
+    ]
+  );
+});
+
+test('natural EOF reports completion after mpv enters its stopped state', () => {
+  const harness = makeHarness();
+  harness.messageHandlers.get('cinelark.command')(playCommand());
+  harness.runTimeouts();
+  harness.eventHandlers.get('iina.file-loaded')();
+
+  harness.core.status.position = 0;
+  harness.core.status.duration = 0;
+  harness.core.status.idle = true;
+  harness.core.status.paused = true;
+  harness.eventHandlers.get('mpv.pause.changed')();
+  harness.eventHandlers.get('mpv.end-file')({ reason: 'eof' });
+
+  const terminalEvents = harness.emitted
+    .map(([, value]) => value)
+    .filter((value) => value.type === 'player.positionChanged' || value.type === 'player.ended')
+    .slice(-2);
+  assert.equal(terminalEvents[0].type, 'player.positionChanged');
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(terminalEvents[0].payload)),
+    { positionSeconds: 120, durationSeconds: 120 }
+  );
+  assert.equal(terminalEvents[1].type, 'player.ended');
+  assert.equal(terminalEvents[1].payload.reason, 'eof');
 });
 
 test('transport commands map to the public IINA core APIs', () => {

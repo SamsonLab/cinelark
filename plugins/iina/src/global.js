@@ -10,7 +10,7 @@ const {
 
 const { global, http, menu, utils } = iina;
 
-const PLUGIN_VERSION = '0.1.3';
+const PLUGIN_VERSION = '0.1.5';
 const KEYCHAIN_SERVICE = 'bridge';
 const KEYCHAIN_ACCOUNT = 'pairing-key';
 const PORT_START = 43191;
@@ -114,11 +114,17 @@ function handleCommand(command) {
   lastCommandSequence = command.sequence;
 
   if (command.type === 'player.play') {
+    if (currentPlayer) {
+      currentPlayer.sessionID = command.sessionID;
+      global.postMessage(currentPlayer.id, 'cinelark.command', command);
+      return;
+    }
+
     const playerID = global.createPlayerInstance({
-      label: `cinelark:${command.sessionID}`,
+      label: 'cinelark:managed',
       disableWindowAnimation: false,
       disableUI: false,
-      enablePlugins: false,
+      enablePlugins: true,
     });
     currentPlayer = { id: playerID, sessionID: command.sessionID };
     global.postMessage(playerID, 'cinelark.command', command);
@@ -220,7 +226,7 @@ async function connect() {
 global.onMessage('cinelark.event', (event) => {
   if (!event || typeof event.type !== 'string') return;
   emit(event.type, event.payload || {}, event.sessionID || null, event.replyTo || null);
-  if (event.type === 'player.closed' || event.type === 'player.ended') {
+  if (event.type === 'player.closed') {
     if (currentPlayer && currentPlayer.sessionID === event.sessionID) currentPlayer = null;
   }
 });

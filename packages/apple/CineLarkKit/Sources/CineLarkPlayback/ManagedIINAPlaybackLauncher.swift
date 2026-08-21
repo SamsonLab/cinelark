@@ -6,7 +6,7 @@ import CineLarkDomain
 public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
     public let events: AsyncStream<PlaybackEvent>
 
-    private static let minimumPluginVersion = "0.1.3"
+    private static let minimumPluginVersion = "0.1.5"
 
     private let bundle: Bundle
     private let workspace: NSWorkspace
@@ -150,9 +150,6 @@ public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
             guard let playbackID,
                   let stateValue = envelope.payload["state"]?.stringValue,
                   let state = PlaybackSnapshot.State(rawValue: stateValue) else { return }
-            if state == .stopped {
-                lifecycle.finish(playbackID: playbackID)
-            }
             eventContinuation.yield(
                 .stateChanged(
                     playbackID: playbackID,

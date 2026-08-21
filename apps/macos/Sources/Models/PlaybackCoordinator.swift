@@ -130,9 +130,9 @@ final class PlaybackCoordinator {
             guard activePlayback?.playbackID == playbackID else { return }
             activePlayback?.positionSeconds = snapshot.positionSeconds
             activePlayback?.durationSeconds = snapshot.durationSeconds
-            if snapshot.state == .stopped {
-                await finalizeActivePlayback()
-            }
+            // mpv transitions through an idle/stopped snapshot immediately before
+            // emitting end-file. Keep the playback active so the terminal event can
+            // distinguish natural EOF from an explicit stop.
         case .ended(let playbackID, let reason):
             guard activePlayback?.playbackID == playbackID else { return }
             if let completedPlayback = await finalizeActivePlayback(),
@@ -200,8 +200,10 @@ final class PlaybackCoordinator {
             let state = try await provider.playbackState(seriesID: seriesID)
             guard let nextEpisode = state.nextUp,
                   nextEpisode.item.id != completedPlayback.item.id else {
+                Self.logger.info("Automatic next episode unavailable")
                 return
             }
+            Self.logger.info("Starting automatic next episode")
             try await playFirst(
                 item: nextEpisode.item,
                 title: nextEpisode.title,
@@ -209,7 +211,9 @@ final class PlaybackCoordinator {
                 seriesID: seriesID
             )
         } catch {
-            Self.logger.error("Automatic next episode failed")
+            Self.logger.error(
+                "Automatic next episode failed with \(String(reflecting: type(of: error)), privacy: .public)"
+            )
         }
     }
 }

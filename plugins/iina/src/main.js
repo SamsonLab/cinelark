@@ -3,13 +3,14 @@
 const { core, event, global } = iina;
 
 const label = global.getLabel();
-const labelSessionID = typeof label === 'string' && label.startsWith('cinelark:')
-  ? label.slice('cinelark:'.length)
-  : null;
+const isCineLarkManagedPlayer = typeof label === 'string' && label.startsWith('cinelark:');
 
 let activeSession = null;
 let pendingFullscreen = false;
+let pendingAutoplay = false;
 let lastPositionEmission = 0;
+let lastPositionSeconds = 0;
+let lastDurationSeconds = 0;
 
 function emit(type, payload = {}, replyTo = null) {
   if (!activeSession) return;
@@ -28,10 +29,14 @@ function finiteNumber(value, fallback = 0) {
 function snapshot() {
   const idle = Boolean(core.status.idle);
   const paused = Boolean(core.status.paused);
+  const positionSeconds = Math.max(0, finiteNumber(core.status.position));
+  const durationSeconds = Math.max(0, finiteNumber(core.status.duration));
+  if (positionSeconds > 0) lastPositionSeconds = positionSeconds;
+  if (durationSeconds > 0) lastDurationSeconds = durationSeconds;
   return {
     state: idle ? 'stopped' : paused ? 'paused' : 'playing',
-    positionSeconds: Math.max(0, finiteNumber(core.status.position)),
-    durationSeconds: Math.max(0, finiteNumber(core.status.duration)),
+    positionSeconds,
+    durationSeconds,
     speed: Math.max(0, finiteNumber(core.status.speed, 1)),
     volume: Math.max(0, finiteNumber(core.audio.volume)),
     muted: Boolean(core.audio.muted),
@@ -71,14 +76,15 @@ function emitState(replyTo = null) {
   emit('player.stateChanged', snapshot(), replyTo);
 }
 
-function emitPosition(replyTo = null) {
+function emitPosition(replyTo = null, completed = false) {
   const state = snapshot();
+  const durationSeconds = Math.max(state.durationSeconds, lastDurationSeconds);
+  const positionSeconds = completed && durationSeconds > 0
+    ? durationSeconds
+    : Math.max(state.positionSeconds, lastPositionSeconds);
   emit(
     'player.positionChanged',
-    {
-      positionSeconds: state.positionSeconds,
-      durationSeconds: state.durationSeconds,
-    },
+    { positionSeconds, durationSeconds },
     replyTo
   );
 }
@@ -87,6 +93,8 @@ event.on('iina.file-loaded', () => {
   if (!activeSession) return;
   const resumePosition = finiteNumber(activeSession.startPositionSeconds);
   if (resumePosition > 0) core.seekTo(resumePosition);
+  if (pendingAutoplay) core.resume();
+  pendingAutoplay = false;
   if (pendingFullscreen && core.window.loaded) core.window.fullscreen = true;
   emit('player.fileLoaded', {
     playbackID: activeSession.playbackID,
@@ -108,7 +116,7 @@ event.on('mpv.pause.changed', () => {
 
 event.on('mpv.end-file', (details) => {
   const reason = details && typeof details.reason === 'string' ? details.reason : 'unknown';
-  emitPosition();
+  emitPosition(null, reason === 'eof');
   emit('player.ended', { reason });
 });
 
@@ -119,7 +127,7 @@ event.on('iina.window-will-close', () => {
 });
 
 function handleCommand(command) {
-  if (!command || !command.sessionID || command.sessionID !== labelSessionID) return;
+  if (!isCineLarkManagedPlayer || !command || !command.sessionID) return;
 
   if (command.type === 'player.play') {
     const payload = command.payload || {};
@@ -130,6 +138,9 @@ function handleCommand(command) {
       startPositionSeconds: finiteNumber(payload.startPositionSeconds),
     };
     pendingFullscreen = Boolean(payload.presentation && payload.presentation.fullscreen);
+    pendingAutoplay = true;
+    lastPositionSeconds = Math.max(0, activeSession.startPositionSeconds);
+    lastDurationSeconds = 0;
     core.open(payload.url);
     return;
   }

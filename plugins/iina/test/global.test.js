@@ -61,6 +61,18 @@ test('all broker, Keychain, and player IINA APIs execute on the main run loop', 
       startPositionSeconds: 0,
     },
   });
+  const nextSessionID = '823daa90-8016-44de-88f2-78048f167d22';
+  const nextCommand = protocol.createEnvelope({
+    type: 'player.play',
+    sequence: 2,
+    sessionID: nextSessionID,
+    secret,
+    payload: {
+      playbackID: nextSessionID,
+      url: 'https://media.example/next-video?token=<redacted>',
+      startPositionSeconds: 0,
+    },
+  });
   const harness = timerHarness();
   const calls = [];
   let deliveredCommand = false;
@@ -91,7 +103,10 @@ test('all broker, Keychain, and player IINA APIs execute on the main run loop', 
           if (url.includes('/v1/plugin/commands?')) {
             if (!deliveredCommand) {
               deliveredCommand = true;
-              return Promise.resolve({ statusCode: 200, data: { commands: [command] } });
+              return Promise.resolve({
+                statusCode: 200,
+                data: { commands: [command, nextCommand] },
+              });
             }
             return new Promise(() => {});
           }
@@ -126,8 +141,14 @@ test('all broker, Keychain, and player IINA APIs execute on the main run loop', 
   harness.finishInitialTurn();
   await harness.drainImmediate();
 
-  assert.equal(calls[0][0], 'createPlayerInstance');
-  assert.deepEqual(calls[1].slice(0, 3), ['postMessage', 17, 'cinelark.command']);
+  const createCalls = calls.filter(([name]) => name === 'createPlayerInstance');
+  const messageCalls = calls.filter(([name]) => name === 'postMessage');
+  assert.equal(createCalls.length, 1);
+  assert.equal(createCalls[0][1].enablePlugins, true);
+  assert.equal(createCalls[0][1].label, 'cinelark:managed');
+  assert.equal(messageCalls.length, 2);
+  assert.deepEqual(messageCalls[0].slice(0, 3), ['postMessage', 17, 'cinelark.command']);
+  assert.deepEqual(messageCalls[1].slice(0, 3), ['postMessage', 17, 'cinelark.command']);
 });
 
 test('broker discovery does not touch Keychain while CineLark is absent', async () => {

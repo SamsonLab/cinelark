@@ -23,7 +23,7 @@ const playerID = global.createPlayerInstance({
   label: "cinelark-session",
   disableWindowAnimation: false,
   disableUI: false,
-  enablePlugins: false
+  enablePlugins: true
 });
 ```
 
@@ -36,6 +36,18 @@ Observed options:
 | `disableWindowAnimation` | suppress player window animation |
 | `disableUI` | disable standard IINA UI |
 | `enablePlugins` | load all enabled plugins; otherwise load only this plugin |
+
+CineLark enables installed IINA plugins for managed players so user-selected
+playback extensions can run. Those plugins share IINA's player context and may
+observe the opaque playback URL; users must treat enabled third-party plugins as
+trusted code.
+
+[`SamsonLab/skip-intro-cine-lark`](https://github.com/SamsonLab/skip-intro-cine-lark)
+is the supported intro/recap/credits extension. It accepts CineLark's opaque
+HTTPS streams, resets detection for every replacement episode, and keeps
+Auto-Skip compatible with EOF-driven next-episode playback. Network streams use
+chapter-title or chapter-timing detection; local-only audio fingerprint matching
+is intentionally disabled for those streams.
 
 The returned numeric ID addresses the child through
 `global.postMessage(target, name, data)`. A null target broadcasts to all
