@@ -44,11 +44,12 @@ struct MediaDetailView: View {
         }
         .background(Color.black.opacity(0.94))
         .navigationTitle(model.item.title)
-        .task {
-            await model.load()
-        }
-        .onChange(of: model.playback.playbackStateRevision) {
-            Task { await model.refreshPlaybackContext() }
+        .task(id: model.playback.playbackStateRevision) {
+            if model.detail == nil {
+                await model.load()
+            } else {
+                await model.refreshPlaybackContext()
+            }
         }
         .alert(
             "CineLark",

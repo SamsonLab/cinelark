@@ -185,12 +185,12 @@ final class PlaybackCoordinator {
         )
         do {
             try await progressReporter.reportStopped(update)
-            playbackStateRevision &+= 1
             Self.logger.info("Stopped playback state reported successfully")
-            onStoppedReported?()
         } catch {
             Self.logger.error("Stopped playback state report failed")
         }
+        playbackStateRevision &+= 1
+        onStoppedReported?()
         return activePlayback
     }
 
