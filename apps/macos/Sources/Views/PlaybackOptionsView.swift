@@ -204,6 +204,7 @@ struct PlaybackVersionCards: View {
                 )
             }
         }
+        .focusSection()
     }
 }
 

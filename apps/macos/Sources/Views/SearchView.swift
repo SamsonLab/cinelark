@@ -21,6 +21,18 @@ struct SearchView: View {
                         .textFieldStyle(.plain)
                         .font(.title2)
                         .focused($isSearchFocused)
+                        .onSubmit {
+                            isSearchFocused = false
+                            Task { await model.search(query) }
+                        }
+                        .onKeyPress(.escape) {
+                            if query.isEmpty {
+                                isSearchFocused = false
+                            } else {
+                                query = ""
+                            }
+                            return .handled
+                        }
                     if !query.isEmpty {
                         Button {
                             query = ""
@@ -76,7 +88,7 @@ struct SearchView: View {
         } else if model.searchResults.isEmpty {
             ContentUnavailableView.search(text: query)
         } else {
-            PosterGrid(items: model.searchResults)
+            PosterGrid(items: model.searchResults, autoFocusFirst: false)
         }
     }
 }

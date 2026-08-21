@@ -127,6 +127,7 @@ struct FavoritesView: View {
                         )
                     }
                 }
+                .focusSection()
                 .padding(.horizontal, CineLarkDesign.Layout.contentMargin)
                 .padding(.vertical, 34)
             }

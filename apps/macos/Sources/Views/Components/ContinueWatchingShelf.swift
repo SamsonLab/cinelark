@@ -27,6 +27,7 @@ struct ContinueWatchingShelf: View {
                             item: item,
                             isPlaying: model.playingItemID == item.id,
                             isPlaybackDisabled: model.playingItemID != nil,
+                            prefersInitialFocus: item.id == model.continueWatching.first?.id,
                             onHighlight: onHighlight
                         ) {
                             Task { await model.play(item) }
@@ -53,6 +54,7 @@ private struct PlaybackLandscapeLockup: View {
     let item: ContinueWatchingItem
     let isPlaying: Bool
     let isPlaybackDisabled: Bool
+    let prefersInitialFocus: Bool
     let onHighlight: ((ContinueWatchingItem) -> Void)?
     let play: () -> Void
     @State private var isHovering = false
@@ -113,6 +115,11 @@ private struct PlaybackLandscapeLockup: View {
         .onChange(of: isDetailFocused) {
             if isDetailFocused { onHighlight?(item) }
         }
+        .defaultFocus(
+            $isPlayFocused,
+            prefersInitialFocus && !isPlaybackDisabled,
+            priority: .userInitiated
+        )
     }
 
     private var artwork: some View {

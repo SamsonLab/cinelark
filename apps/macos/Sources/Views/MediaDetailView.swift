@@ -70,7 +70,7 @@ struct MediaDetailView: View {
     private var hero: some View {
         ZStack(alignment: .top) {
             CineLarkCinematicBackdrop(
-                url: model.heroBackdropURL,
+                url: model.heroBackdropURL ?? model.heroPosterURL,
                 height: 620,
                 leadingShade: 0.90
             )
@@ -391,6 +391,7 @@ struct MediaDetailView: View {
                         }
                     }
                 }
+                .focusSection()
 
                 if model.episodes.count > Self.collapsedEpisodeCount {
                     Button {
@@ -437,6 +438,7 @@ struct MediaDetailView: View {
                     }
                 }
             }
+            .focusSection()
             .padding(.vertical, 4)
         }
         .scrollIndicators(.hidden)
@@ -477,6 +479,7 @@ struct MediaDetailView: View {
                         PersonCreditLink(person: person)
                     }
                 }
+                .focusSection()
             }
             .scrollIndicators(.hidden)
         }

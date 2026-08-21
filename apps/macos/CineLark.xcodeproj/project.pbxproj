@@ -33,6 +33,7 @@
 		B5F3BB1A14D77C4536307248 /* MediaDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 159CEAD9CEDB3B09B0577D62 /* MediaDetailView.swift */; };
 		D4A3375820C95BFF5B7AA2F7 /* AppLanguage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3E20D588912F0D88C2F56C8 /* AppLanguage.swift */; };
 		D9A6D26E54F24FD83C78A2CB /* InteractiveStyles.swift in Sources */ = {isa = PBXBuildFile; fileRef = F130F10368D8C9CE780999BB /* InteractiveStyles.swift */; };
+		DA7A91E613C54D1A91A6F7C2 /* ShortcutSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8F2E3A40E914F68B519AA73 /* ShortcutSystem.swift */; };
 		E0FD14EF20191C638ADD81B9 /* MediaCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A02668E828AF3DF47ADD782D /* MediaCard.swift */; };
 		EF4E62F26D7A69E13E8531B9 /* CineLarkAppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B08A8B1D616822F23271FF8A /* CineLarkAppDelegate.swift */; };
 		F188B954EB4C3636BB951E00 /* FavoritesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE58BCE702D398987224468F /* FavoritesView.swift */; };
@@ -63,6 +64,7 @@
 		A02668E828AF3DF47ADD782D /* MediaCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaCard.swift; sourceTree = "<group>"; };
 		B054FB68231FF0E76CF25C1B /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
 		B08A8B1D616822F23271FF8A /* CineLarkAppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CineLarkAppDelegate.swift; sourceTree = "<group>"; };
+		C8F2E3A40E914F68B519AA73 /* ShortcutSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutSystem.swift; sourceTree = "<group>"; };
 		B5976220527170DE4D05D69F /* CineLarkKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = CineLarkKit; path = ../../packages/apple/CineLarkKit; sourceTree = SOURCE_ROOT; };
 		BF267C700713EED89267F34A /* PersonDetailModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonDetailModel.swift; sourceTree = "<group>"; };
 		D053D9E6E0ADD452EA014CE5 /* ContinueWatchingShelf.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContinueWatchingShelf.swift; sourceTree = "<group>"; };
@@ -101,6 +103,7 @@
 				F130F10368D8C9CE780999BB /* InteractiveStyles.swift */,
 				A02668E828AF3DF47ADD782D /* MediaCard.swift */,
 				11E72F191AE8AB81C1DD9B26 /* MediaFormatting.swift */,
+				C8F2E3A40E914F68B519AA73 /* ShortcutSystem.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -310,6 +313,7 @@
 				FEA0753FFBFC5DE2AFB1F5E6 /* HomeView.swift in Sources */,
 				0FBA55BD2D5A9E90186B12A9 /* ImagePipeline.swift in Sources */,
 				D9A6D26E54F24FD83C78A2CB /* InteractiveStyles.swift in Sources */,
+				DA7A91E613C54D1A91A6F7C2 /* ShortcutSystem.swift in Sources */,
 				1B7F01EBA86DBED26D6882EA /* LibraryView.swift in Sources */,
 				42F2C14657B60EB006A35194 /* LoginView.swift in Sources */,
 				E0FD14EF20191C638ADD81B9 /* MediaCard.swift in Sources */,

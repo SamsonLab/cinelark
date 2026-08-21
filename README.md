@@ -49,6 +49,7 @@ specs/            cross-language contracts and external API observations
 shared/           generated-code policy, design tokens, and brand assets
 fixtures/         synthetic, redacted test fixtures only
 docs/             product, architecture, integration, and decision records
+docs-ai/          curated feature plans, implementation outcomes, and runbooks
 ```
 
 ## Install
@@ -82,6 +83,11 @@ and build details.
 ## Specifications
 
 Start with [`docs/README.md`](docs/README.md).
+
+Durable implementation rationale and feature evolution live in
+[`docs-ai/README.md`](docs-ai/README.md). Repository-local agent skills are
+maintained once under `.claude/skills/` and exposed to Codex through
+`.codex/skills`.
 
 - [Product specification](docs/product-spec.md)
 - [Architecture](docs/architecture.md)

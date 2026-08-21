@@ -10,6 +10,7 @@ struct CineLarkApp: App {
     @NSApplicationDelegateAdaptor(CineLarkAppDelegate.self) private var appDelegate
     @AppStorage(AppLanguage.storageKey) private var storedLanguage = AppLanguage.systemDefault.rawValue
     @State private var model: AppModel
+    @State private var shortcuts = ShortcutCoordinator()
 
     init() {
         let sessionStore = KeychainSessionStore()
@@ -33,11 +34,16 @@ struct CineLarkApp: App {
             RootView(model: model)
                 .environment(\.appLanguage, language)
                 .environment(\.locale, language.locale)
+                .environment(shortcuts)
                 .frame(minWidth: 960, minHeight: 640)
                 .task {
+                    shortcuts.start()
                     appDelegate.prepareForTermination = { [weak model] in
                         await model?.prepareForTermination()
                     }
+                }
+                .onDisappear {
+                    shortcuts.stop()
                 }
         }
         .windowStyle(.hiddenTitleBar)

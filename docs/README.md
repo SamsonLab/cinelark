@@ -1,5 +1,10 @@
 # CineLark Documentation
 
+This directory describes CineLark's current contributor-facing product,
+architecture, interfaces, integrations, and accepted decisions. Historical
+feature plans, implementation outcomes, amendments, and engineering runbooks
+live in [`docs-ai/`](../docs-ai/README.md).
+
 Documents use the following status labels:
 
 - **Accepted** — an architectural or product decision.

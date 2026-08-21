@@ -128,30 +128,90 @@ extension EnvironmentValues {
 struct LanguageMenu: View {
     @Environment(\.appLanguage) private var language
     @AppStorage(AppLanguage.storageKey) private var storedLanguage = AppLanguage.systemDefault.rawValue
+    @State private var isPresented = false
 
+    var fillsAvailableWidth = false
+
+    init(fillsAvailableWidth: Bool = false) {
+        self.fillsAvailableWidth = fillsAvailableWidth
+    }
+
+    @ViewBuilder
     var body: some View {
-        Menu {
-            ForEach(AppLanguage.allCases) { option in
-                Button {
-                    storedLanguage = option.rawValue
-                } label: {
-                    if option == language {
-                        Label(language.displayName(for: option), systemImage: "checkmark")
-                    } else {
-                        Text(language.displayName(for: option))
-                    }
-                }
+        if fillsAvailableWidth {
+            GeometryReader { proxy in
+                control(width: proxy.size.width)
             }
+            .frame(height: 36)
+        } else {
+            control(width: nil)
+        }
+    }
+
+    private func control(width: CGFloat?) -> some View {
+        Button {
+            isPresented.toggle()
         } label: {
             HStack(spacing: 7) {
                 Image(systemName: "globe")
                 Text(language.displayName(for: language))
+                if width != nil {
+                    Spacer(minLength: 0)
+                }
+                Image(systemName: "chevron.down")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.secondary)
             }
             .font(.callout.weight(.semibold))
-            .fixedSize()
+            .padding(.horizontal, width == nil ? 0 : 10)
+            .frame(width: width, height: width == nil ? nil : 36, alignment: .leading)
+            .contentShape(Rectangle())
         }
         .accessibilityLabel(language.localized("language.label"))
         .accessibilityValue(language.displayName(for: language))
         .help(language.localized("language.help"))
+        .popover(isPresented: $isPresented, arrowEdge: .bottom) {
+            VStack(spacing: 4) {
+                ForEach(AppLanguage.allCases) { option in
+                    Button {
+                        isPresented = false
+                        storedLanguage = option.rawValue
+                    } label: {
+                        HStack(spacing: 10) {
+                            Group {
+                                if option == language {
+                                    Image(systemName: "checkmark")
+                                } else {
+                                    Color.clear
+                                }
+                            }
+                            .frame(width: 14, height: 14)
+                            Text(language.displayName(for: option))
+                            Spacer(minLength: 24)
+                        }
+                    }
+                    .buttonStyle(LanguageOptionButtonStyle())
+                }
+            }
+            .padding(8)
+            .frame(minWidth: 210)
+        }
+    }
+}
+
+private struct LanguageOptionButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 10)
+            .frame(height: 32)
+            .contentShape(Rectangle())
+            .cineLarkHoverSurface(
+                cornerRadius: 8,
+                normalFillOpacity: configuration.isPressed ? 0.12 : 0,
+                hoverFillOpacity: 0.10,
+                normalStrokeOpacity: 0,
+                hoverStrokeOpacity: 0
+            )
     }
 }

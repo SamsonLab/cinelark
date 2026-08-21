@@ -6,6 +6,7 @@ struct AssetRow: View {
     let asset: MediaAsset
     let action: () -> Void
     @State private var isHovering = false
+    @FocusState private var isFocused: Bool
 
     var body: some View {
         Button(action: action) {
@@ -60,19 +61,20 @@ struct AssetRow: View {
             .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .buttonStyle(CineLarkPressButtonStyle())
+        .focused($isFocused)
+        .focusEffectDisabled()
         .accessibilityHint(language.localized("asset.choose_hint"))
         .background(
-            isHovering ? Color.accentColor.opacity(0.10) : Color.white.opacity(0.05),
+            isHovering || isFocused
+                ? Color.accentColor.opacity(0.10)
+                : Color.white.opacity(0.05),
             in: RoundedRectangle(cornerRadius: 14, style: .continuous)
         )
-        .overlay {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(
-                    isHovering
-                        ? Color.accentColor.opacity(0.6)
-                        : Color.white.opacity(0.10)
-                )
-        }
+        .cineLarkFocusSurface(
+            isActive: isHovering || isFocused,
+            cornerRadius: 14,
+            scale: 1.01
+        )
         .onHover { isHovering = $0 }
         .animation(.easeOut(duration: 0.12), value: isHovering)
     }

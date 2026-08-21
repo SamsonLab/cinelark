@@ -63,8 +63,9 @@ struct PosterLockup: View {
 private struct PosterNavigationLink: View {
     let item: MediaSummary
     let onHighlight: ((MediaSummary) -> Void)?
+    let isSelected: Bool
+    let focusedItemID: FocusState<String?>.Binding
     @State private var transitionID = UUID()
-    @FocusState private var isFocused: Bool
 
     var body: some View {
         NavigationLink(
@@ -73,16 +74,20 @@ private struct PosterNavigationLink: View {
             PosterLockup(
                 item: item,
                 transitionID: transitionID,
-                isFocused: isFocused,
+                isFocused: isSelected || focusedItemID.wrappedValue == item.id,
                 onHighlight: onHighlight
             )
         }
         .buttonStyle(CineLarkPressButtonStyle())
-        .focused($isFocused)
+        .focused(focusedItemID, equals: item.id)
         .focusEffectDisabled()
         .onChange(of: isFocused) {
-            if isFocused { onHighlight?(item) }
+            if focusedItemID.wrappedValue == item.id { onHighlight?(item) }
         }
+    }
+
+    private var isFocused: Bool {
+        focusedItemID.wrappedValue == item.id
     }
 }
 
@@ -92,6 +97,7 @@ struct PosterShelf: View {
     let items: [MediaSummary]
     let viewAllCollection: MediaCollection?
     let onHighlight: ((MediaSummary) -> Void)?
+    @FocusState private var focusedItemID: String?
 
     init(
         title: String,
@@ -136,7 +142,12 @@ struct PosterShelf: View {
             ScrollView(.horizontal) {
                 LazyHStack(alignment: .top, spacing: CineLarkDesign.Layout.shelfSpacing) {
                     ForEach(items) { item in
-                        PosterNavigationLink(item: item, onHighlight: onHighlight)
+                        PosterNavigationLink(
+                            item: item,
+                            onHighlight: onHighlight,
+                            isSelected: focusedItemID == item.id,
+                            focusedItemID: $focusedItemID
+                        )
                     }
                 }
                 .scrollTargetLayout()
@@ -155,10 +166,16 @@ struct PosterShelf: View {
 }
 
 struct PosterGrid: View {
+    @Environment(ShortcutCoordinator.self) private var shortcuts
     let items: [MediaSummary]
     let isLoadingMore: Bool
     let canLoadMore: Bool
+    let autoFocusFirst: Bool
     private let onLoadMore: (() async -> Void)?
+    @FocusState private var focusedItemID: String?
+    @State private var selectedItemID: String?
+    @State private var focusOwner = UUID()
+    @State private var availableWidth: CGFloat = 0
 
     private let columns = [
         GridItem(
@@ -175,11 +192,13 @@ struct PosterGrid: View {
         items: [MediaSummary],
         isLoadingMore: Bool = false,
         canLoadMore: Bool = false,
+        autoFocusFirst: Bool = true,
         onLoadMore: (() async -> Void)? = nil
     ) {
         self.items = items
         self.isLoadingMore = isLoadingMore
         self.canLoadMore = canLoadMore
+        self.autoFocusFirst = autoFocusFirst
         self.onLoadMore = onLoadMore
     }
 
@@ -192,7 +211,12 @@ struct PosterGrid: View {
                     spacing: CineLarkDesign.Layout.posterGridRowSpacing
                 ) {
                     ForEach(items) { item in
-                        PosterNavigationLink(item: item, onHighlight: nil)
+                        PosterNavigationLink(
+                            item: item,
+                            onHighlight: nil,
+                            isSelected: selectedItemID == item.id,
+                            focusedItemID: $focusedItemID
+                        )
                             .task(id: item.id == loadMoreTriggerID) {
                                 guard item.id == loadMoreTriggerID else { return }
                                 await onLoadMore?()
@@ -211,10 +235,92 @@ struct PosterGrid: View {
             }
         }
         .background(CineLarkPageBackground())
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.size.width
+        } action: { width in
+            availableWidth = width
+            registerDirectionalAction()
+        }
+        .onAppear {
+            if autoFocusFirst, selectedItemID == nil {
+                selectedItemID = items.first?.id
+            }
+            registerDirectionalAction()
+        }
+        .onDisappear {
+            shortcuts.clearDirectionalAction(owner: focusOwner)
+        }
+        .onChange(of: items.map(\.id)) {
+            if let focusedItemID, !items.contains(where: { $0.id == focusedItemID }) {
+                self.focusedItemID = nil
+            }
+            if let selectedItemID, !items.contains(where: { $0.id == selectedItemID }) {
+                self.selectedItemID = items.first?.id
+            }
+            registerDirectionalAction()
+        }
     }
 
     private var loadMoreTriggerID: String? {
         guard canLoadMore, onLoadMore != nil, !items.isEmpty else { return nil }
         return items[max(items.count - 8, 0)].id
+    }
+
+    private var columnsPerRow: Int {
+        let contentWidth = max(
+            0,
+            availableWidth - (CineLarkDesign.Layout.contentMargin * 2)
+        )
+        let itemWidth = CineLarkDesign.Media.posterWidth +
+            CineLarkDesign.Layout.posterGridColumnSpacing
+        return max(
+            1,
+            Int(
+                (contentWidth + CineLarkDesign.Layout.posterGridColumnSpacing) /
+                    itemWidth
+            )
+        )
+    }
+
+    private func registerDirectionalAction() {
+        let itemIDs = items.map(\.id)
+        let columnCount = columnsPerRow
+        let focusedItem = $focusedItemID
+        let selectedItem = $selectedItemID
+        shortcuts.setDirectionalAction(
+            owner: focusOwner,
+            move: { direction in
+                guard !itemIDs.isEmpty else { return false }
+                let currentID = selectedItem.wrappedValue ?? focusedItem.wrappedValue
+                guard let currentID,
+                      let currentIndex = itemIDs.firstIndex(of: currentID) else {
+                    selectedItem.wrappedValue = itemIDs[0]
+                    focusedItem.wrappedValue = itemIDs[0]
+                    return true
+                }
+
+                let targetIndex: Int
+                switch direction {
+                case .left:
+                    targetIndex = max(0, currentIndex - 1)
+                case .right:
+                    targetIndex = min(itemIDs.count - 1, currentIndex + 1)
+                case .up:
+                    targetIndex = max(0, currentIndex - columnCount)
+                case .down:
+                    targetIndex = min(itemIDs.count - 1, currentIndex + columnCount)
+                }
+                selectedItem.wrappedValue = itemIDs[targetIndex]
+                focusedItem.wrappedValue = itemIDs[targetIndex]
+                return true
+            },
+            activate: { [weak shortcuts] in
+                guard let selectedID = selectedItem.wrappedValue ?? focusedItem.wrappedValue,
+                      let item = items.first(where: { $0.id == selectedID }) else {
+                    return false
+                }
+                return shortcuts?.openMedia(item) == true
+            }
+        )
     }
 }

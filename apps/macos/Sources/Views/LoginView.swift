@@ -120,11 +120,7 @@ struct LoginView: View {
             }
             .buttonStyle(.glassProminent)
             .controlSize(.extraLarge)
-            .disabled(
-                isSigningIn ||
-                username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
-                password.isEmpty
-            )
+            .disabled(!canSignIn)
         }
         .textFieldStyle(.roundedBorder)
         .padding(30)
@@ -149,5 +145,11 @@ struct LoginView: View {
             )
             isSigningIn = false
         }
+    }
+
+    private var canSignIn: Bool {
+        !isSigningIn &&
+            !username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+            !password.isEmpty
     }
 }

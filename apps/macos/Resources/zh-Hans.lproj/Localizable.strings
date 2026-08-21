@@ -5,6 +5,8 @@
 "general.view_all" = "查看全部";
 "general.selected" = "已选择";
 "general.not_selected" = "未选择";
+"shortcut.navigate" = "方向键选择";
+"shortcut.activate" = "确认";
 
 "root.opening" = "正在打开 CineLark…";
 

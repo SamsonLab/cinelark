@@ -5,6 +5,8 @@
 "general.view_all" = "View all";
 "general.selected" = "Selected";
 "general.not_selected" = "Not selected";
+"shortcut.navigate" = "Navigate";
+"shortcut.activate" = "Confirm";
 
 "root.opening" = "Opening CineLark…";
 
