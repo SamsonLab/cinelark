@@ -333,6 +333,17 @@ public actor UHDNowProvider: MediaLibraryProvider {
         )
     }
 
+    public func playbackState(seriesID: String) async throws -> SeriesPlaybackState {
+        let data: SeriesPlaybackStateDTO = try await request(
+            method: .get,
+            path: UHDNowRequestBuilder.path("stream", "tv", seriesID, "playback-state")
+        )
+        return SeriesPlaybackState(
+            resume: mapSeriesPlaybackItem(data.resume, seriesID: seriesID),
+            nextUp: mapSeriesPlaybackItem(data.nextUp, seriesID: seriesID)
+        )
+    }
+
     public func reportProgress(_ update: PlaybackUpdate) async throws -> UserPlaybackState {
         try await report(update, endpoint: "progress")
     }
@@ -673,6 +684,31 @@ public actor UHDNowProvider: MediaLibraryProvider {
             posterURL: imageURL(value.posterPath),
             thumbnailURL: imageURL(value.thumbPath),
             durationSeconds: value.duration,
+            userState: mapUserState(value.userState)
+        )
+    }
+
+    private func mapSeriesPlaybackItem(
+        _ value: SeriesPlaybackItemDTO?,
+        seriesID: String
+    ) -> ContinueWatchingItem? {
+        guard let value,
+              let itemID = value.itemId ?? value.id else {
+            return nil
+        }
+        let title = value.title ?? value.subtitle ?? "Episode"
+        return ContinueWatchingItem(
+            id: "episode:\(itemID)",
+            item: PlayableItem(id: itemID, kind: .episode),
+            mediaID: value.mediaId ?? seriesID,
+            title: title,
+            subtitle: value.subtitle,
+            posterURL: imageURL(value.posterPath),
+            thumbnailURL: imageURL(value.thumbPath),
+            durationSeconds: value.duration,
+            seasonID: value.seasonId,
+            seasonNumber: value.seasonNumber,
+            episodeNumber: value.episodeNumber,
             userState: mapUserState(value.userState)
         )
     }

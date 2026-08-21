@@ -22,6 +22,8 @@
 "home.popular_now" = "正在热播";
 "home.collection_help" = "浏览各个分类，或打开分类查看完整片库。";
 "home.continue_watching" = "继续观看";
+"home.continue_playback" = "继续播放%@";
+"home.open_details" = "打开内容详情";
 
 "login.tagline" = "你的媒体库，为大屏而生。";
 "login.username" = "UHDNow 用户名";
@@ -50,10 +52,22 @@
 "sort.ascending_help" = "按升序排列";
 "sort.descending_help" = "按降序排列";
 
+"detail.movie" = "电影";
+"detail.series" = "剧集";
 "detail.season_count_one" = "%@ 季";
 "detail.season_count_many" = "%@ 季";
 "detail.favorite" = "已收藏";
 "detail.add_favorite" = "加入收藏";
+"detail.play" = "播放";
+"detail.preparing_playback" = "正在载入播放信息…";
+"detail.replay" = "重新播放";
+"detail.continue" = "继续播放 · %@";
+"detail.continue_episode" = "继续播放 %@ · %@";
+"detail.play_episode" = "播放 %@";
+"detail.choose_version" = "选择版本";
+"detail.last_watched" = "上次看到 %@ · %@";
+"detail.watching" = "正在观看";
+"detail.watched" = "已看完";
 "detail.versions" = "片源版本";
 "detail.loading_versions" = "正在载入片源版本…";
 "detail.no_versions" = "目前没有可播放的片源版本。";
@@ -64,6 +78,11 @@
 "detail.overview" = "简介";
 "rating.accessibility" = "评分 %@，满分 10 分";
 "episode.number" = "第 %@ 集";
+"episode.season_episode" = "第 %@ 季第 %@ 集";
+"episode.watched_progress" = "已看 %@ · %@";
+"episode.watched" = "已看完";
+"episode.show_more" = "显示更多（剩余 %@ 集）";
+"episode.show_less" = "收起剧集";
 "episode.version_one" = "%@ 个版本";
 "episode.version_many" = "%@ 个版本";
 "episode.accessibility_label" = "%@，%@";
@@ -88,6 +107,7 @@
 "playback.show_details" = "展开版本详情";
 "playback.download_notice" = "下载链接有效期较短，仅在你主动请求时生成。";
 "playback.play" = "播放";
+"playback.play_version" = "播放%@";
 "playback.close" = "关闭播放选项";
 "playback.select_hint" = "选择这个片源版本";
 "playback.container" = "封装格式";

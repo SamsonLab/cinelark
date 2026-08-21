@@ -279,7 +279,8 @@ final class AppModel {
             try await playback.playFirst(
                 item: item.item,
                 title: item.title,
-                startPositionSeconds: item.userState.positionSeconds
+                startPositionSeconds: item.userState.positionSeconds,
+                seriesID: item.item.kind == .episode ? item.mediaID : nil
             )
         } catch {
             present(error)

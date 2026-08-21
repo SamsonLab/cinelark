@@ -14,6 +14,7 @@ struct LibraryView: View {
     @Environment(\.appLanguage) private var language
     @Bindable var model: AppModel
     @State private var selection: LibrarySelection? = .home
+    @Namespace private var mediaTransitionNamespace
 
     var body: some View {
         NavigationSplitView {
@@ -78,6 +79,14 @@ struct LibraryView: View {
                             playback: model.playback
                         )
                     }
+                    .navigationDestination(for: MediaDetailRoute.self) { route in
+                        MediaDetailView(
+                            item: route.item,
+                            provider: model.provider,
+                            playback: model.playback,
+                            transitionID: route.transitionID
+                        )
+                    }
                     .navigationDestination(for: MediaCollection.self) { collection in
                         CollectionView(collection: collection, model: model)
                     }
@@ -85,6 +94,7 @@ struct LibraryView: View {
                         PersonDetailView(person: person, provider: model.provider)
                     }
             }
+            .environment(\.mediaTransitionNamespace, mediaTransitionNamespace)
         }
         .navigationSplitViewStyle(.balanced)
         .alert(

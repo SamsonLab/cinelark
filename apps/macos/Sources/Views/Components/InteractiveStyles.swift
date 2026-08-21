@@ -1,5 +1,16 @@
 import SwiftUI
 
+private struct MediaTransitionNamespaceKey: EnvironmentKey {
+    static let defaultValue: Namespace.ID? = nil
+}
+
+extension EnvironmentValues {
+    var mediaTransitionNamespace: Namespace.ID? {
+        get { self[MediaTransitionNamespaceKey.self] }
+        set { self[MediaTransitionNamespaceKey.self] = newValue }
+    }
+}
+
 struct CineLarkHoverSurface: ViewModifier {
     let cornerRadius: CGFloat
     var normalFillOpacity: Double = 0.05
@@ -48,6 +59,25 @@ struct CineLarkPressButtonStyle: ButtonStyle {
 }
 
 extension View {
+    @ViewBuilder
+    func mediaMatchedGeometry<ID: Hashable>(
+        id: ID?,
+        namespace: Namespace.ID?,
+        isSource: Bool
+    ) -> some View {
+        if let id, let namespace {
+            matchedGeometryEffect(
+                id: id,
+                in: namespace,
+                properties: .frame,
+                anchor: .center,
+                isSource: isSource
+            )
+        } else {
+            self
+        }
+    }
+
     func cineLarkHoverSurface(
         cornerRadius: CGFloat,
         normalFillOpacity: Double = 0.05,

@@ -3,14 +3,19 @@ import CineLarkDomain
 
 struct MediaDetailView: View {
     @Environment(\.appLanguage) private var language
+    @Environment(\.mediaTransitionNamespace) private var transitionNamespace
     @State private var model: MediaDetailModel
     @State private var playbackOptions: PlaybackOptionsContext? = nil
+    @State private var showsAllEpisodes = false
+    private let transitionID: UUID?
 
     init(
         item: MediaSummary,
         provider: any MediaLibraryProvider,
-        playback: PlaybackCoordinator
+        playback: PlaybackCoordinator,
+        transitionID: UUID? = nil
     ) {
+        self.transitionID = transitionID
         _model = State(
             initialValue: MediaDetailModel(
                 item: item,
@@ -24,10 +29,6 @@ struct MediaDetailView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 34) {
                 hero
-
-                if let synopsis = model.item.synopsis, !synopsis.isEmpty {
-                    overview(synopsis)
-                }
 
                 if model.item.kind == .movie {
                     movieVersions
@@ -46,6 +47,9 @@ struct MediaDetailView: View {
         .task {
             await model.load()
         }
+        .onChange(of: model.playback.playbackStateRevision) {
+            Task { await model.refreshPlaybackContext() }
+        }
         .alert(
             "CineLark",
             isPresented: Binding(
@@ -63,56 +67,86 @@ struct MediaDetailView: View {
     }
 
     private var hero: some View {
-        ZStack(alignment: .bottomLeading) {
-            ArtworkView(url: model.item.backdropURL)
+        ZStack(alignment: .top) {
+            ArtworkView(url: model.heroBackdropURL)
                 .frame(maxWidth: .infinity)
-                .frame(height: 430)
+                .frame(height: 620)
                 .clipped()
                 .overlay {
-                    Rectangle()
-                        .fill(.ultraThinMaterial)
-                        .opacity(0.32)
-                        .allowsHitTesting(false)
+                    LinearGradient(
+                        colors: [
+                            .black.opacity(0.92),
+                            .black.opacity(0.56),
+                            .clear
+                        ],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
                 }
                 .overlay {
                     LinearGradient(
-                        colors: [.clear, .black.opacity(0.92)],
+                        colors: [.clear, .black.opacity(0.96)],
                         startPoint: .center,
                         endPoint: .bottom
                     )
                 }
+                .allowsHitTesting(false)
 
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .bottom, spacing: 28) {
-                    ArtworkView(url: model.item.posterURL)
-                        .frame(width: 210, height: 315)
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            VStack(spacing: 0) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(
+                        language.localized(
+                            model.item.kind == .movie ? "detail.movie" : "detail.series"
+                        )
+                    )
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(Color.accentColor)
+
+                    Text(model.item.title)
+                        .font(.system(size: 58, weight: .bold, design: .rounded))
+                        .lineLimit(2)
+                        .help(model.item.title)
+
+                    if let originalTitle = model.item.originalTitle,
+                       originalTitle != model.item.title {
+                        Text(originalTitle)
+                            .font(.title3.weight(.medium))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.top, 100)
+                .frame(maxWidth: 900, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 40)
+
+                HStack(alignment: .top, spacing: 36) {
+                    ArtworkView(url: model.heroPosterURL)
+                        .frame(width: 250, height: 375)
+                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        .mediaMatchedGeometry(
+                            id: transitionID,
+                            namespace: transitionNamespace,
+                            isSource: false
+                        )
                         .overlay {
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .stroke(Color.white.opacity(0.10))
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .stroke(Color.white.opacity(0.12))
                                 .allowsHitTesting(false)
                         }
-                        .shadow(radius: 18, y: 8)
+                        .shadow(color: .black.opacity(0.55), radius: 24, y: 12)
 
-                    heroMetadata(titleSize: 42)
-                        .frame(minWidth: 360, maxWidth: .infinity, alignment: .leading)
+                    heroMetadata
+                        .frame(minWidth: 420, maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, 10)
                 }
-
-                heroMetadata(titleSize: 36)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 40)
+                .padding(.top, 34)
             }
-            .padding(.horizontal, 40)
-            .padding(.bottom, 8)
         }
     }
 
-    private func heroMetadata(titleSize: CGFloat) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text(model.item.title)
-                .font(.system(size: titleSize, weight: .bold, design: .rounded))
-                .lineLimit(2)
-                .help(model.item.title)
-
+    private var heroMetadata: some View {
+        VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 14) {
                 if let year = model.item.releaseYear {
                     Text(String(year))
@@ -149,45 +183,198 @@ struct MediaDetailView: View {
             .foregroundStyle(.secondary)
 
             if !model.item.genres.isEmpty {
-                Text(model.item.genres.map(\.name).joined(separator: " · "))
-                    .font(.callout.weight(.medium))
-                    .lineLimit(2)
+                HStack(spacing: 9) {
+                    ForEach(model.item.genres.prefix(5)) { genre in
+                        Text(genre.name)
+                            .font(.callout.weight(.medium))
+                            .padding(.horizontal, 12)
+                            .frame(height: 32)
+                            .overlay {
+                                Capsule().stroke(Color.white.opacity(0.18))
+                            }
+                    }
+                }
             }
 
             if let synopsis = model.item.synopsis, !synopsis.isEmpty {
                 Text(synopsis)
                     .font(.body)
                     .foregroundStyle(.secondary)
-                    .lineLimit(3)
-                    .frame(maxWidth: 720, alignment: .leading)
+                    .lineLimit(4)
+                    .lineSpacing(4)
+                    .frame(maxWidth: 900, alignment: .leading)
             }
 
-            Button {
-                Task { await model.toggleFavorite() }
-            } label: {
-                if model.isUpdatingFavorite {
-                    ProgressView().controlSize(.small)
+            playbackSummary
+
+            HStack(spacing: 12) {
+                if model.isLoading && !model.canStartPlayback {
+                    HStack(spacing: 9) {
+                        ProgressView().controlSize(.small)
+                        Text(language.localized("detail.preparing_playback"))
+                            .font(.headline)
+                    }
+                    .padding(.horizontal, 18)
+                    .frame(height: 38)
+                    .background(.thinMaterial, in: Capsule())
                 } else {
-                    Label(
-                        language.localized(
-                            model.isFavorite
-                                ? "detail.favorite"
-                                : "detail.add_favorite"
-                        ),
-                        systemImage: model.isFavorite ? "heart.fill" : "heart"
-                    )
+                    Button {
+                        Task { await model.playPrimary() }
+                    } label: {
+                        if model.isStartingPlayback {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Label(primaryPlaybackLabel, systemImage: "play.fill")
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .disabled(!model.canStartPlayback || model.isStartingPlayback)
                 }
+
+                if model.canStartPlayback && shouldShowVersionButton {
+                    Button {
+                        presentPrimaryOptions()
+                    } label: {
+                        Label(
+                            language.localized("detail.choose_version"),
+                            systemImage: "slider.horizontal.3"
+                        )
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
+                }
+
+                Button {
+                    Task { await model.toggleFavorite() }
+                } label: {
+                    if model.isUpdatingFavorite {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Label(
+                            language.localized(
+                                model.isFavorite
+                                    ? "detail.favorite"
+                                    : "detail.add_favorite"
+                            ),
+                            systemImage: model.isFavorite ? "heart.fill" : "heart"
+                        )
+                    }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+                .tint(model.isFavorite ? .orange : .accentColor)
+                .disabled(
+                    model.isUpdatingFavorite ||
+                    (model.isFavorite && !model.canRemoveFavorite)
+                )
+
+                playbackStatusBadge
             }
-            .buttonStyle(.bordered)
-            .controlSize(.large)
-            .tint(model.isFavorite ? .orange : .accentColor)
-            .disabled(
-                model.isUpdatingFavorite ||
-                (model.isFavorite && !model.canRemoveFavorite)
-            )
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .layoutPriority(1)
+    }
+
+    @ViewBuilder
+    private var playbackSummary: some View {
+        if model.item.kind == .series,
+           let resume = model.seriesPlaybackState?.resume {
+            Label(
+                language.localized(
+                    "detail.last_watched",
+                    episodeDescriptor(resume),
+                    language.progressPercent(resume.userState.progress)
+                ),
+                systemImage: "clock.arrow.circlepath"
+            )
+            .font(.callout.weight(.semibold))
+            .foregroundStyle(.yellow)
+        }
+    }
+
+    @ViewBuilder
+    private var playbackStatusBadge: some View {
+        if model.item.userState.played {
+            Label(language.localized("detail.watched"), systemImage: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+                .padding(.horizontal, 14)
+                .frame(height: 38)
+                .background(.thinMaterial, in: Capsule())
+        } else if model.item.userState.progress > 0 || model.seriesPlaybackState?.resume != nil {
+            Label(language.localized("detail.watching"), systemImage: "eye.fill")
+                .foregroundStyle(.yellow)
+                .padding(.horizontal, 14)
+                .frame(height: 38)
+                .background(.thinMaterial, in: Capsule())
+        }
+    }
+
+    private var primaryPlaybackLabel: String {
+        switch model.item.kind {
+        case .movie:
+            if model.item.userState.played {
+                return language.localized("detail.replay")
+            }
+            if model.item.userState.progress > 0 {
+                return language.localized(
+                    "detail.continue",
+                    language.progressPercent(model.item.userState.progress)
+                )
+            }
+            return language.localized("detail.play")
+        case .series:
+            if let resume = model.seriesPlaybackState?.resume {
+                return language.localized(
+                    "detail.continue_episode",
+                    episodeDescriptor(resume),
+                    language.progressPercent(resume.userState.progress)
+                )
+            }
+            if let nextUp = model.seriesPlaybackState?.nextUp {
+                return language.localized("detail.play_episode", episodeDescriptor(nextUp))
+            }
+            if let firstEpisode = model.episodes.first {
+                return language.localized(
+                    "detail.play_episode",
+                    episodeDescriptor(firstEpisode)
+                )
+            }
+            return language.localized("detail.play")
+        }
+    }
+
+    private var shouldShowVersionButton: Bool {
+        switch model.item.kind {
+        case .movie:
+            model.item.userState.played || model.item.userState.progress <= 0
+        case .series:
+            false
+        }
+    }
+
+    private func episodeDescriptor(_ item: ContinueWatchingItem) -> String {
+        if let seasonNumber = item.seasonNumber,
+           let episodeNumber = item.episodeNumber {
+            return language.localized(
+                "episode.season_episode",
+                String(seasonNumber),
+                String(episodeNumber)
+            )
+        }
+        return item.subtitle ?? item.title
+    }
+
+    private func episodeDescriptor(_ episode: Episode) -> String {
+        let seasonNumber = model.seasons.first { $0.id == episode.seasonID }?.number
+        if let seasonNumber {
+            return language.localized(
+                "episode.season_episode",
+                String(seasonNumber),
+                String(episode.number)
+            )
+        }
+        return language.localized("episode.number", String(episode.number))
     }
 
     private func overview(_ synopsis: String) -> some View {
@@ -216,11 +403,18 @@ struct MediaDetailView: View {
                 Text(language.localized("detail.no_versions"))
                     .foregroundStyle(.secondary)
             } else {
-                ForEach(model.movieAssets) { asset in
-                    AssetRow(asset: asset) {
-                        presentMovieOptions(preferredAssetID: asset.id)
-                    }
-                }
+                InlineMovieVersionsView(
+                    context: PlaybackOptionsContext(
+                        item: PlayableItem(id: model.item.id, kind: .movie),
+                        title: model.item.title,
+                        artworkURL: model.heroBackdropURL ?? model.heroPosterURL,
+                        startPositionSeconds: model.item.userState.played
+                            ? 0
+                            : model.item.userState.positionSeconds,
+                        initialAssets: model.movieAssets
+                    ),
+                    playback: model.playback
+                )
             }
         }
         .padding(.horizontal, 40)
@@ -228,45 +422,122 @@ struct MediaDetailView: View {
 
     @ViewBuilder
     private var seriesContent: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack {
+        VStack(alignment: .leading, spacing: 22) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Text(language.localized("detail.episodes"))
                     .font(.title2.bold())
-                Spacer()
-                if !model.seasons.isEmpty {
-                    Picker(language.localized("detail.season"), selection: seasonSelection) {
-                        ForEach(model.seasons) { season in
-                            Text(season.title).tag(season.id)
-                        }
-                    }
-                    .labelsHidden()
-                    .frame(width: 220)
-                }
+                Text(
+                    language.localized(
+                        model.seasons.count == 1
+                            ? "detail.season_count_one"
+                            : "detail.season_count_many",
+                        String(model.seasons.count)
+                    )
+                )
+                .foregroundStyle(.secondary)
             }
 
-            if model.isLoadingEpisodes {
+            seasonStrip
+
+            if (model.isLoading && model.seasons.isEmpty) || model.isLoadingEpisodes {
                 ProgressView(language.localized("detail.loading_episodes"))
                     .frame(maxWidth: .infinity, minHeight: 180)
             } else {
+                episodeStrip
+
                 LazyVStack(spacing: 14) {
-                    ForEach(model.episodes) { episode in
+                    ForEach(visibleEpisodes) { episode in
                         EpisodeRow(episode: episode) {
                             presentEpisodeOptions(episode)
                         }
                     }
                 }
+
+                if model.episodes.count > Self.collapsedEpisodeCount {
+                    Button {
+                        showsAllEpisodes.toggle()
+                    } label: {
+                        Label(
+                            language.localized(
+                                showsAllEpisodes
+                                    ? "episode.show_less"
+                                    : "episode.show_more",
+                                String(model.episodes.count - Self.collapsedEpisodeCount)
+                            ),
+                            systemImage: showsAllEpisodes ? "chevron.up" : "chevron.down"
+                        )
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
+                }
             }
         }
         .padding(.horizontal, 40)
+        .onChange(of: model.selectedSeasonID) {
+            showsAllEpisodes = false
+        }
     }
 
-    private var seasonSelection: Binding<String> {
-        Binding(
-            get: { model.selectedSeasonID ?? model.seasons.first?.id ?? "" },
-            set: { seasonID in
-                Task { await model.selectSeason(seasonID) }
+    private static let collapsedEpisodeCount = 6
+
+    private var visibleEpisodes: [Episode] {
+        guard !showsAllEpisodes else { return model.episodes }
+        return Array(model.episodes.prefix(Self.collapsedEpisodeCount))
+    }
+
+    private var seasonStrip: some View {
+        ScrollView(.horizontal) {
+            LazyHStack(spacing: 12) {
+                ForEach(model.seasons) { season in
+                    SeasonPill(
+                        season: season,
+                        isSelected: model.selectedSeasonID == season.id
+                    ) {
+                        Task { await model.selectSeason(season.id) }
+                    }
+                }
             }
-        )
+            .padding(.vertical, 4)
+        }
+        .scrollIndicators(.hidden)
+    }
+
+    private var episodeStrip: some View {
+        ScrollView(.horizontal) {
+            LazyHStack(spacing: 10) {
+                ForEach(model.episodes) { episode in
+                    EpisodePill(
+                        episode: episode,
+                        isCurrent: model.seriesPlaybackState?.resume?.item.id == episode.id
+                    ) {
+                        presentEpisodeOptions(episode)
+                    }
+                }
+            }
+            .padding(.vertical, 4)
+        }
+        .scrollIndicators(.hidden)
+    }
+
+    private func presentPrimaryOptions() {
+        switch model.item.kind {
+        case .movie:
+            presentMovieOptions(preferredAssetID: nil)
+        case .series:
+            if let target = model.primarySeriesItem {
+                playbackOptions = PlaybackOptionsContext(
+                    item: target.item,
+                    title: target.title,
+                    subtitle: target.subtitle,
+                    artworkURL: target.thumbnailURL ?? target.posterURL ?? model.item.backdropURL,
+                    startPositionSeconds: target.userState.positionSeconds,
+                    seriesID: model.item.id
+                )
+            } else if let firstEpisode = model.episodes.first {
+                presentEpisodeOptions(firstEpisode)
+            }
+        }
     }
 
     private func presentMovieOptions(preferredAssetID: String?) {
@@ -274,7 +545,9 @@ struct MediaDetailView: View {
             item: PlayableItem(id: model.item.id, kind: .movie),
             title: model.item.title,
             artworkURL: model.item.backdropURL ?? model.item.posterURL,
-            startPositionSeconds: model.item.userState.positionSeconds,
+            startPositionSeconds: model.item.userState.played
+                ? 0
+                : model.item.userState.positionSeconds,
             initialAssets: model.movieAssets,
             preferredAssetID: preferredAssetID
         )
@@ -294,7 +567,10 @@ struct MediaDetailView: View {
                 .compactMap { $0 }
                 .joined(separator: " · "),
             artworkURL: episode.thumbnailURL ?? model.item.backdropURL,
-            startPositionSeconds: episode.userState.positionSeconds
+            startPositionSeconds: episode.userState.played
+                ? 0
+                : episode.userState.positionSeconds,
+            seriesID: model.item.id
         )
     }
 
@@ -342,6 +618,150 @@ struct MediaDetailView: View {
     }
 }
 
+private struct InlineMovieVersionsView: View {
+    @Environment(\.appLanguage) private var language
+    @State private var model: PlaybackOptionsModel
+
+    init(context: PlaybackOptionsContext, playback: PlaybackCoordinator) {
+        _model = State(
+            initialValue: PlaybackOptionsModel(
+                context: context,
+                playback: playback
+            )
+        )
+    }
+
+    var body: some View {
+        PlaybackVersionCards(model: model)
+            .alert(
+                "CineLark",
+                isPresented: Binding(
+                    get: { model.errorMessage != nil },
+                    set: { if !$0 { model.dismissError() } }
+                )
+            ) {
+                Button(language.localized("general.dismiss"), role: .cancel) {
+                    model.dismissError()
+                }
+            } message: {
+                Text(language.userFacingError(model.errorMessage))
+            }
+    }
+}
+
+private struct SeasonPill: View {
+    @Environment(\.appLanguage) private var language
+    let season: Season
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Text(season.title)
+                    .font(.headline)
+
+                if season.userState.played {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(isSelected ? .black.opacity(0.72) : .green)
+                } else if season.userState.progress > 0 {
+                    Circle()
+                        .fill(isSelected ? .black.opacity(0.72) : Color.accentColor)
+                        .frame(width: 7, height: 7)
+                }
+            }
+            .foregroundStyle(isSelected ? .black : .primary)
+            .padding(.horizontal, 22)
+            .frame(height: 48)
+            .background(
+                isSelected ? Color.accentColor : Color.white.opacity(0.065),
+                in: Capsule()
+            )
+            .overlay {
+                Capsule()
+                    .stroke(
+                        isSelected ? Color.accentColor : Color.white.opacity(0.14),
+                        lineWidth: 1
+                    )
+                    .allowsHitTesting(false)
+            }
+        }
+        .buttonStyle(CineLarkPressButtonStyle())
+        .accessibilityLabel(season.title)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
+private struct EpisodePill: View {
+    @Environment(\.appLanguage) private var language
+    let episode: Episode
+    let isCurrent: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(String(episode.number))
+                .font(.headline.monospacedDigit())
+                .foregroundStyle(isCurrent ? .black : .primary)
+                .frame(width: 56, height: 48)
+                .background(
+                    isCurrent ? Color.accentColor : Color.white.opacity(0.065),
+                    in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(
+                            isCurrent ? Color.accentColor : Color.white.opacity(0.14),
+                            lineWidth: 1
+                        )
+                        .allowsHitTesting(false)
+                }
+                .overlay(alignment: .topTrailing) {
+                    if episode.userState.played {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.caption2)
+                            .foregroundStyle(isCurrent ? .black.opacity(0.72) : .green)
+                            .padding(4)
+                    } else if episode.userState.progress > 0 {
+                        Circle()
+                            .fill(isCurrent ? .black.opacity(0.72) : Color.accentColor)
+                            .frame(width: 7, height: 7)
+                            .padding(6)
+                    }
+                }
+                .overlay(alignment: .bottom) {
+                    if episode.userState.progress > 0 {
+                        ProgressView(
+                            value: episode.userState.played ? 1 : episode.userState.progress
+                        )
+                        .progressViewStyle(.linear)
+                        .tint(episode.userState.played ? .green : Color.accentColor)
+                        .padding(.horizontal, 7)
+                        .padding(.bottom, 4)
+                    }
+                }
+        }
+        .buttonStyle(CineLarkPressButtonStyle())
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var accessibilityLabel: String {
+        let number = language.localized("episode.number", String(episode.number))
+        if episode.userState.played {
+            return "\(number), \(language.localized("episode.watched"))"
+        }
+        if episode.userState.progress > 0 {
+            let progress = language.localized(
+                "episode.watched_progress",
+                language.progressPercent(episode.userState.progress),
+                language.playbackTimestamp(episode.userState.positionSeconds)
+            )
+            return "\(number), \(progress)"
+        }
+        return number
+    }
+}
+
 private struct EpisodeRow: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.appLanguage) private var language
@@ -377,6 +797,15 @@ private struct EpisodeRow: View {
                             .padding(8)
                         }
                     }
+                    .overlay(alignment: .bottom) {
+                        if episode.userState.progress > 0 {
+                            ProgressView(value: episode.userState.played ? 1 : episode.userState.progress)
+                                .progressViewStyle(.linear)
+                                .tint(episode.userState.played ? .green : Color.accentColor)
+                                .padding(.horizontal, 8)
+                                .padding(.bottom, 7)
+                        }
+                    }
 
                 VStack(alignment: .leading, spacing: 7) {
                     Text(language.localized("episode.number", String(episode.number)))
@@ -391,11 +820,24 @@ private struct EpisodeRow: View {
                             .lineLimit(2)
                             .help(synopsis)
                     }
-                    if episode.userState.progress > 0 && !episode.userState.played {
-                        ProgressView(value: episode.userState.progress)
-                            .progressViewStyle(.linear)
-                            .tint(Color.accentColor)
-                            .frame(maxWidth: 280)
+                    if episode.userState.played {
+                        Label(
+                            language.localized("episode.watched"),
+                            systemImage: "checkmark.circle.fill"
+                        )
+                        .font(.callout.weight(.semibold))
+                        .foregroundStyle(.green)
+                    } else if episode.userState.progress > 0 {
+                        Text(
+                            language.localized(
+                                "episode.watched_progress",
+                                language.progressPercent(episode.userState.progress),
+                                language.playbackTimestamp(episode.userState.positionSeconds)
+                            )
+                        )
+                        .font(.callout.weight(.semibold))
+                        .monospacedDigit()
+                        .foregroundStyle(.yellow)
                     }
                 }
 
@@ -436,13 +878,26 @@ private struct EpisodeRow: View {
             reduceMotion ? nil : .easeOut(duration: 0.12),
             value: isHovering
         )
-        .accessibilityLabel(
-            language.localized(
-                "episode.accessibility_label",
-                language.localized("episode.number", String(episode.number)),
-                episode.title
-            )
-        )
+        .accessibilityLabel(episodeAccessibilityLabel)
         .accessibilityHint(language.localized("episode.choose_hint"))
+    }
+
+    private var episodeAccessibilityLabel: String {
+        var label = language.localized(
+            "episode.accessibility_label",
+            language.localized("episode.number", String(episode.number)),
+            episode.title
+        )
+        if episode.userState.played {
+            label += ", \(language.localized("episode.watched"))"
+        } else if episode.userState.progress > 0 {
+            let progress = language.localized(
+                "episode.watched_progress",
+                language.progressPercent(episode.userState.progress),
+                language.playbackTimestamp(episode.userState.positionSeconds)
+            )
+            label += ", \(progress)"
+        }
+        return label
     }
 }

@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import CineLarkDomain
 
@@ -5,6 +6,9 @@ struct PlaybackOptionsView: View {
     @Environment(\.appLanguage) private var language
     @Environment(\.dismiss) private var dismiss
     @State private var model: PlaybackOptionsModel
+    @State private var bodyContentHeight: CGFloat = 220
+
+    private static let heroHeight: CGFloat = 260
 
     init(context: PlaybackOptionsContext, playback: PlaybackCoordinator) {
         _model = State(
@@ -19,24 +23,26 @@ struct PlaybackOptionsView: View {
         VStack(spacing: 0) {
             hero
 
-            Group {
-                if model.isLoading && model.assets.isEmpty {
-                    ProgressView(language.localized("playback.loading"))
-                        .controlSize(.large)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if model.assets.isEmpty {
-                    ContentUnavailableView(
-                        language.localized("playback.none"),
-                        systemImage: "film.stack",
-                        description: Text(language.localized("playback.none_description"))
-                    )
-                } else {
-                    versionContent
-                }
+            ScrollView {
+                bodyContent
+                    .background {
+                        GeometryReader { geometry in
+                            Color.clear.preference(
+                                key: PlaybackOptionsContentHeightKey.self,
+                                value: geometry.size.height
+                            )
+                        }
+                    }
             }
+            .scrollIndicators(.visible)
         }
-        .frame(minWidth: 760, idealWidth: 840, minHeight: 680, idealHeight: 820)
+        .frame(minWidth: 760, idealWidth: 840, maxWidth: 900)
+        .frame(height: dialogHeight)
         .background(Color(nsColor: .windowBackgroundColor))
+        .onPreferenceChange(PlaybackOptionsContentHeightKey.self) { height in
+            guard height > 0 else { return }
+            bodyContentHeight = height
+        }
         .task {
             await model.load()
         }
@@ -53,11 +59,38 @@ struct PlaybackOptionsView: View {
         }
     }
 
+    @ViewBuilder
+    private var bodyContent: some View {
+        if model.isLoading && model.assets.isEmpty {
+            ProgressView(language.localized("playback.loading"))
+                .controlSize(.large)
+                .frame(maxWidth: .infinity, minHeight: 200)
+        } else if model.assets.isEmpty {
+            ContentUnavailableView(
+                language.localized("playback.none"),
+                systemImage: "film.stack",
+                description: Text(language.localized("playback.none_description"))
+            )
+            .frame(maxWidth: .infinity, minHeight: 220)
+        } else {
+            versionContent
+        }
+    }
+
+    private var dialogHeight: CGFloat {
+        min(Self.heroHeight + bodyContentHeight, maximumDialogHeight)
+    }
+
+    private var maximumDialogHeight: CGFloat {
+        let availableHeight = NSScreen.main?.visibleFrame.height ?? 900
+        return max(480, min(900, availableHeight - 80))
+    }
+
     private var hero: some View {
         ZStack(alignment: .bottomLeading) {
             ArtworkView(url: model.context.artworkURL)
                 .frame(maxWidth: .infinity)
-                .frame(height: 260)
+                .frame(height: Self.heroHeight)
                 .clipped()
                 .overlay {
                     Rectangle()
@@ -90,7 +123,7 @@ struct PlaybackOptionsView: View {
             }
             .padding(28)
         }
-        .frame(height: 260)
+        .frame(height: Self.heroHeight)
         .overlay(alignment: .topTrailing) {
             Button {
                 dismiss()
@@ -119,94 +152,78 @@ struct PlaybackOptionsView: View {
                     .foregroundStyle(.secondary)
             }
 
-            ScrollView {
-                LazyVStack(spacing: 12) {
-                    ForEach(model.assets) { asset in
-                        VersionCard(
-                            asset: asset,
-                            isSelected: model.selectedAssetID == asset.id,
-                            isExpanded: model.expandedAssetID == asset.id,
-                            isResolvingLink: model.resolvingLinkAssetID == asset.id,
-                            didCopyLink: model.copiedLinkAssetID == asset.id,
-                            onSelect: { model.select(asset) },
-                            onToggleDetails: { model.toggleDetails(for: asset) },
-                            onCopyPlayback: {
-                                Task { await model.copyPlaybackLink(for: asset) }
-                            },
-                            onCopyDownload: {
-                                Task { await model.copyDownloadLink(for: asset) }
-                            },
-                            onOpenDownload: {
-                                Task { await model.openDownload(for: asset) }
-                            }
-                        )
-                    }
-                }
+            PlaybackVersionCards(model: model) {
+                dismiss()
             }
-            .scrollIndicators(.visible)
-
-            HStack {
-                Label(
-                    language.localized("playback.download_notice"),
-                    systemImage: "lock.shield"
-                )
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                Spacer()
-            }
-
-            Button {
-                Task {
-                    if await model.playSelected() {
-                        dismiss()
-                    }
-                }
-            } label: {
-                HStack(spacing: 10) {
-                    if model.isPlaying {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        Image(systemName: "play.fill")
-                    }
-                    Text(language.localized("playback.play"))
-                    if let selectedAsset = model.selectedAsset {
-                        Text("· \(selectedAsset.displayName)")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .disabled(model.selectedAsset == nil || model.isPlaying)
         }
         .padding(24)
     }
 }
 
-private struct VersionCard: View {
+private struct PlaybackOptionsContentHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
+struct PlaybackVersionCards: View {
+    @Bindable var model: PlaybackOptionsModel
+    var onPlayed: (() -> Void)?
+
+    var body: some View {
+        VStack(spacing: 12) {
+            ForEach(model.assets) { asset in
+                PlaybackVersionCard(
+                    asset: asset,
+                    isExpanded: model.expandedAssetID == asset.id,
+                    isPlaying: model.playingAssetID == asset.id,
+                    isResolvingLink: model.resolvingLinkAssetID == asset.id,
+                    didCopyLink: model.copiedLinkAssetID == asset.id,
+                    onPlay: {
+                        Task {
+                            if await model.play(asset) {
+                                onPlayed?()
+                            }
+                        }
+                    },
+                    onToggleDetails: { model.toggleDetails(for: asset) },
+                    onCopyPlayback: {
+                        Task { await model.copyPlaybackLink(for: asset) }
+                    },
+                    onCopyDownload: {
+                        Task { await model.copyDownloadLink(for: asset) }
+                    },
+                    onOpenDownload: {
+                        Task { await model.openDownload(for: asset) }
+                    }
+                )
+            }
+        }
+    }
+}
+
+struct PlaybackVersionCard: View {
     @Environment(\.appLanguage) private var language
     let asset: MediaAsset
-    let isSelected: Bool
     let isExpanded: Bool
+    let isPlaying: Bool
     let isResolvingLink: Bool
     let didCopyLink: Bool
-    let onSelect: () -> Void
+    let onPlay: () -> Void
     let onToggleDetails: () -> Void
     let onCopyPlayback: () -> Void
     let onCopyDownload: () -> Void
     let onOpenDownload: () -> Void
 
+    @State private var isHovering = false
+
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 8) {
-                Button(action: onSelect) {
-                    HStack(spacing: 14) {
-                        Image(systemName: isSelected ? "record.circle.fill" : "circle")
-                            .foregroundStyle(isSelected ? Color.accentColor : .secondary)
-                            .font(.title3)
-
+            HStack(spacing: 10) {
+                Button(action: onPlay) {
+                    HStack(spacing: 16) {
                         VStack(alignment: .leading, spacing: 7) {
                             Text(asset.displayName)
                                 .font(.headline)
@@ -223,72 +240,55 @@ private struct VersionCard: View {
                                 if let duration = asset.durationSeconds {
                                     Text(language.duration(duration))
                                 }
+                                Text(
+                                    language.localized(
+                                        "asset.audio_count",
+                                        String(asset.audioTracks.count)
+                                    )
+                                )
+                                Text(
+                                    language.localized(
+                                        "asset.subtitle_count",
+                                        String(asset.subtitleTracks.count)
+                                    )
+                                )
                             }
                             .font(.caption)
                             .monospacedDigit()
                             .foregroundStyle(.secondary)
                         }
 
-                        Spacer(minLength: 8)
+                        Spacer(minLength: 12)
+
+                        HStack(spacing: 8) {
+                            if isPlaying {
+                                ProgressView().controlSize(.small)
+                            } else {
+                                Image(systemName: "play.fill")
+                            }
+                            Text(language.localized("playback.play"))
+                        }
+                        .font(.callout.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 17)
+                        .frame(height: 38)
+                        .background(Color.accentColor, in: Capsule())
                     }
-                    .padding(.leading, 16)
-                    .padding(.vertical, 16)
+                    .padding(.leading, 18)
+                    .padding(.vertical, 15)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(CineLarkPressButtonStyle())
-                .accessibilityLabel(asset.displayName)
-                .accessibilityValue(
-                    language.localized(
-                        isSelected ? "general.selected" : "general.not_selected"
-                    )
+                .disabled(isPlaying)
+                .accessibilityLabel(
+                    language.localized("playback.play_version", asset.displayName)
                 )
-                .accessibilityHint(language.localized("playback.select_hint"))
-
-                Menu {
-                    Button(action: onCopyPlayback) {
-                        Label(
-                            language.localized("playback.copy_playback"),
-                            systemImage: "doc.on.doc"
-                        )
-                    }
-                    Button(action: onCopyDownload) {
-                        Label(
-                            language.localized("playback.copy_download"),
-                            systemImage: "link"
-                        )
-                    }
-                    .disabled(asset.downloadPath == nil)
-                    Divider()
-                    Button(action: onOpenDownload) {
-                        Label(
-                            language.localized("playback.open_download"),
-                            systemImage: "arrow.down.circle"
-                        )
-                    }
-                    .disabled(asset.downloadPath == nil)
-                } label: {
-                    Group {
-                        if isResolvingLink {
-                            ProgressView().controlSize(.small)
-                        } else {
-                            Image(systemName: didCopyLink ? "checkmark" : "doc.on.doc")
-                        }
-                    }
-                    .frame(width: 40, height: 40)
-                    .cineLarkHoverSurface(cornerRadius: 10)
-                }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
-                .fixedSize()
-                .disabled(isResolvingLink)
-                .accessibilityLabel(language.localized("playback.link_help"))
-                .help(language.localized("playback.link_help"))
 
                 Button(action: onToggleDetails) {
                     Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                        .frame(width: 40, height: 40)
-                        .cineLarkHoverSurface(cornerRadius: 10)
+                        .frame(width: 42, height: 42)
+                        .cineLarkHoverSurface(cornerRadius: 11)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(
@@ -315,16 +315,18 @@ private struct VersionCard: View {
             }
         }
         .background(
-            isSelected ? Color.accentColor.opacity(0.12) : Color.white.opacity(0.04),
+            isHovering ? Color.accentColor.opacity(0.10) : Color.white.opacity(0.04),
             in: RoundedRectangle(cornerRadius: 16, style: .continuous)
         )
         .overlay {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(
-                    isSelected ? Color.accentColor.opacity(0.8) : Color.white.opacity(0.10),
-                    lineWidth: isSelected ? 1.5 : 1
+                    isHovering ? Color.accentColor.opacity(0.65) : Color.white.opacity(0.10),
+                    lineWidth: isHovering ? 1.5 : 1
                 )
         }
+        .onHover { isHovering = $0 }
+        .animation(.easeOut(duration: 0.12), value: isHovering)
     }
 
     private var versionDetails: some View {
@@ -404,6 +406,43 @@ private struct VersionCard: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             }
+
+            Divider()
+
+            HStack(spacing: 10) {
+                Button(action: onCopyPlayback) {
+                    Label(
+                        language.localized("playback.copy_playback"),
+                        systemImage: didCopyLink ? "checkmark" : "doc.on.doc"
+                    )
+                }
+                Button(action: onCopyDownload) {
+                    Label(
+                        language.localized("playback.copy_download"),
+                        systemImage: "link"
+                    )
+                }
+                .disabled(asset.downloadPath == nil)
+                Button(action: onOpenDownload) {
+                    Label(
+                        language.localized("playback.open_download"),
+                        systemImage: "arrow.down.circle"
+                    )
+                }
+                .disabled(asset.downloadPath == nil)
+                if isResolvingLink {
+                    ProgressView().controlSize(.small)
+                }
+            }
+            .buttonStyle(.bordered)
+            .disabled(isResolvingLink)
+
+            Label(
+                language.localized("playback.download_notice"),
+                systemImage: "lock.shield"
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
     }
 

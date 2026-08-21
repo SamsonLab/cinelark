@@ -43,6 +43,7 @@ public protocol MediaLibraryProvider: Sendable {
     func playbackURL(for asset: MediaAsset) async throws -> URL
     func downloadURL(for asset: MediaAsset) async throws -> URL
     func playbackShelf(limit: Int) async throws -> PlaybackShelf
+    func playbackState(seriesID: String) async throws -> SeriesPlaybackState
 
     func reportProgress(_ update: PlaybackUpdate) async throws -> UserPlaybackState
     func reportStopped(_ update: PlaybackUpdate) async throws -> UserPlaybackState

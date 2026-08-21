@@ -475,6 +475,9 @@ public struct ContinueWatchingItem: Codable, Sendable, Hashable, Identifiable {
     public let posterURL: URL?
     public let thumbnailURL: URL?
     public let durationSeconds: Double?
+    public let seasonID: String?
+    public let seasonNumber: Int?
+    public let episodeNumber: Int?
     public let userState: UserPlaybackState
 
     public init(
@@ -486,6 +489,9 @@ public struct ContinueWatchingItem: Codable, Sendable, Hashable, Identifiable {
         posterURL: URL?,
         thumbnailURL: URL?,
         durationSeconds: Double?,
+        seasonID: String? = nil,
+        seasonNumber: Int? = nil,
+        episodeNumber: Int? = nil,
         userState: UserPlaybackState
     ) {
         self.id = id
@@ -496,6 +502,9 @@ public struct ContinueWatchingItem: Codable, Sendable, Hashable, Identifiable {
         self.posterURL = posterURL
         self.thumbnailURL = thumbnailURL
         self.durationSeconds = durationSeconds
+        self.seasonID = seasonID
+        self.seasonNumber = seasonNumber
+        self.episodeNumber = episodeNumber
         self.userState = userState
     }
 }
@@ -510,15 +519,36 @@ public struct PlaybackShelf: Codable, Sendable {
     }
 }
 
+public struct SeriesPlaybackState: Codable, Sendable, Hashable {
+    public let resume: ContinueWatchingItem?
+    public let nextUp: ContinueWatchingItem?
+
+    public init(resume: ContinueWatchingItem?, nextUp: ContinueWatchingItem?) {
+        self.resume = resume
+        self.nextUp = nextUp
+    }
+
+    public var primaryItem: ContinueWatchingItem? {
+        resume ?? nextUp
+    }
+}
+
 public struct PlaybackUpdate: Sendable {
     public let item: PlayableItem
     public let assetID: String
     public let positionSeconds: Double
+    public let seriesID: String?
 
-    public init(item: PlayableItem, assetID: String, positionSeconds: Double) {
+    public init(
+        item: PlayableItem,
+        assetID: String,
+        positionSeconds: Double,
+        seriesID: String? = nil
+    ) {
         self.item = item
         self.assetID = assetID
         self.positionSeconds = max(positionSeconds, 0)
+        self.seriesID = seriesID
     }
 }
 

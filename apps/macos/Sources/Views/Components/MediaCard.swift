@@ -1,17 +1,34 @@
 import SwiftUI
 import CineLarkDomain
 
+struct MediaDetailRoute: Hashable {
+    let item: MediaSummary
+    let transitionID: UUID
+}
+
 struct MediaCard: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.appLanguage) private var language
+    @Environment(\.mediaTransitionNamespace) private var transitionNamespace
     let item: MediaSummary
+    let transitionID: UUID?
     @State private var isHovering = false
+
+    init(item: MediaSummary, transitionID: UUID? = nil) {
+        self.item = item
+        self.transitionID = transitionID
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             ArtworkView(url: item.posterURL)
                 .frame(width: 178, height: 267)
                 .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+                .mediaMatchedGeometry(
+                    id: transitionID,
+                    namespace: transitionNamespace,
+                    isSource: true
+                )
                 .overlay(alignment: .bottom) {
                     if item.userState.progress > 0 && !item.userState.played {
                         ProgressView(value: item.userState.progress)
@@ -21,13 +38,23 @@ struct MediaCard: View {
                     }
                 }
                 .overlay(alignment: .topTrailing) {
-                    if item.userState.favorite == true {
-                        Image(systemName: "heart.fill")
-                            .foregroundStyle(.orange)
-                            .padding(9)
-                            .background(.ultraThinMaterial, in: Circle())
-                            .padding(8)
+                    VStack(spacing: 6) {
+                        if item.userState.favorite == true {
+                            Image(systemName: "heart.fill")
+                                .foregroundStyle(.orange)
+                                .padding(9)
+                                .background(.ultraThinMaterial, in: Circle())
+                                .accessibilityLabel(language.localized("detail.favorite"))
+                        }
+                        if item.userState.played {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                                .padding(9)
+                                .background(.ultraThinMaterial, in: Circle())
+                                .accessibilityLabel(language.localized("detail.watched"))
+                        }
                     }
+                    .padding(8)
                 }
                 .overlay {
                     RoundedRectangle(cornerRadius: 13, style: .continuous)
@@ -84,6 +111,20 @@ struct MediaCard: View {
     }
 }
 
+private struct MediaNavigationLink: View {
+    let item: MediaSummary
+    @State private var transitionID = UUID()
+
+    var body: some View {
+        NavigationLink(
+            value: MediaDetailRoute(item: item, transitionID: transitionID)
+        ) {
+            MediaCard(item: item, transitionID: transitionID)
+        }
+        .buttonStyle(CineLarkPressButtonStyle())
+    }
+}
+
 struct MediaShelf: View {
     @Environment(\.appLanguage) private var language
     let title: String
@@ -131,10 +172,7 @@ struct MediaShelf: View {
             ScrollView(.horizontal) {
                 LazyHStack(alignment: .top, spacing: 22) {
                     ForEach(items) { item in
-                        NavigationLink(value: item) {
-                            MediaCard(item: item)
-                        }
-                        .buttonStyle(CineLarkPressButtonStyle())
+                        MediaNavigationLink(item: item)
                     }
                 }
                 .padding(.horizontal, 10)
@@ -173,14 +211,11 @@ struct MediaGrid: View {
             VStack(spacing: 0) {
                 LazyVGrid(columns: columns, alignment: .leading, spacing: 32) {
                     ForEach(items) { item in
-                        NavigationLink(value: item) {
-                            MediaCard(item: item)
-                        }
-                        .buttonStyle(CineLarkPressButtonStyle())
-                        .task(id: item.id == loadMoreTriggerID) {
-                            guard item.id == loadMoreTriggerID else { return }
-                            await onLoadMore?()
-                        }
+                        MediaNavigationLink(item: item)
+                            .task(id: item.id == loadMoreTriggerID) {
+                                guard item.id == loadMoreTriggerID else { return }
+                                await onLoadMore?()
+                            }
                     }
                 }
                 .padding(32)

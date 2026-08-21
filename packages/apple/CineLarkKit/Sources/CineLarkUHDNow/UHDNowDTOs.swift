@@ -245,6 +245,27 @@ struct PlaybackShelvesDTO: Decodable {
     let nextUp: [PlaybackGroupDTO]
 }
 
+struct SeriesPlaybackStateDTO: Decodable {
+    let resume: SeriesPlaybackItemDTO?
+    let nextUp: SeriesPlaybackItemDTO?
+}
+
+struct SeriesPlaybackItemDTO: Decodable {
+    let id: String?
+    let itemType: String?
+    let itemId: String?
+    let mediaId: String?
+    let title: String?
+    let subtitle: String?
+    let posterPath: String?
+    let thumbPath: String?
+    let duration: Double?
+    let seasonId: String?
+    let seasonNumber: Int?
+    let episodeNumber: Int?
+    let userState: UserStateDTO?
+}
+
 struct PlaybackUpdateRequest: Encodable {
     let assetId: String
     let itemId: String

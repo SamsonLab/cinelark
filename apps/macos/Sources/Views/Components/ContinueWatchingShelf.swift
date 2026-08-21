@@ -13,16 +13,13 @@ struct ContinueWatchingShelf: View {
             ScrollView(.horizontal) {
                 LazyHStack(alignment: .top, spacing: 20) {
                     ForEach(model.continueWatching) { item in
-                        Button {
+                        ContinueWatchingCard(
+                            item: item,
+                            isPlaying: model.playingItemID == item.id,
+                            isPlaybackDisabled: model.playingItemID != nil
+                        ) {
                             Task { await model.play(item) }
-                        } label: {
-                            ContinueWatchingCard(
-                                item: item,
-                                isPlaying: model.playingItemID == item.id
-                            )
                         }
-                        .buttonStyle(CineLarkPressButtonStyle())
-                        .disabled(model.playingItemID != nil)
                     }
                 }
                 .padding(.horizontal, 10)
@@ -36,70 +33,134 @@ struct ContinueWatchingShelf: View {
 
 private struct ContinueWatchingCard: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.appLanguage) private var language
     let item: ContinueWatchingItem
     let isPlaying: Bool
-    @State private var isHovering = false
+    let isPlaybackDisabled: Bool
+    let play: () -> Void
+    @State private var isArtworkHovering = false
+    @State private var isTextHovering = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            ZStack {
-                ArtworkView(url: item.thumbnailURL ?? item.posterURL)
-                    .frame(width: 300, height: 169)
-                    .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 13, style: .continuous)
-                            .stroke(Color.white.opacity(0.10))
-                            .allowsHitTesting(false)
-                    }
-                    .shadow(
-                        color: .black.opacity(isHovering ? 0.42 : 0.24),
-                        radius: isHovering ? 18 : 12,
-                        y: isHovering ? 9 : 6
-                    )
+            Button(action: play) {
+                artwork
+            }
+            .buttonStyle(CineLarkPressButtonStyle())
+            .disabled(isPlaybackDisabled)
+            .accessibilityLabel(
+                language.localized("home.continue_playback", item.title)
+            )
 
-                Circle()
-                    .fill(
-                        isHovering
-                            ? Color.accentColor.opacity(0.88)
-                            : Color.black.opacity(0.68)
-                    )
-                    .frame(width: 54, height: 54)
-                    .overlay {
-                        if isPlaying {
-                            ProgressView()
-                        } else {
-                            Image(systemName: "play.fill")
-                                .font(.title2)
-                                .offset(x: 2)
-                        }
-                    }
-            }
-            .overlay(alignment: .bottom) {
-                ProgressView(value: item.userState.progress)
-                    .progressViewStyle(.linear)
-                    .tint(Color.accentColor)
-                    .padding(8)
-            }
+            NavigationLink(value: detailItem) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(item.title)
+                        .font(.headline)
+                        .foregroundStyle(isTextHovering ? Color.accentColor : .primary)
+                        .lineLimit(1)
+                        .help(item.title)
 
-            Text(item.title)
-                .font(.headline)
-                .lineLimit(1)
-                .frame(width: 300, alignment: .leading)
-                .help(item.title)
-            if let subtitle = item.subtitle {
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    if let subtitle = item.subtitle {
+                        Text(subtitle)
+                            .font(.caption)
+                            .foregroundStyle(isTextHovering ? Color.accentColor.opacity(0.85) : .secondary)
+                            .lineLimit(1)
+                    }
+                }
+                .frame(width: 300, alignment: .topLeading)
+                .frame(minHeight: 36, alignment: .topLeading)
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .onHover { isTextHovering = $0 }
+            .animation(
+                reduceMotion ? nil : .easeOut(duration: 0.12),
+                value: isTextHovering
+            )
+            .accessibilityLabel(
+                [item.title, item.subtitle]
+                    .compactMap { $0 }
+                    .joined(separator: ", ")
+            )
+            .accessibilityHint(language.localized("home.open_details"))
         }
-        .contentShape(Rectangle())
-        .scaleEffect(isHovering && !reduceMotion ? 1.008 : 1)
-        .offset(y: isHovering && !reduceMotion ? -1 : 0)
-        .onHover { isHovering = $0 }
+    }
+
+    private var artwork: some View {
+        ZStack {
+            ArtworkView(url: item.thumbnailURL ?? item.posterURL)
+                .frame(width: 300, height: 169)
+                .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 13, style: .continuous)
+                        .stroke(
+                            isArtworkHovering
+                                ? Color.accentColor.opacity(0.70)
+                                : Color.white.opacity(0.10),
+                            lineWidth: isArtworkHovering ? 1.5 : 1
+                        )
+                        .allowsHitTesting(false)
+                }
+                .shadow(
+                    color: .black.opacity(isArtworkHovering ? 0.42 : 0.24),
+                    radius: isArtworkHovering ? 18 : 12,
+                    y: isArtworkHovering ? 9 : 6
+                )
+
+            Circle()
+                .fill(
+                    isArtworkHovering
+                        ? Color.accentColor.opacity(0.88)
+                        : Color.black.opacity(0.68)
+                )
+                .frame(width: 54, height: 54)
+                .overlay {
+                    if isPlaying {
+                        ProgressView()
+                    } else {
+                        Image(systemName: "play.fill")
+                            .font(.title2)
+                            .offset(x: 2)
+                    }
+                }
+        }
+        .overlay(alignment: .bottom) {
+            ProgressView(value: item.userState.progress)
+                .progressViewStyle(.linear)
+                .tint(Color.accentColor)
+                .padding(8)
+        }
+        .contentShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+        .scaleEffect(isArtworkHovering && !reduceMotion ? 1.008 : 1)
+        .offset(y: isArtworkHovering && !reduceMotion ? -1 : 0)
+        .onHover { isArtworkHovering = $0 }
         .animation(
             reduceMotion ? nil : .easeOut(duration: 0.12),
-            value: isHovering
+            value: isArtworkHovering
         )
+    }
+
+    private var detailItem: MediaSummary {
+        switch item.item.kind {
+        case .movie:
+            MediaSummary(
+                id: item.item.id,
+                kind: .movie,
+                title: item.title,
+                durationSeconds: item.durationSeconds,
+                posterURL: item.posterURL,
+                backdropURL: item.thumbnailURL,
+                userState: item.userState
+            )
+        case .episode:
+            MediaSummary(
+                id: item.mediaID,
+                kind: .series,
+                title: item.title,
+                posterURL: item.posterURL,
+                backdropURL: item.thumbnailURL,
+                userState: item.userState
+            )
+        }
     }
 }

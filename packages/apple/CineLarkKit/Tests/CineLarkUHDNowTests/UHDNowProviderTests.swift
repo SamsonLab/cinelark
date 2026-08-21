@@ -478,6 +478,69 @@ struct UHDNowProviderTests {
         #expect(requests.count == 2)
     }
 
+    @Test("series playback state maps resume and next-up episode shapes")
+    func seriesPlaybackState() async throws {
+        let session = ProviderSession(
+            token: "synthetic-token",
+            expiresAt: Date(timeIntervalSince1970: 4_102_444_800)
+        )
+        let transport = StubTransport([
+            .json("""
+            {
+              "ok": true,
+              "data": {
+                "resume": {
+                  "item_type": "episode",
+                  "item_id": "episode-1",
+                  "media_id": "series-1",
+                  "title": "Synthetic Episode One",
+                  "subtitle": "S1 E1",
+                  "season_id": "season-1",
+                  "season_number": 1,
+                  "episode_number": 1,
+                  "duration": 2400,
+                  "user_state": {
+                    "played": false,
+                    "position_ticks": 12000000000,
+                    "progress_pct": 50
+                  }
+                },
+                "next_up": {
+                  "id": "episode-2",
+                  "media_id": "series-1",
+                  "season_id": "season-1",
+                  "season_number": 1,
+                  "episode_number": 2,
+                  "title": "Synthetic Episode Two",
+                  "duration": 2500,
+                  "user_state": {
+                    "played": false,
+                    "position_ticks": 0,
+                    "progress_pct": 0
+                  }
+                }
+              }
+            }
+            """)
+        ])
+        let provider = UHDNowProvider(
+            sessionStore: MemorySessionStore(session: session),
+            transport: transport
+        )
+        _ = try await provider.restoreSession()
+
+        let state = try await provider.playbackState(seriesID: "series-1")
+
+        #expect(state.resume?.item.id == "episode-1")
+        #expect(state.resume?.userState.positionSeconds == 1200)
+        #expect(state.resume?.userState.progress == 0.5)
+        #expect(state.resume?.seasonNumber == 1)
+        #expect(state.nextUp?.item.id == "episode-2")
+        #expect(state.nextUp?.episodeNumber == 2)
+        let request = try #require(await transport.requests.first)
+        #expect(request.url?.path == "/api/v1/stream/tv/series-1/playback-state")
+    }
+
     @Test("seconds and UHDNow ticks round trip")
     func ticksRoundTrip() {
         let ticks = UHDNowTime.ticks(fromSeconds: 123.5)

@@ -44,6 +44,21 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         return localized("duration.minutes", String(minutes))
     }
 
+    func playbackTimestamp(_ seconds: Double) -> String {
+        let totalSeconds = max(Int(seconds), 0)
+        let hours = totalSeconds / 3600
+        let minutes = (totalSeconds % 3600) / 60
+        let seconds = totalSeconds % 60
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+        }
+        return String(format: "%d:%02d", minutes, seconds)
+    }
+
+    func progressPercent(_ progress: Double) -> String {
+        "\(Int((min(max(progress, 0), 1) * 100).rounded()))%"
+    }
+
     func userFacingError(_ message: String?) -> String {
         guard let message, !message.isEmpty else {
             return localized("error.generic")

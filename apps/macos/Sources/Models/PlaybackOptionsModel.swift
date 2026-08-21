@@ -10,6 +10,7 @@ struct PlaybackOptionsContext: Identifiable, Sendable {
     let subtitle: String?
     let artworkURL: URL?
     let startPositionSeconds: Double
+    let seriesID: String?
     let initialAssets: [MediaAsset]
     let preferredAssetID: String?
 
@@ -19,6 +20,7 @@ struct PlaybackOptionsContext: Identifiable, Sendable {
         subtitle: String? = nil,
         artworkURL: URL? = nil,
         startPositionSeconds: Double = 0,
+        seriesID: String? = nil,
         initialAssets: [MediaAsset] = [],
         preferredAssetID: String? = nil
     ) {
@@ -27,6 +29,7 @@ struct PlaybackOptionsContext: Identifiable, Sendable {
         self.subtitle = subtitle
         self.artworkURL = artworkURL
         self.startPositionSeconds = max(startPositionSeconds, 0)
+        self.seriesID = seriesID
         self.initialAssets = initialAssets
         self.preferredAssetID = preferredAssetID
     }
@@ -37,10 +40,9 @@ struct PlaybackOptionsContext: Identifiable, Sendable {
 final class PlaybackOptionsModel {
     let context: PlaybackOptionsContext
     private(set) var assets: [MediaAsset]
-    private(set) var selectedAssetID: String?
     private(set) var expandedAssetID: String?
     private(set) var isLoading = false
-    private(set) var isPlaying = false
+    private(set) var playingAssetID: String?
     private(set) var resolvingLinkAssetID: String?
     private(set) var copiedLinkAssetID: String?
     var errorMessage: String?
@@ -51,13 +53,6 @@ final class PlaybackOptionsModel {
         self.context = context
         self.playback = playback
         self.assets = context.initialAssets
-        self.selectedAssetID = context.initialAssets.first {
-            $0.id == context.preferredAssetID
-        }?.id ?? context.initialAssets.first?.id
-    }
-
-    var selectedAsset: MediaAsset? {
-        assets.first { $0.id == selectedAssetID }
     }
 
     func load() async {
@@ -68,7 +63,6 @@ final class PlaybackOptionsModel {
             let loadedAssets = try await playback.assets(for: context.item)
             guard !Task.isCancelled else { return }
             assets = loadedAssets
-            selectedAssetID = loadedAssets.first?.id
         } catch is CancellationError {
             return
         } catch {
@@ -76,24 +70,21 @@ final class PlaybackOptionsModel {
         }
     }
 
-    func select(_ asset: MediaAsset) {
-        selectedAssetID = asset.id
-    }
-
     func toggleDetails(for asset: MediaAsset) {
         expandedAssetID = expandedAssetID == asset.id ? nil : asset.id
     }
 
-    func playSelected() async -> Bool {
-        guard let selectedAsset, !isPlaying else { return false }
-        isPlaying = true
-        defer { isPlaying = false }
+    func play(_ asset: MediaAsset) async -> Bool {
+        guard playingAssetID == nil else { return false }
+        playingAssetID = asset.id
+        defer { playingAssetID = nil }
         do {
             try await playback.play(
                 item: context.item,
-                asset: selectedAsset,
+                asset: asset,
                 title: context.title,
-                startPositionSeconds: context.startPositionSeconds
+                startPositionSeconds: context.startPositionSeconds,
+                seriesID: context.seriesID
             )
             return true
         } catch {

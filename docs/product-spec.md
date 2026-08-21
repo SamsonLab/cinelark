@@ -114,6 +114,7 @@ follow without changing the architecture.
 | Playback | Open tokenized URL through IINA Bridge | P0 |
 | Playback | Play/pause, seek, stop, duration, position, and state | P0 |
 | Playback | Audio and subtitle track inventory/selection | P0 |
+| Playback | Detail-level resume and automatic next episode after natural completion | P0 |
 | Sync | Periodic progress and terminal stopped reporting | P0 |
 | Favorites | Read, add, and remove movie/TV favorites | P1 |
 | People | Person detail, credits, and person favorites | P1 |

@@ -1,8 +1,10 @@
 import Foundation
+import Observation
 import OSLog
 import CineLarkDomain
 import CineLarkPlayback
 
+@Observable
 @MainActor
 final class PlaybackCoordinator {
     private static let logger = Logger(
@@ -11,21 +13,23 @@ final class PlaybackCoordinator {
     )
 
     var onStoppedReported: (@MainActor @Sendable () -> Void)?
+    private(set) var playbackStateRevision = 0
 
     private struct ActivePlayback {
         let playbackID: UUID
         let item: PlayableItem
         let assetID: String
+        let seriesID: String?
         var positionSeconds: Double
         var durationSeconds: Double
     }
 
-    private let provider: any MediaLibraryProvider
-    private let launcher: any PlaybackLaunching
-    private let progressReporter: PlaybackProgressReporter
-    private var activePlayback: ActivePlayback?
-    private var eventTask: Task<Void, Never>?
-    private var progressTask: Task<Void, Never>?
+    @ObservationIgnored private let provider: any MediaLibraryProvider
+    @ObservationIgnored private let launcher: any PlaybackLaunching
+    @ObservationIgnored private let progressReporter: PlaybackProgressReporter
+    @ObservationIgnored private var activePlayback: ActivePlayback?
+    @ObservationIgnored private var eventTask: Task<Void, Never>?
+    @ObservationIgnored private var progressTask: Task<Void, Never>?
 
     init(provider: any MediaLibraryProvider, launcher: any PlaybackLaunching) {
         self.provider = provider
@@ -46,7 +50,8 @@ final class PlaybackCoordinator {
     func playFirst(
         item: PlayableItem,
         title: String,
-        startPositionSeconds: Double = 0
+        startPositionSeconds: Double = 0,
+        seriesID: String? = nil
     ) async throws {
         guard let asset = try await assets(for: item).first else {
             throw ProviderError.notFound
@@ -55,7 +60,8 @@ final class PlaybackCoordinator {
             item: item,
             asset: asset,
             title: title,
-            startPositionSeconds: startPositionSeconds
+            startPositionSeconds: startPositionSeconds,
+            seriesID: seriesID
         )
     }
 
@@ -71,7 +77,8 @@ final class PlaybackCoordinator {
         item: PlayableItem,
         asset: MediaAsset,
         title: String,
-        startPositionSeconds: Double = 0
+        startPositionSeconds: Double = 0,
+        seriesID: String? = nil
     ) async throws {
         if activePlayback != nil {
             await stop()
@@ -86,6 +93,7 @@ final class PlaybackCoordinator {
             playbackID: descriptor.id,
             item: item,
             assetID: asset.id,
+            seriesID: seriesID,
             positionSeconds: descriptor.startPositionSeconds,
             durationSeconds: asset.durationSeconds ?? 0
         )
@@ -125,7 +133,13 @@ final class PlaybackCoordinator {
             if snapshot.state == .stopped {
                 await finalizeActivePlayback()
             }
-        case .ended(let playbackID, _), .closed(let playbackID, _):
+        case .ended(let playbackID, let reason):
+            guard activePlayback?.playbackID == playbackID else { return }
+            if let completedPlayback = await finalizeActivePlayback(),
+               reason == "eof" {
+                await playNextEpisode(after: completedPlayback)
+            }
+        case .closed(let playbackID, _):
             guard activePlayback?.playbackID == playbackID else { return }
             await finalizeActivePlayback()
         case .bridgeReady,
@@ -151,27 +165,51 @@ final class PlaybackCoordinator {
         let update = PlaybackUpdate(
             item: activePlayback.item,
             assetID: activePlayback.assetID,
-            positionSeconds: activePlayback.positionSeconds
+            positionSeconds: activePlayback.positionSeconds,
+            seriesID: activePlayback.seriesID
         )
         await progressReporter.reportProgress(update)
     }
 
-    private func finalizeActivePlayback() async {
+    @discardableResult
+    private func finalizeActivePlayback() async -> ActivePlayback? {
         progressTask?.cancel()
         progressTask = nil
-        guard let activePlayback else { return }
+        guard let activePlayback else { return nil }
         self.activePlayback = nil
         let update = PlaybackUpdate(
             item: activePlayback.item,
             assetID: activePlayback.assetID,
-            positionSeconds: activePlayback.positionSeconds
+            positionSeconds: activePlayback.positionSeconds,
+            seriesID: activePlayback.seriesID
         )
         do {
             try await progressReporter.reportStopped(update)
+            playbackStateRevision &+= 1
             Self.logger.info("Stopped playback state reported successfully")
             onStoppedReported?()
         } catch {
             Self.logger.error("Stopped playback state report failed")
+        }
+        return activePlayback
+    }
+
+    private func playNextEpisode(after completedPlayback: ActivePlayback) async {
+        guard let seriesID = completedPlayback.seriesID else { return }
+        do {
+            let state = try await provider.playbackState(seriesID: seriesID)
+            guard let nextEpisode = state.nextUp,
+                  nextEpisode.item.id != completedPlayback.item.id else {
+                return
+            }
+            try await playFirst(
+                item: nextEpisode.item,
+                title: nextEpisode.title,
+                startPositionSeconds: nextEpisode.userState.positionSeconds,
+                seriesID: seriesID
+            )
+        } catch {
+            Self.logger.error("Automatic next episode failed")
         }
     }
 }

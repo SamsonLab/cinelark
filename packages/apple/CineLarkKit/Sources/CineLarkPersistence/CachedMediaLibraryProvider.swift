@@ -14,6 +14,7 @@ public struct MediaMetadataCachePolicy: Sendable, Equatable {
     public let favoritesTimeToLive: TimeInterval
     public let assetsTimeToLive: TimeInterval
     public let playbackShelfTimeToLive: TimeInterval
+    public let seriesPlaybackStateTimeToLive: TimeInterval
 
     public init(
         hotTimeToLive: TimeInterval = 15 * 60,
@@ -27,7 +28,8 @@ public struct MediaMetadataCachePolicy: Sendable, Equatable {
         personWorksTimeToLive: TimeInterval = 6 * 60 * 60,
         favoritesTimeToLive: TimeInterval = 60,
         assetsTimeToLive: TimeInterval = 60 * 60,
-        playbackShelfTimeToLive: TimeInterval = 60
+        playbackShelfTimeToLive: TimeInterval = 60,
+        seriesPlaybackStateTimeToLive: TimeInterval = 60
     ) {
         self.hotTimeToLive = max(hotTimeToLive, 0)
         self.collectionsTimeToLive = max(collectionsTimeToLive, 0)
@@ -41,6 +43,7 @@ public struct MediaMetadataCachePolicy: Sendable, Equatable {
         self.favoritesTimeToLive = max(favoritesTimeToLive, 0)
         self.assetsTimeToLive = max(assetsTimeToLive, 0)
         self.playbackShelfTimeToLive = max(playbackShelfTimeToLive, 0)
+        self.seriesPlaybackStateTimeToLive = max(seriesPlaybackStateTimeToLive, 0)
     }
 
     public static let `default` = MediaMetadataCachePolicy()
@@ -276,15 +279,26 @@ public struct CachedMediaLibraryProvider: MediaLibraryProvider, Sendable {
         }
     }
 
+    public func playbackState(seriesID: String) async throws -> SeriesPlaybackState {
+        try await cached(
+            resource: "series-playback-state",
+            components: [seriesID],
+            timeToLive: policy.seriesPlaybackStateTimeToLive,
+            tags: [mediaTag(id: seriesID)]
+        ) {
+            try await upstream.playbackState(seriesID: seriesID)
+        }
+    }
+
     public func reportProgress(_ update: PlaybackUpdate) async throws -> UserPlaybackState {
         let state = try await upstream.reportProgress(update)
-        await invalidatePlaybackState(for: update.item)
+        await invalidatePlaybackState(for: update)
         return state
     }
 
     public func reportStopped(_ update: PlaybackUpdate) async throws -> UserPlaybackState {
         let state = try await upstream.reportStopped(update)
-        await invalidatePlaybackState(for: update.item)
+        await invalidatePlaybackState(for: update)
         return state
     }
 
@@ -322,8 +336,11 @@ public struct CachedMediaLibraryProvider: MediaLibraryProvider, Sendable {
         }
     }
 
-    private func invalidatePlaybackState(for item: PlayableItem) async {
-        try? await cache.removeValues(tagged: mediaTag(id: item.id))
+    private func invalidatePlaybackState(for update: PlaybackUpdate) async {
+        try? await cache.removeValues(tagged: mediaTag(id: update.item.id))
+        if let seriesID = update.seriesID {
+            try? await cache.removeValues(tagged: mediaTag(id: seriesID))
+        }
         try? await cache.removeValues(tagged: tag("playback-shelf"))
     }
 
