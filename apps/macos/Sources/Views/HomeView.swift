@@ -34,7 +34,7 @@ struct HomeView: View {
                 }
 
                 if !model.hotItems.isEmpty {
-                    MediaShelf(
+                    PosterShelf(
                         title: language.localized("home.popular_now"),
                         items: model.hotItems,
                         onHighlight: highlight
@@ -44,7 +44,7 @@ struct HomeView: View {
                 ForEach(model.collections) { collection in
                     let items = model.items(in: collection, sort: .newest)
                     if !items.isEmpty {
-                        MediaShelf(
+                        PosterShelf(
                             title: collection.name,
                             items: items,
                             viewAllCollection: collection
@@ -103,11 +103,16 @@ struct HomeView: View {
                     .foregroundStyle(.secondary)
 
                     Text(featuredSummary.title)
-                        .font(.system(size: 58, weight: .bold))
+                        .font(CineLarkDesign.Typography.heroTitle)
                         .lineLimit(2)
                         .frame(maxWidth: 720, alignment: .leading)
 
-                    metadata(for: featuredSummary)
+                    MediaFacts(
+                        item: featuredSummary,
+                        fields: .extended,
+                        spacing: 12,
+                        font: .callout.weight(.semibold)
+                    )
 
                     if let synopsis = featuredSummary.synopsis, !synopsis.isEmpty {
                         Text(synopsis)
@@ -124,12 +129,12 @@ struct HomeView: View {
                         .controlSize(.large)
                 } else {
                     Text("CineLark")
-                        .font(.system(size: 58, weight: .bold))
+                        .font(CineLarkDesign.Typography.heroTitle)
                 }
             }
-            .padding(.horizontal, CineLarkTheme.contentMargin)
+            .padding(.horizontal, CineLarkDesign.Layout.contentMargin)
             .padding(.bottom, model.continueWatching.isEmpty ? 64 : 170)
-            .animation(CineLarkTheme.heroAnimation, value: featuredSummary?.id)
+            .animation(CineLarkDesign.Motion.hero, value: featuredSummary?.id)
 
         }
         .frame(height: heroHeight)
@@ -143,32 +148,6 @@ struct HomeView: View {
 
     private var heroHeight: CGFloat {
         min(690, max(540, viewportHeight * 0.82))
-    }
-
-    @ViewBuilder
-    private func metadata(for item: MediaSummary) -> some View {
-        HStack(spacing: 12) {
-            if let year = item.releaseYear {
-                Text(String(year))
-            }
-            if let rating = item.rating {
-                Label(rating.cineLarkRating, systemImage: "star.fill")
-            }
-            if let duration = item.durationSeconds {
-                Text(language.duration(duration))
-            }
-            if let seasons = item.totalSeasons {
-                Text(
-                    language.localized(
-                        seasons == 1 ? "detail.season_count_one" : "detail.season_count_many",
-                        String(seasons)
-                    )
-                )
-            }
-        }
-        .font(.callout.weight(.semibold))
-        .monospacedDigit()
-        .foregroundStyle(.secondary)
     }
 
     @ViewBuilder

@@ -32,7 +32,7 @@ struct PersonDetailView: View {
                         .font(.title2.bold())
                         .padding(.horizontal, 32)
                         .padding(.top, 24)
-                    MediaGrid(items: model.works)
+                    PosterGrid(items: model.works)
                 }
             }
         }
@@ -110,7 +110,7 @@ struct PersonDetailView: View {
             Spacer()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(CineLarkTheme.contentMargin)
+        .padding(CineLarkDesign.Layout.contentMargin)
         .background {
             RadialGradient(
                 colors: [Color.blue.opacity(0.16), .clear],

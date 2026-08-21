@@ -58,7 +58,7 @@ struct FavoritesView: View {
                     .font(.headline)
                     .foregroundStyle(.orange)
                 Text(language.localized("favorites.title"))
-                    .font(.system(size: 44, weight: .bold))
+                    .font(CineLarkDesign.Typography.pageTitle)
                 Text(
                     language.localized(
                         "favorites.summary",
@@ -78,7 +78,7 @@ struct FavoritesView: View {
             .frame(maxWidth: 520)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, CineLarkTheme.contentMargin)
+        .padding(.horizontal, CineLarkDesign.Layout.contentMargin)
         .padding(.vertical, 32)
     }
 
@@ -109,7 +109,7 @@ struct FavoritesView: View {
                 description: Text(language.localized("favorites.no_media_description"))
             )
         } else {
-            MediaGrid(items: items)
+            PosterGrid(items: items)
         }
     }
 
@@ -176,7 +176,7 @@ private struct FavoritePersonLink: View {
                             .frame(width: 34, height: 34)
                             .glassEffect(.regular, in: Circle())
                     }
-                    .cineLarkCardLift(
+                    .cineLarkFocusSurface(
                         isActive: isHovering || isFocused,
                         cornerRadius: 75,
                         scale: 1.05

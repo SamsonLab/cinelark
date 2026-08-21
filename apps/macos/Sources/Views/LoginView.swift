@@ -133,7 +133,7 @@ struct LoginView: View {
             .regular,
             in: RoundedRectangle(cornerRadius: 30, style: .continuous)
         )
-        .animation(CineLarkTheme.focusAnimation, value: showTOTP)
+        .animation(CineLarkDesign.Motion.focus, value: showTOTP)
     }
 
     private func signIn() {

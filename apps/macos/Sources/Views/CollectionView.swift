@@ -11,13 +11,13 @@ struct CollectionView: View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 8) {
                 Text(collection.name)
-                    .font(.system(size: 42, weight: .bold))
+                    .font(CineLarkDesign.Typography.pageTitle)
                 Text(collection.itemCount.formatted())
                     .font(.title3.weight(.medium))
                     .foregroundStyle(.secondary)
             }
-            .padding(.horizontal, CineLarkTheme.contentMargin)
-            .padding(.top, 34)
+            .padding(.horizontal, CineLarkDesign.Layout.contentMargin)
+            .padding(.top, CineLarkDesign.Layout.pageTopInset)
             .padding(.bottom, 8)
 
             CollectionBrowserContent(collection: collection, sort: sort, model: model)
@@ -47,9 +47,9 @@ struct MediaCategoryView: View {
             if let selectedCollection {
                 VStack(alignment: .leading, spacing: 0) {
                     Text(title)
-                        .font(.system(size: 44, weight: .bold))
-                        .padding(.horizontal, CineLarkTheme.contentMargin)
-                        .padding(.top, 34)
+                        .font(CineLarkDesign.Typography.pageTitle)
+                        .padding(.horizontal, CineLarkDesign.Layout.contentMargin)
+                        .padding(.top, CineLarkDesign.Layout.pageTopInset)
                         .padding(.bottom, 18)
 
                     collectionSelector
@@ -106,7 +106,11 @@ struct MediaCategoryView: View {
             }
             .padding(.vertical, 10)
         }
-        .contentMargins(.horizontal, CineLarkTheme.contentMargin, for: .scrollContent)
+        .contentMargins(
+            .horizontal,
+            CineLarkDesign.Layout.contentMargin,
+            for: .scrollContent
+        )
         .scrollIndicators(.hidden)
         .scrollClipDisabled()
         .focusSection()
@@ -168,7 +172,7 @@ private struct CollectionBrowserContent: View {
                     description: Text(language.localized("collection.empty_description"))
                 )
             } else {
-                MediaGrid(
+                PosterGrid(
                     items: items,
                     isLoadingMore: model.isLoading(collection, sort: sort),
                     canLoadMore: model.canLoadMore(collection, sort: sort),

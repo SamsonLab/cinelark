@@ -11,24 +11,56 @@ extension EnvironmentValues {
     }
 }
 
-enum CineLarkTheme {
-    static let canvas = Color(red: 0.025, green: 0.03, blue: 0.04)
-    static let elevatedCanvas = Color(red: 0.055, green: 0.065, blue: 0.085)
-    static let contentMargin: CGFloat = 48
-    static let compactMargin: CGFloat = 32
-    static let posterWidth: CGFloat = 184
-    static let posterHeight: CGFloat = 276
-    static let landscapeWidth: CGFloat = 320
-    static let landscapeHeight: CGFloat = 180
-    static let cardRadius: CGFloat = 18
-    static let focusAnimation = Animation.spring(duration: 0.26, bounce: 0.16)
-    static let heroAnimation = Animation.easeInOut(duration: 0.28)
+enum CineLarkDesign {
+    enum Palette {
+        static let canvas = Color(red: 0.025, green: 0.03, blue: 0.04)
+        static let elevatedCanvas = Color(red: 0.055, green: 0.065, blue: 0.085)
+        static let progress = Color.blue
+        static let favorite = Color.orange
+        static let watched = Color.green
+        static let badgeBackground = Color.black.opacity(0.52)
+        static let badgeStroke = Color.white.opacity(0.18)
+    }
+
+    enum Layout {
+        static let contentMargin: CGFloat = 48
+        static let compactMargin: CGFloat = 32
+        static let pageTopInset: CGFloat = 34
+        static let shelfSpacing: CGFloat = 26
+        static let lockupSpacing: CGFloat = 11
+        static let posterGridColumnSpacing: CGFloat = 32
+        static let posterGridRowSpacing: CGFloat = 38
+    }
+
+    enum Typography {
+        static let pageTitle = Font.system(size: 44, weight: .bold)
+        static let heroTitle = Font.system(size: 58, weight: .bold)
+        static let sectionTitle = Font.system(size: 25, weight: .semibold)
+        static let cardTitle = Font.system(size: 16, weight: .semibold)
+        static let cardMetadata = Font.caption.weight(.medium)
+    }
+
+    enum Media {
+        static let posterWidth: CGFloat = 184
+        static let posterHeight: CGFloat = 276
+        static let landscapeWidth: CGFloat = 320
+        static let landscapeHeight: CGFloat = 180
+    }
+
+    enum Shape {
+        static let cardRadius: CGFloat = 18
+    }
+
+    enum Motion {
+        static let focus = Animation.spring(duration: 0.26, bounce: 0.16)
+        static let hero = Animation.easeInOut(duration: 0.28)
+    }
 }
 
 struct CineLarkPageBackground: View {
     var body: some View {
         ZStack {
-            CineLarkTheme.canvas
+            CineLarkDesign.Palette.canvas
             RadialGradient(
                 colors: [Color.blue.opacity(0.09), .clear],
                 center: .topTrailing,
@@ -63,7 +95,11 @@ struct CineLarkCinematicBackdrop: View {
             }
             .overlay {
                 LinearGradient(
-                    colors: [.clear, CineLarkTheme.canvas.opacity(0.55), CineLarkTheme.canvas],
+                    colors: [
+                        .clear,
+                        CineLarkDesign.Palette.canvas.opacity(0.55),
+                        CineLarkDesign.Palette.canvas
+                    ],
                     startPoint: .center,
                     endPoint: .bottom
                 )
@@ -73,7 +109,7 @@ struct CineLarkCinematicBackdrop: View {
     }
 }
 
-private struct CineLarkCardLift: ViewModifier {
+private struct CineLarkFocusSurfaceModifier: ViewModifier {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let isActive: Bool
     let cornerRadius: CGFloat
@@ -98,7 +134,7 @@ private struct CineLarkCardLift: ViewModifier {
                 y: isActive ? 9 : 0
             )
             .zIndex(isActive ? 1 : 0)
-            .animation(reduceMotion ? nil : CineLarkTheme.focusAnimation, value: isActive)
+            .animation(reduceMotion ? nil : CineLarkDesign.Motion.focus, value: isActive)
     }
 }
 
@@ -165,13 +201,13 @@ extension View {
         }
     }
 
-    func cineLarkCardLift(
+    func cineLarkFocusSurface(
         isActive: Bool,
-        cornerRadius: CGFloat = CineLarkTheme.cardRadius,
+        cornerRadius: CGFloat = CineLarkDesign.Shape.cardRadius,
         scale: CGFloat = 1.055
     ) -> some View {
         modifier(
-            CineLarkCardLift(
+            CineLarkFocusSurfaceModifier(
                 isActive: isActive,
                 cornerRadius: cornerRadius,
                 scale: scale

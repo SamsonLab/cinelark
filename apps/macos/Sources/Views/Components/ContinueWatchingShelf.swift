@@ -17,13 +17,13 @@ struct ContinueWatchingShelf: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text(language.localized("home.continue_watching"))
-                .font(.system(size: 26, weight: .semibold))
-                .padding(.horizontal, CineLarkTheme.contentMargin)
+                .font(CineLarkDesign.Typography.sectionTitle)
+                .padding(.horizontal, CineLarkDesign.Layout.contentMargin)
 
             ScrollView(.horizontal) {
-                LazyHStack(alignment: .top, spacing: 26) {
+                LazyHStack(alignment: .top, spacing: CineLarkDesign.Layout.shelfSpacing) {
                     ForEach(model.continueWatching) { item in
-                        ContinueWatchingCard(
+                        PlaybackLandscapeLockup(
                             item: item,
                             isPlaying: model.playingItemID == item.id,
                             isPlaybackDisabled: model.playingItemID != nil,
@@ -36,7 +36,11 @@ struct ContinueWatchingShelf: View {
                 .scrollTargetLayout()
                 .padding(.vertical, 26)
             }
-            .contentMargins(.horizontal, CineLarkTheme.contentMargin, for: .scrollContent)
+            .contentMargins(
+                .horizontal,
+                CineLarkDesign.Layout.contentMargin,
+                for: .scrollContent
+            )
             .scrollIndicators(.hidden)
             .scrollTargetBehavior(.viewAligned)
             .focusSection()
@@ -44,8 +48,7 @@ struct ContinueWatchingShelf: View {
     }
 }
 
-private struct ContinueWatchingCard: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+private struct PlaybackLandscapeLockup: View {
     @Environment(\.appLanguage) private var language
     let item: ContinueWatchingItem
     let isPlaying: Bool
@@ -61,7 +64,7 @@ private struct ContinueWatchingCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 11) {
+        VStack(alignment: .leading, spacing: CineLarkDesign.Layout.lockupSpacing) {
             Button(action: play) {
                 artwork
             }
@@ -74,7 +77,7 @@ private struct ContinueWatchingCard: View {
             NavigationLink(value: item.mediaSummary) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(item.title)
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(CineLarkDesign.Typography.cardTitle)
                         .foregroundStyle(isDetailFocused ? .white : .primary)
                         .lineLimit(1)
                         .help(item.title)
@@ -86,7 +89,7 @@ private struct ContinueWatchingCard: View {
                             .lineLimit(1)
                     }
                 }
-                .frame(width: CineLarkTheme.landscapeWidth, alignment: .topLeading)
+                .frame(width: CineLarkDesign.Media.landscapeWidth, alignment: .topLeading)
                 .frame(minHeight: 38, alignment: .topLeading)
                 .contentShape(Rectangle())
             }
@@ -114,34 +117,29 @@ private struct ContinueWatchingCard: View {
 
     private var artwork: some View {
         ZStack {
-            ArtworkView(url: item.thumbnailURL ?? item.posterURL)
-                .frame(
-                    width: CineLarkTheme.landscapeWidth,
-                    height: CineLarkTheme.landscapeHeight
-                )
-                .clipShape(
-                    RoundedRectangle(
-                        cornerRadius: CineLarkTheme.cardRadius,
-                        style: .continuous
-                    )
-                )
+            MediaArtworkSurface(
+                item: item.mediaSummary,
+                url: item.thumbnailURL ?? item.posterURL,
+                size: CGSize(
+                    width: CineLarkDesign.Media.landscapeWidth,
+                    height: CineLarkDesign.Media.landscapeHeight
+                ),
+                role: .playback
+            )
 
             playControl
                 .offset(x: isPlaying ? 0 : 2)
         }
-        .overlay(alignment: .bottom) {
-            ProgressView(value: item.userState.progress)
-                .progressViewStyle(.linear)
-                .tint(.blue)
-                .padding(10)
-        }
         .contentShape(
-            RoundedRectangle(cornerRadius: CineLarkTheme.cardRadius, style: .continuous)
+            RoundedRectangle(
+                cornerRadius: CineLarkDesign.Shape.cardRadius,
+                style: .continuous
+            )
         )
-        .cineLarkCardLift(
+        .cineLarkFocusSurface(
             isActive: isActive,
-            cornerRadius: CineLarkTheme.cardRadius,
-            scale: reduceMotion ? 1 : 1.04
+            cornerRadius: CineLarkDesign.Shape.cardRadius,
+            scale: 1.04
         )
     }
 
@@ -158,10 +156,10 @@ private struct ContinueWatchingCard: View {
             )
         } else {
             icon
-                .background(Color.black.opacity(0.52), in: Circle())
+                .background(CineLarkDesign.Palette.badgeBackground, in: Circle())
                 .overlay {
                     Circle()
-                        .strokeBorder(Color.white.opacity(0.18), lineWidth: 0.75)
+                        .strokeBorder(CineLarkDesign.Palette.badgeStroke, lineWidth: 0.75)
                 }
         }
     }

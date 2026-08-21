@@ -86,7 +86,7 @@ struct MediaDetailView: View {
                     .foregroundStyle(Color.accentColor)
 
                     Text(model.item.title)
-                        .font(.system(size: 60, weight: .bold))
+                        .font(CineLarkDesign.Typography.heroTitle)
                         .lineLimit(2)
                         .help(model.item.title)
 
@@ -130,40 +130,12 @@ struct MediaDetailView: View {
 
     private var heroMetadata: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 14) {
-                if let year = model.item.releaseYear {
-                    Text(String(year))
-                }
-                if let rating = model.item.rating {
-                    HStack(spacing: 3) {
-                        Image(systemName: "star.fill")
-                            .accessibilityHidden(true)
-                        Text(rating.cineLarkRating)
-                    }
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(
-                        language.localized(
-                            "rating.accessibility",
-                            rating.cineLarkRating
-                        )
-                    )
-                }
-                if let duration = model.item.durationSeconds {
-                    Text(language.duration(duration))
-                }
-                if let seasons = model.item.totalSeasons {
-                    Text(
-                        language.localized(
-                            seasons == 1
-                                ? "detail.season_count_one"
-                                : "detail.season_count_many",
-                            String(seasons)
-                        )
-                    )
-                }
-            }
-            .monospacedDigit()
-            .foregroundStyle(.secondary)
+            MediaFacts(
+                item: model.item,
+                fields: .extended,
+                spacing: 14,
+                font: .body
+            )
 
             if !model.item.genres.isEmpty {
                 HStack(spacing: 9) {
@@ -531,7 +503,7 @@ private struct PersonCreditLink: View {
                 )
                 .frame(width: 104, height: 104)
                 .clipShape(Circle())
-                .cineLarkCardLift(
+                .cineLarkFocusSurface(
                     isActive: isHovering || isFocused,
                     cornerRadius: 52,
                     scale: 1.06
@@ -797,7 +769,7 @@ private struct EpisodeRow: View {
             Color.white.opacity(isHovering || isFocused ? 0.10 : 0.05),
             in: RoundedRectangle(cornerRadius: 16, style: .continuous)
         )
-        .cineLarkCardLift(
+        .cineLarkFocusSurface(
             isActive: isHovering || isFocused,
             cornerRadius: 16,
             scale: 1.01

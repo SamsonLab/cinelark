@@ -11,7 +11,7 @@ struct SearchView: View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 20) {
                 Text(language.localized("nav.search"))
-                    .font(.system(size: 44, weight: .bold))
+                    .font(CineLarkDesign.Typography.pageTitle)
 
                 HStack(spacing: 14) {
                     Image(systemName: "magnifyingglass")
@@ -40,8 +40,8 @@ struct SearchView: View {
                     in: RoundedRectangle(cornerRadius: 22, style: .continuous)
                 )
             }
-            .padding(.horizontal, CineLarkTheme.contentMargin)
-            .padding(.top, 34)
+            .padding(.horizontal, CineLarkDesign.Layout.contentMargin)
+            .padding(.top, CineLarkDesign.Layout.pageTopInset)
             .padding(.bottom, 24)
 
             content
@@ -76,86 +76,7 @@ struct SearchView: View {
         } else if model.searchResults.isEmpty {
             ContentUnavailableView.search(text: query)
         } else {
-            SearchResultGrid(items: model.searchResults)
+            PosterGrid(items: model.searchResults)
         }
-    }
-}
-
-private struct SearchResultGrid: View {
-    let items: [MediaSummary]
-    private let columns = [
-        GridItem(.adaptive(minimum: 286, maximum: 380), spacing: 28, alignment: .top)
-    ]
-
-    var body: some View {
-        ScrollView {
-            LazyVGrid(columns: columns, alignment: .leading, spacing: 30) {
-                ForEach(items) { item in
-                    SearchResultLink(item: item)
-                }
-            }
-            .focusSection()
-            .padding(.horizontal, CineLarkTheme.contentMargin)
-            .padding(.vertical, 24)
-        }
-        .scrollIndicators(.hidden)
-    }
-}
-
-private struct SearchResultLink: View {
-    @Environment(\.mediaTransitionNamespace) private var transitionNamespace
-    let item: MediaSummary
-    @State private var transitionID = UUID()
-    @State private var isHovering = false
-    @FocusState private var isFocused: Bool
-
-    var body: some View {
-        NavigationLink(value: MediaDetailRoute(item: item, transitionID: transitionID)) {
-            ZStack(alignment: .bottomLeading) {
-                ArtworkView(url: item.backdropURL ?? item.posterURL)
-                    .aspectRatio(16 / 9, contentMode: .fit)
-                    .frame(maxWidth: .infinity)
-                    .clipped()
-                    .mediaMatchedGeometry(
-                        id: transitionID,
-                        namespace: transitionNamespace,
-                        isSource: true
-                    )
-
-                LinearGradient(
-                    colors: [.clear, .black.opacity(0.88)],
-                    startPoint: .center,
-                    endPoint: .bottom
-                )
-
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(item.title)
-                        .font(.headline)
-                        .lineLimit(1)
-                    HStack(spacing: 8) {
-                        if let year = item.releaseYear { Text(String(year)) }
-                        if let rating = item.rating {
-                            Label(rating.cineLarkRating, systemImage: "star.fill")
-                        }
-                    }
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.secondary)
-                }
-                .padding(16)
-            }
-            .aspectRatio(16 / 9, contentMode: .fit)
-            .clipShape(
-                RoundedRectangle(cornerRadius: CineLarkTheme.cardRadius, style: .continuous)
-            )
-            .cineLarkCardLift(
-                isActive: isFocused || isHovering,
-                cornerRadius: CineLarkTheme.cardRadius,
-                scale: 1.035
-            )
-        }
-        .buttonStyle(CineLarkPressButtonStyle())
-        .focused($isFocused)
-        .focusEffectDisabled()
-        .onHover { isHovering = $0 }
     }
 }

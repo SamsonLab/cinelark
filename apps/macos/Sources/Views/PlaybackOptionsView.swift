@@ -334,7 +334,7 @@ struct PlaybackVersionCard: View {
             isActive ? Color.white.opacity(0.09) : Color.white.opacity(0.04),
             in: RoundedRectangle(cornerRadius: 16, style: .continuous)
         )
-        .cineLarkCardLift(
+        .cineLarkFocusSurface(
             isActive: isActive,
             cornerRadius: 16,
             scale: 1.008
