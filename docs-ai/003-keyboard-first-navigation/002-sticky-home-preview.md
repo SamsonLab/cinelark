@@ -53,3 +53,9 @@ confirmed that the backdrop reaches the top edge, compact controls do not
 collide with shelf headings, Continue Watching retains its heading when selected,
 and a deeper collection aligns its heading and selected poster below the sticky
 preview.
+
+Updated 2026-08-24 by
+[003.011](011-static-home-preview-geometry.md): the persistent preview and
+semantic heading anchors remain current, but scroll-responsive resizing,
+content transforms, and overlap reduction are no longer part of the Home
+layout. The preview now retains the former expanded-state geometry.

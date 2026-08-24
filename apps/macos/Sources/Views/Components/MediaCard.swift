@@ -189,27 +189,47 @@ struct PosterShelf: View {
             .padding(.horizontal, CineLarkDesign.Layout.contentMargin)
 
             ScrollViewReader { scrollProxy in
-                ScrollView(.horizontal) {
-                    LazyHStack(alignment: .top, spacing: CineLarkDesign.Layout.shelfSpacing) {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(
+                        alignment: .top,
+                        spacing: CineLarkDesign.Layout.shelfSpacing -
+                            CineLarkDesign.Layout.focusScrollClearance
+                    ) {
                         ForEach(items) { item in
-                            PosterNavigationLink(
-                                item: item,
-                                onPointerSelection: onPointerSelection,
-                                onHighlight: onHighlight,
-                                isSelected: shortcuts.usesKeyboardNavigation &&
-                                    (isKeyboardNavigationActive
-                                        ? selectedItemID == item.id
-                                        : focusedItemID == item.id),
-                                focusedItemID: $focusedItemID
-                            )
+                            HStack(spacing: 0) {
+                                Color.clear
+                                    .frame(
+                                        width: CineLarkDesign.Layout.focusScrollClearance,
+                                        height: 1
+                                    )
+                                    .accessibilityHidden(true)
+
+                                PosterNavigationLink(
+                                    item: item,
+                                    onPointerSelection: onPointerSelection,
+                                    onHighlight: onHighlight,
+                                    isSelected: shortcuts.usesKeyboardNavigation &&
+                                        (isKeyboardNavigationActive
+                                            ? selectedItemID == item.id
+                                            : focusedItemID == item.id),
+                                    focusedItemID: $focusedItemID
+                                )
+                            }
                             .id(item.id)
                         }
                     }
                     .scrollTargetLayout()
                     .padding(.vertical, 26)
+                    .cineLarkHorizontalScrollIndicatorsHidden()
                 }
                 .contentMargins(
-                    .horizontal,
+                    .leading,
+                    CineLarkDesign.Layout.contentMargin -
+                        CineLarkDesign.Layout.focusScrollClearance,
+                    for: .scrollContent
+                )
+                .contentMargins(
+                    .trailing,
                     CineLarkDesign.Layout.contentMargin,
                     for: .scrollContent
                 )

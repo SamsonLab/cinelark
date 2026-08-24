@@ -73,6 +73,8 @@ struct LibraryView: View {
             .background(CineLarkPageBackground())
         }
         .navigationSplitViewStyle(.prominentDetail)
+        .ignoresSafeArea(.container, edges: .top)
+        .windowToolbarFullScreenVisibility(.onHover)
         .task {
             let path = $navigationPath
             let selectedSection = $selection

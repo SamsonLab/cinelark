@@ -32,7 +32,10 @@ struct MediaDetailView: View {
     @State private var keyboardSelection: KeyboardTarget?
     @State private var rememberedKeyboardSelections: [String: KeyboardTarget] = [:]
     @State private var pointerSelection: KeyboardTarget?
+    @State private var visibleKeyboardSectionIDs: Set<String> = []
+    @State private var visibleKeyboardTargets: Set<KeyboardTarget> = []
     @State private var keyboardOwner = UUID()
+    @State private var episodeExpansionFocusTask: Task<Void, Never>?
     private let transitionID: UUID?
 
     init(
@@ -57,10 +60,22 @@ struct MediaDetailView: View {
                 LazyVStack(alignment: .leading, spacing: 34) {
                     hero
                         .id(Self.heroSectionID)
+                        .onScrollVisibilityChange(threshold: 0.15) { visible in
+                            updateKeyboardSectionVisibility(
+                                Self.heroSectionID,
+                                visible: visible
+                            )
+                        }
 
                     if model.item.kind == .movie {
                         movieVersions
                             .id(Self.movieVersionsSectionID)
+                            .onScrollVisibilityChange(threshold: 0.15) { visible in
+                                updateKeyboardSectionVisibility(
+                                    Self.movieVersionsSectionID,
+                                    visible: visible
+                                )
+                            }
                     } else {
                         seriesContent
                     }
@@ -68,9 +83,21 @@ struct MediaDetailView: View {
                     if let detail = model.detail, !credits(in: detail).isEmpty {
                         cast(credits(in: detail))
                             .id(Self.castSectionID)
+                            .onScrollVisibilityChange(threshold: 0.15) { visible in
+                                updateKeyboardSectionVisibility(
+                                    Self.castSectionID,
+                                    visible: visible
+                                )
+                            }
                     }
                 }
                 .padding(.bottom, 48)
+            }
+            .onScrollTargetVisibilityChange(
+                idType: String.self,
+                threshold: 0.15
+            ) { ids in
+                updateVisibleEpisodeTargets(ids)
             }
             .background(CineLarkPageBackground())
             .navigationTitle(model.item.title)
@@ -85,7 +112,10 @@ struct MediaDetailView: View {
                 registerKeyboardNavigation(scrollProxy: scrollProxy)
             }
             .onDisappear {
+                episodeExpansionFocusTask?.cancel()
                 pointerSelection = nil
+                visibleKeyboardSectionIDs = []
+                visibleKeyboardTargets = []
                 shortcuts.removeNavigationSurface(owner: keyboardOwner)
             }
             .onChange(of: keyboardSignature) {
@@ -451,28 +481,37 @@ struct MediaDetailView: View {
                 ProgressView(language.localized("detail.loading_episodes"))
                     .frame(maxWidth: .infinity, minHeight: 180)
             } else {
-                LazyVStack(spacing: 16) {
+                LazyVStack(spacing: 0) {
                     ForEach(visibleEpisodes) { episode in
-                        EpisodeRow(
-                            episode: episode,
-                            isKeyboardSelected: visibleKeyboardSelection == .episode(episode.id),
-                            isKeyboardNavigationActive: visibleKeyboardSelection != nil,
-                            onPointerSelection: { hovering in
-                                updatePointerSelection(
-                                    .episode(episode.id),
-                                    hovering: hovering
-                                )
+                        VStack(spacing: 0) {
+                            Color.clear
+                                .frame(height: CineLarkDesign.Layout.focusScrollClearance)
+                                .allowsHitTesting(false)
+                                .accessibilityHidden(true)
+
+                            EpisodeRow(
+                                episode: episode,
+                                isKeyboardSelected: visibleKeyboardSelection == .episode(episode.id),
+                                isKeyboardNavigationActive: visibleKeyboardSelection != nil,
+                                onPointerSelection: { hovering in
+                                    updatePointerSelection(
+                                        .episode(episode.id),
+                                        hovering: hovering
+                                    )
+                                }
+                            ) {
+                                presentEpisodeOptions(episode)
                             }
-                        ) {
-                            presentEpisodeOptions(episode)
                         }
                         .id(episodeScrollID(episode.id))
                     }
                 }
+                .scrollTargetLayout()
                 .focusSection()
 
                 if model.episodes.count > Self.collapsedEpisodeCount {
                     Button {
+                        visibleKeyboardTargets.remove(.showMore)
                         showsAllEpisodes.toggle()
                     } label: {
                         Label(
@@ -498,12 +537,16 @@ struct MediaDetailView: View {
                         updatePointerSelection(.showMore, hovering: hovering)
                     }
                     .id(Self.showMoreScrollID)
+                    .onScrollVisibilityChange(threshold: 0.15) { visible in
+                        updateKeyboardTargetVisibility(.showMore, visible: visible)
+                    }
                 }
             }
         }
         .padding(.horizontal, 40)
         .id(Self.episodesSectionID)
         .onChange(of: model.selectedSeasonID) {
+            episodeExpansionFocusTask?.cancel()
             showsAllEpisodes = false
         }
     }
@@ -517,7 +560,7 @@ struct MediaDetailView: View {
 
     private var seasonStrip: some View {
         ScrollViewReader { scrollProxy in
-            ScrollView(.horizontal) {
+            ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: 12) {
                     ForEach(model.seasons) { season in
                         SeasonPill(
@@ -538,6 +581,7 @@ struct MediaDetailView: View {
                 }
                 .focusSection()
                 .padding(.vertical, 4)
+                .cineLarkHorizontalScrollIndicatorsHidden()
             }
             .scrollIndicators(.hidden)
             .onChange(of: selectedSeasonID) {
@@ -548,6 +592,9 @@ struct MediaDetailView: View {
             }
         }
         .id(Self.seasonsSectionID)
+        .onScrollVisibilityChange(threshold: 0.15) { visible in
+            updateKeyboardSectionVisibility(Self.seasonsSectionID, visible: visible)
+        }
     }
 
     private func presentEpisodeOptions(_ episode: Episode) {
@@ -580,7 +627,7 @@ struct MediaDetailView: View {
                 .font(.title2.bold())
 
             ScrollViewReader { scrollProxy in
-                ScrollView(.horizontal) {
+                ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(alignment: .top, spacing: 20) {
                         ForEach(Array(people.prefix(36))) { person in
                             PersonCreditLink(
@@ -598,6 +645,7 @@ struct MediaDetailView: View {
                         }
                     }
                     .focusSection()
+                    .cineLarkHorizontalScrollIndicatorsHidden()
                 }
                 .scrollIndicators(.hidden)
                 .onChange(of: selectedPersonID) {
@@ -622,6 +670,7 @@ struct MediaDetailView: View {
     private static let episodesSectionID = "detail.episodes"
     private static let castSectionID = "detail.cast"
     private static let showMoreScrollID = "detail.episodes.more"
+    private static let episodeScrollIDPrefix = "detail.episode."
 
     private var keyboardSections: [KeyboardSection] {
         var sections = [
@@ -709,7 +758,7 @@ struct MediaDetailView: View {
     }
 
     private func episodeScrollID(_ episodeID: String) -> String {
-        "detail.episode.\(episodeID)"
+        "\(Self.episodeScrollIDPrefix)\(episodeID)"
     }
 
     private func registerKeyboardNavigation(scrollProxy: ScrollViewProxy) {
@@ -717,13 +766,21 @@ struct MediaDetailView: View {
         let selection = $keyboardSelection
         let rememberedSelections = $rememberedKeyboardSelections
         let pointerSelection = $pointerSelection
+        let visibleSectionIDs = $visibleKeyboardSectionIDs
+        let visibleTargets = $visibleKeyboardTargets
         shortcuts.setNavigationSurface(
             owner: keyboardOwner,
             handoffToKeyboard: {
                 guard let pointerTarget = pointerSelection.wrappedValue,
                       sections.contains(where: {
                           $0.targets.contains(pointerTarget)
-                      }) else {
+                      }),
+                      isNavigationTargetVisible(
+                          pointerTarget,
+                          sections: sections,
+                          visibleSectionIDs: visibleSectionIDs.wrappedValue,
+                          visibleTargets: visibleTargets.wrappedValue
+                      ) else {
                     return
                 }
                 selection.wrappedValue = pointerTarget
@@ -742,6 +799,8 @@ struct MediaDetailView: View {
                     startingTarget: shortcuts.inputModality == .pointer
                         ? pointerSelection.wrappedValue
                         : nil,
+                    visibleSectionIDs: visibleSectionIDs.wrappedValue,
+                    visibleTargets: visibleTargets.wrappedValue,
                     scrollProxy: scrollProxy
                 )
             },
@@ -749,7 +808,10 @@ struct MediaDetailView: View {
                 activateKeyboardSelection(
                     shortcuts.inputModality == .pointer
                         ? pointerSelection.wrappedValue ?? selection.wrappedValue
-                        : selection.wrappedValue
+                        : selection.wrappedValue,
+                    selection: selection,
+                    rememberedSelections: rememberedSelections,
+                    scrollProxy: scrollProxy
                 )
             }
         )
@@ -761,13 +823,23 @@ struct MediaDetailView: View {
         selection: Binding<KeyboardTarget?>,
         rememberedSelections: Binding<[String: KeyboardTarget]>,
         startingTarget: KeyboardTarget?,
+        visibleSectionIDs: Set<String>,
+        visibleTargets: Set<KeyboardTarget>,
         scrollProxy: ScrollViewProxy
     ) -> Bool {
         guard let firstSection = sections.first,
               let firstTarget = firstSection.targets.first else {
             return false
         }
-        guard let current = startingTarget ?? selection.wrappedValue,
+        let current = navigationOrigin(
+            for: direction,
+            candidate: startingTarget ?? selection.wrappedValue,
+            sections: sections,
+            rememberedSelections: rememberedSelections.wrappedValue,
+            visibleSectionIDs: visibleSectionIDs,
+            visibleTargets: visibleTargets
+        )
+        guard let current,
               let sectionIndex = sections.firstIndex(where: { $0.targets.contains(current) }),
               let targetIndex = sections[sectionIndex].targets.firstIndex(of: current) else {
             selectKeyboardTarget(
@@ -829,6 +901,60 @@ struct MediaDetailView: View {
         return true
     }
 
+    private func navigationOrigin(
+        for direction: CineLarkFocusDirection,
+        candidate: KeyboardTarget?,
+        sections: [KeyboardSection],
+        rememberedSelections: [String: KeyboardTarget],
+        visibleSectionIDs: Set<String>,
+        visibleTargets: Set<KeyboardTarget>
+    ) -> KeyboardTarget? {
+        guard !visibleSectionIDs.isEmpty || !visibleTargets.isEmpty else {
+            return candidate
+        }
+        if let candidate,
+           isNavigationTargetVisible(
+               candidate,
+               sections: sections,
+               visibleSectionIDs: visibleSectionIDs,
+               visibleTargets: visibleTargets
+           ) {
+            return candidate
+        }
+
+        let orderedVisibleTargets = sections.flatMap { section -> [KeyboardTarget] in
+            if section.id == Self.episodesSectionID {
+                return section.targets.filter { visibleTargets.contains($0) }
+            }
+            guard visibleSectionIDs.contains(section.id) else { return [] }
+            if let rememberedTarget = rememberedSelections[section.id],
+               section.targets.contains(rememberedTarget) {
+                return [rememberedTarget]
+            }
+            return Array(section.targets.prefix(1))
+        }
+        guard !orderedVisibleTargets.isEmpty else { return candidate }
+        return direction == .down
+            ? orderedVisibleTargets.last
+            : orderedVisibleTargets.first
+    }
+
+    private func isNavigationTargetVisible(
+        _ target: KeyboardTarget,
+        sections: [KeyboardSection],
+        visibleSectionIDs: Set<String>,
+        visibleTargets: Set<KeyboardTarget>
+    ) -> Bool {
+        guard !visibleSectionIDs.isEmpty || !visibleTargets.isEmpty,
+              let section = sections.first(where: { $0.targets.contains(target) }) else {
+            return true
+        }
+        if section.id == Self.episodesSectionID {
+            return visibleTargets.contains(target)
+        }
+        return visibleSectionIDs.contains(section.id)
+    }
+
     private func selectKeyboardTarget(
         _ target: KeyboardTarget,
         sectionID: String,
@@ -858,7 +984,12 @@ struct MediaDetailView: View {
         "detail.version.\(assetID)"
     }
 
-    private func activateKeyboardSelection(_ target: KeyboardTarget?) -> Bool {
+    private func activateKeyboardSelection(
+        _ target: KeyboardTarget?,
+        selection: Binding<KeyboardTarget?>,
+        rememberedSelections: Binding<[String: KeyboardTarget]>,
+        scrollProxy: ScrollViewProxy
+    ) -> Bool {
         guard let target else { return false }
         switch target {
         case .primaryPlayback:
@@ -889,7 +1020,30 @@ struct MediaDetailView: View {
             presentEpisodeOptions(episode)
             return true
         case .showMore:
+            let isExpanding = !showsAllEpisodes
+            let destinationEpisode = isExpanding
+                ? model.episodes.dropFirst(Self.collapsedEpisodeCount).first
+                : model.episodes.prefix(Self.collapsedEpisodeCount).last
+            visibleKeyboardTargets.remove(.showMore)
             showsAllEpisodes.toggle()
+            guard let destinationEpisode else { return true }
+            let destination = KeyboardTarget.episode(destinationEpisode.id)
+            selection.wrappedValue = destination
+            rememberedSelections.wrappedValue[Self.episodesSectionID] = destination
+            episodeExpansionFocusTask?.cancel()
+            episodeExpansionFocusTask = Task { @MainActor in
+                do {
+                    try await Task.sleep(for: .milliseconds(50))
+                } catch {
+                    return
+                }
+                withAnimation(.easeOut(duration: 0.2)) {
+                    scrollProxy.scrollTo(
+                        episodeScrollID(destinationEpisode.id),
+                        anchor: .top
+                    )
+                }
+            }
             return true
         case .person(let id):
             guard let detail = model.detail,
@@ -904,9 +1058,13 @@ struct MediaDetailView: View {
         let sectionsByID = Dictionary(
             uniqueKeysWithValues: keyboardSections.map { ($0.id, $0.targets) }
         )
+        let validSectionIDs = Set(sectionsByID.keys)
+        let validTargets = Set(sectionsByID.values.flatMap { $0 })
         rememberedKeyboardSelections = rememberedKeyboardSelections.filter {
             sectionsByID[$0.key]?.contains($0.value) == true
         }
+        visibleKeyboardSectionIDs.formIntersection(validSectionIDs)
+        visibleKeyboardTargets.formIntersection(validTargets)
         if let keyboardSelection,
            !keyboardSections.contains(where: { $0.targets.contains(keyboardSelection) }) {
             self.keyboardSelection = nil
@@ -914,6 +1072,34 @@ struct MediaDetailView: View {
         if let pointerSelection,
            !keyboardSections.contains(where: { $0.targets.contains(pointerSelection) }) {
             self.pointerSelection = nil
+        }
+    }
+
+    private func updateKeyboardSectionVisibility(_ sectionID: String, visible: Bool) {
+        if visible {
+            visibleKeyboardSectionIDs.insert(sectionID)
+        } else {
+            visibleKeyboardSectionIDs.remove(sectionID)
+        }
+    }
+
+    private func updateKeyboardTargetVisibility(_ target: KeyboardTarget, visible: Bool) {
+        if visible {
+            visibleKeyboardTargets.insert(target)
+        } else {
+            visibleKeyboardTargets.remove(target)
+        }
+    }
+
+    private func updateVisibleEpisodeTargets(_ ids: [String]) {
+        let episodeTargets = Set(ids.compactMap { id -> KeyboardTarget? in
+            guard id.hasPrefix(Self.episodeScrollIDPrefix) else { return nil }
+            return .episode(String(id.dropFirst(Self.episodeScrollIDPrefix.count)))
+        })
+        let showMoreIsVisible = visibleKeyboardTargets.contains(.showMore)
+        visibleKeyboardTargets = episodeTargets
+        if showMoreIsVisible {
+            visibleKeyboardTargets.insert(.showMore)
         }
     }
 

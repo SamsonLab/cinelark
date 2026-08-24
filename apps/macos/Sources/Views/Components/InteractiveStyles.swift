@@ -1,4 +1,42 @@
+import AppKit
 import SwiftUI
+
+private final class HorizontalScrollerHiderView: NSView {
+    override func viewDidMoveToSuperview() {
+        super.viewDidMoveToSuperview()
+        hideEnclosingHorizontalScroller()
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        hideEnclosingHorizontalScroller()
+    }
+
+    override func layout() {
+        super.layout()
+        hideEnclosingHorizontalScroller()
+    }
+
+    private func hideEnclosingHorizontalScroller() {
+        guard let scrollView = enclosingScrollView else { return }
+        scrollView.hasHorizontalScroller = false
+        scrollView.horizontalScroller?.isHidden = true
+    }
+}
+
+private struct HorizontalScrollerHider: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        HorizontalScrollerHiderView()
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {}
+}
+
+extension View {
+    func cineLarkHorizontalScrollIndicatorsHidden() -> some View {
+        background(HorizontalScrollerHider())
+    }
+}
 
 private struct MediaTransitionNamespaceKey: EnvironmentKey {
     static let defaultValue: Namespace.ID? = nil
@@ -112,12 +150,13 @@ struct CineLarkFilterBar<Content: View>: View {
 
     var body: some View {
         ScrollViewReader { scrollProxy in
-            ScrollView(.horizontal) {
+            ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
                     content
                 }
                 .scrollTargetLayout()
                 .padding(.vertical, 10)
+                .cineLarkHorizontalScrollIndicatorsHidden()
             }
             .contentMargins(
                 .horizontal,

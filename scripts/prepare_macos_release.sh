@@ -103,12 +103,14 @@ CineLark $VERSION for macOS 26 or later.
 
 ## Highlights
 
-- Moved available-update notifications out of the constrained sidebar and into
-  a dedicated bottom overlay that matches CineLark's shortcut guidance.
-- Preserved the complete localized update message at its intrinsic width so
-  version text is never truncated by sidebar utility layout constraints.
-- Kept Sparkle update actions, availability state, accessibility labels, and
-  keyboard guidance visually coordinated in the global root presentation.
+- Restored the Home preview's stable expanded layout and removed scroll-driven
+  scaling while keeping shelf content on the original opaque black canvas.
+- Rebased Home keyboard navigation on the actually visible shelf, preventing
+  Up from jumping to offscreen preview actions and keeping horizontal focus
+  outlines fully inside the viewport.
+- Fixed series-detail episode focus across expansion, collapse, and manual
+  scrolling so Up and Down continue from the visible episode boundary instead
+  of stale offscreen controls.
 
 ## Install
 

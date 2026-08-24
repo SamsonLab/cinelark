@@ -27,10 +27,10 @@ struct HomeView: View {
     @State private var highlightedMediaID: String?
     @State private var pendingHero: HeroCandidate?
     @State private var viewportHeight: CGFloat = 900
-    @State private var contentScrollOffset: CGFloat = 0
     @State private var keyboardSelection: KeyboardTarget?
     @State private var rememberedKeyboardSelections: [String: KeyboardTarget] = [:]
     @State private var pointerSelection: KeyboardTarget?
+    @State private var visibleShelfSectionIDs: [String] = []
     @State private var keyboardOwner = UUID()
     @State private var scrollCorrectionTask: Task<Void, Never>?
 
@@ -45,7 +45,6 @@ struct HomeView: View {
                         if !model.continueWatching.isEmpty {
                             ContinueWatchingShelf(
                                 model: model,
-                                headingID: Self.continueSectionID,
                                 selectedItemID: selectedContinueWatchingID,
                                 isKeyboardNavigationActive: visibleKeyboardSelection != nil,
                                 onPointerSelection: { item, hovering in
@@ -57,6 +56,7 @@ struct HomeView: View {
                             ) { item in
                                 queueHero(.continueItem(item.id))
                             }
+                            .id(Self.continueSectionID)
                         }
 
                         if model.isLoadingHome && model.hotItems.isEmpty {
@@ -114,14 +114,15 @@ struct HomeView: View {
                             }
                         }
                     }
-                    .id(Self.contentTopID)
+                    .scrollTargetLayout()
                     .padding(.bottom, 64)
                 }
                 .scrollIndicators(.hidden)
-                .onScrollGeometryChange(for: CGFloat.self) { geometry in
-                    max(0, geometry.contentOffset.y + geometry.contentInsets.top)
-                } action: { _, offset in
-                    contentScrollOffset = offset
+                .onScrollTargetVisibilityChange(
+                    idType: String.self,
+                    threshold: 0.15
+                ) { ids in
+                    visibleShelfSectionIDs = ids
                 }
                 .onAppear {
                     registerKeyboardNavigation(scrollProxy: scrollProxy)
@@ -129,6 +130,7 @@ struct HomeView: View {
                 .onDisappear {
                     scrollCorrectionTask?.cancel()
                     pointerSelection = nil
+                    visibleShelfSectionIDs = []
                     shortcuts.removeNavigationSurface(owner: keyboardOwner)
                 }
                 .onChange(of: keyboardSignature) {
@@ -165,7 +167,6 @@ struct HomeView: View {
     }
 
     private static let heroSectionID = "home.hero"
-    private static let contentTopID = "home.content.top"
     private static let continueSectionID = "home.continue"
     private static let hotSectionID = "home.hot"
 
@@ -223,8 +224,6 @@ struct HomeView: View {
             }
             .padding(.horizontal, CineLarkDesign.Layout.contentMargin)
             .padding(.bottom, heroContentBottomPadding)
-            .scaleEffect(heroContentScale, anchor: .bottomLeading)
-            .offset(y: -(28 * heroCollapseProgress))
             .animation(CineLarkDesign.Motion.hero, value: featuredSummary?.id)
 
         }
@@ -233,35 +232,16 @@ struct HomeView: View {
     }
 
     private var heroHeight: CGFloat {
-        expandedHeroHeight - ((expandedHeroHeight - compactHeroHeight) * heroCollapseProgress)
-    }
-
-    private var expandedHeroHeight: CGFloat {
         min(690, max(440, viewportHeight * 0.82))
     }
 
-    private var compactHeroHeight: CGFloat {
-        min(expandedHeroHeight, min(360, max(260, viewportHeight * 0.42)))
-    }
-
-    private var heroCollapseProgress: CGFloat {
-        let collapseDistance = max(240, expandedHeroHeight - compactHeroHeight)
-        return min(1, contentScrollOffset / collapseDistance)
-    }
-
-    private var heroContentScale: CGFloat {
-        1 - (heroCollapseProgress * 0.18)
-    }
-
     private var heroContentBottomPadding: CGFloat {
-        let expandedPadding: CGFloat = model.continueWatching.isEmpty ? 64 : 170
-        let compactPadding: CGFloat = model.continueWatching.isEmpty ? 28 : 36
-        return expandedPadding - ((expandedPadding - compactPadding) * heroCollapseProgress)
+        model.continueWatching.isEmpty ? 64 : 170
     }
 
     private var contentOverlap: CGFloat {
         guard !model.continueWatching.isEmpty else { return 0 }
-        return 118 * (1 - heroCollapseProgress)
+        return 118
     }
 
     @ViewBuilder
@@ -451,13 +431,19 @@ struct HomeView: View {
         let selection = $keyboardSelection
         let rememberedSelections = $rememberedKeyboardSelections
         let pointerSelection = $pointerSelection
+        let visibleSectionIDs = $visibleShelfSectionIDs
         shortcuts.setNavigationSurface(
             owner: keyboardOwner,
             handoffToKeyboard: {
                 guard let pointerTarget = pointerSelection.wrappedValue,
                       sections.contains(where: {
                           $0.targets.contains(pointerTarget)
-                      }) else {
+                      }),
+                      isNavigationTargetVisible(
+                          pointerTarget,
+                          sections: sections,
+                          visibleSectionIDs: visibleSectionIDs.wrappedValue
+                      ) else {
                     return
                 }
                 selection.wrappedValue = pointerTarget
@@ -476,6 +462,7 @@ struct HomeView: View {
                     startingTarget: shortcuts.inputModality == .pointer
                         ? pointerSelection.wrappedValue
                         : nil,
+                    visibleSectionIDs: visibleSectionIDs.wrappedValue,
                     scrollProxy: scrollProxy
                 )
             },
@@ -495,13 +482,21 @@ struct HomeView: View {
         selection: Binding<KeyboardTarget?>,
         rememberedSelections: Binding<[String: KeyboardTarget]>,
         startingTarget: KeyboardTarget?,
+        visibleSectionIDs: [String],
         scrollProxy: ScrollViewProxy
     ) -> Bool {
         guard let firstSection = sections.first,
               let firstTarget = firstSection.targets.first else {
             return false
         }
-        guard let current = startingTarget ?? selection.wrappedValue,
+        let current = navigationOrigin(
+            for: direction,
+            candidate: startingTarget ?? selection.wrappedValue,
+            sections: sections,
+            rememberedSelections: rememberedSelections.wrappedValue,
+            visibleSectionIDs: visibleSectionIDs
+        )
+        guard let current,
               let sectionIndex = sections.firstIndex(where: { $0.targets.contains(current) }),
               let targetIndex = sections[sectionIndex].targets.firstIndex(of: current) else {
             selectKeyboardTarget(
@@ -556,6 +551,57 @@ struct HomeView: View {
         return true
     }
 
+    private func navigationOrigin(
+        for direction: CineLarkFocusDirection,
+        candidate: KeyboardTarget?,
+        sections: [KeyboardSection],
+        rememberedSelections: [String: KeyboardTarget],
+        visibleSectionIDs: [String]
+    ) -> KeyboardTarget? {
+        guard !visibleSectionIDs.isEmpty else { return candidate }
+        if let candidate,
+           isNavigationTargetVisible(
+               candidate,
+               sections: sections,
+               visibleSectionIDs: visibleSectionIDs
+           ) {
+            return candidate
+        }
+
+        let visibleSections = sections.filter {
+            $0.id != Self.heroSectionID && visibleSectionIDs.contains($0.id)
+        }
+        let boundarySection = direction == .down
+            ? visibleSections.last
+            : visibleSections.first
+        guard let boundarySection else { return candidate }
+
+        if let rememberedTarget = rememberedSelections[boundarySection.id],
+           boundarySection.targets.contains(rememberedTarget) {
+            return rememberedTarget
+        }
+        return boundarySection.targets.first
+    }
+
+    private func isNavigationTargetVisible(
+        _ target: KeyboardTarget,
+        sections: [KeyboardSection],
+        visibleSectionIDs: [String]
+    ) -> Bool {
+        guard !visibleSectionIDs.isEmpty,
+              let targetSection = sections.first(where: {
+                  $0.targets.contains(target)
+              }) else {
+            return true
+        }
+        if targetSection.id == Self.heroSectionID {
+            return sections.first(where: { $0.id != Self.heroSectionID }).map {
+                visibleSectionIDs.contains($0.id)
+            } ?? true
+        }
+        return visibleSectionIDs.contains(targetSection.id)
+    }
+
     private func selectKeyboardTarget(
         _ target: KeyboardTarget,
         sectionID: String,
@@ -563,13 +609,18 @@ struct HomeView: View {
         rememberedSelections: Binding<[String: KeyboardTarget]>,
         scrollProxy: ScrollViewProxy
     ) {
-        let scrollID = sectionID == Self.heroSectionID ? Self.contentTopID : sectionID
+        let scrollID = sectionID == Self.heroSectionID
+            ? keyboardSections.first(where: { $0.id != Self.heroSectionID })?.id
+            : sectionID
         scrollCorrectionTask?.cancel()
         withAnimation(.easeOut(duration: 0.2)) {
             selection.wrappedValue = target
             rememberedSelections.wrappedValue[sectionID] = target
-            scrollProxy.scrollTo(scrollID, anchor: .top)
+            if let scrollID {
+                scrollProxy.scrollTo(scrollID, anchor: .top)
+            }
         }
+        guard let scrollID else { return }
         scrollCorrectionTask = Task { @MainActor in
             do {
                 try await Task.sleep(for: .milliseconds(240))

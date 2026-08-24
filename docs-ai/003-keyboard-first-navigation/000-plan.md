@@ -164,3 +164,27 @@ heading instead of the card body — see
 - Updated 2026-08-24: Poster scrolling targets include focus-scale clearance so
   top alignment cannot clip selected artwork — see
   [010-focus-safe-scroll-targets.md](010-focus-safe-scroll-targets.md).
+
+- Updated 2026-08-24: The Home preview now retains its original expanded
+  geometry instead of resizing and transforming with shelf scroll position;
+  this supersedes the scroll-responsive geometry described in 003.002 while
+  preserving its persistent-preview and semantic-anchor decisions — see
+  [011-static-home-preview-geometry.md](011-static-home-preview-geometry.md).
+
+- Updated 2026-08-24: Home shelves now use the current preview artwork beneath a
+  dark native-material treatment instead of an opaque near-black field — see
+  [012-frosted-home-shelf-background.md](012-frosted-home-shelf-background.md).
+
+- Updated 2026-08-24: Home arrow navigation now rebases stale offscreen
+  selection on the visible shelf boundary, and horizontal shelf targets include
+  leading focus clearance — see
+  [013-visible-home-navigation-origin.md](013-visible-home-navigation-origin.md).
+
+- Updated 2026-08-24: The experimental frosted Home shelf treatment was removed
+  and the opaque canvas restored — see
+  [014-restore-opaque-home-shelf-background.md](014-restore-opaque-home-shelf-background.md).
+
+- Updated 2026-08-24: Series detail navigation now rejects stale offscreen
+  episode origins and moves focus deterministically when the episode list is
+  expanded or collapsed — see
+  [015-visible-series-detail-navigation.md](015-visible-series-detail-navigation.md).

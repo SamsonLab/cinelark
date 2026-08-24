@@ -31,29 +31,49 @@ struct ContinueWatchingShelf: View {
             heading
 
             ScrollViewReader { scrollProxy in
-                ScrollView(.horizontal) {
-                    LazyHStack(alignment: .top, spacing: CineLarkDesign.Layout.shelfSpacing) {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(
+                        alignment: .top,
+                        spacing: CineLarkDesign.Layout.shelfSpacing -
+                            CineLarkDesign.Layout.focusScrollClearance
+                    ) {
                         ForEach(model.continueWatching) { item in
-                            PlaybackLandscapeLockup(
-                                item: item,
-                                isPlaying: model.playingItemID == item.id,
-                                isPlaybackDisabled: model.playingItemID != nil,
-                                prefersInitialFocus: item.id == model.continueWatching.first?.id,
-                                isKeyboardSelected: selectedItemID == item.id,
-                                isKeyboardNavigationActive: isKeyboardNavigationActive,
-                                onPointerSelection: onPointerSelection,
-                                onHighlight: onHighlight
-                            ) {
-                                Task { await model.play(item) }
+                            HStack(spacing: 0) {
+                                Color.clear
+                                    .frame(
+                                        width: CineLarkDesign.Layout.focusScrollClearance,
+                                        height: 1
+                                    )
+                                    .accessibilityHidden(true)
+
+                                PlaybackLandscapeLockup(
+                                    item: item,
+                                    isPlaying: model.playingItemID == item.id,
+                                    isPlaybackDisabled: model.playingItemID != nil,
+                                    prefersInitialFocus: item.id == model.continueWatching.first?.id,
+                                    isKeyboardSelected: selectedItemID == item.id,
+                                    isKeyboardNavigationActive: isKeyboardNavigationActive,
+                                    onPointerSelection: onPointerSelection,
+                                    onHighlight: onHighlight
+                                ) {
+                                    Task { await model.play(item) }
+                                }
                             }
                             .id(item.id)
                         }
                     }
                     .scrollTargetLayout()
                     .padding(.vertical, 26)
+                    .cineLarkHorizontalScrollIndicatorsHidden()
                 }
                 .contentMargins(
-                    .horizontal,
+                    .leading,
+                    CineLarkDesign.Layout.contentMargin -
+                        CineLarkDesign.Layout.focusScrollClearance,
+                    for: .scrollContent
+                )
+                .contentMargins(
+                    .trailing,
                     CineLarkDesign.Layout.contentMargin,
                     for: .scrollContent
                 )
