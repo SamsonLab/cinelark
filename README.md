@@ -66,9 +66,10 @@ If IINA is not installed yet:
 brew install --cask iina
 ```
 
-Tagged releases use a stable project-controlled self-signed identity rather
-than Apple notarization. The Cask pins the DMG by SHA-256 and removes quarantine
-after installation. The IINA plugin is installed explicitly on first playback.
+Tagged releases are archived and exported on the maintainer Mac with Xcode
+Automatic Signing. The current Apple Development export is not Developer ID
+notarized, so the Cask pins the DMG by SHA-256 and removes quarantine after
+installation. The IINA plugin is installed explicitly on first playback.
 
 ## Development
 
@@ -99,6 +100,7 @@ maintained once under `.claude/skills/` and exposed to Codex through
 - [Remote protocol](docs/interfaces/remote-protocol.md)
 - [Homebrew distribution decision](docs/decisions/0005-homebrew-distribution.md)
 - [Sparkle update decision](docs/decisions/0006-sparkle-updates.md)
+- [Local automatic release-signing decision](docs/decisions/0007-local-automatic-release-signing.md)
 - [Observed UHDNow API](docs/integrations/uhdnow-api.md)
 - [Verified IINA plugin capabilities](docs/integrations/iina-plugin-api.md)
 

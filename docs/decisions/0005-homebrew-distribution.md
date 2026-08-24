@@ -1,6 +1,6 @@
 # ADR 0005: Distribute macOS releases through a project Homebrew tap
 
-- Status: Accepted
+- Status: Accepted; release signing superseded by [ADR-0007](0007-local-automatic-release-signing.md)
 - Date: 2026-08-20
 
 ## Context
@@ -21,6 +21,9 @@ designated requirement is tied to a changing code-directory hash. That can
 invalidate Keychain access expectations after every release.
 
 ## Decision
+
+> The Homebrew distribution decision remains active. The self-signed release
+> mechanism below was replaced by local Xcode Automatic Signing in ADR-0007.
 
 Publish one universal DMG for each tagged macOS release and distribute it from
 `SamsonLab/homebrew-cinelark`.

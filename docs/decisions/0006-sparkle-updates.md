@@ -3,6 +3,10 @@
 - Status: Accepted
 - Date: 2026-08-24
 
+> Release code signing and publication now follow
+> [ADR-0007](0007-local-automatic-release-signing.md). Sparkle's updater and
+> EdDSA trust decisions remain unchanged.
+
 ## Context
 
 CineLark publishes universal, project-signed DMGs through GitHub Releases and a
@@ -11,9 +15,8 @@ path, but an installed application should also be able to discover and install
 new versions without leaving the app.
 
 The project does not currently use Apple Developer ID signing or notarization.
-Its stable self-signed code identity preserves a consistent designated
-requirement, but does not authenticate downloaded update archives independently
-of the distribution channel.
+Downloaded update archives therefore require authentication that is independent
+of the current code-signing and distribution channel.
 
 ## Decision
 
@@ -32,14 +35,14 @@ Tagged releases publish `appcast.xml` beside the versioned universal DMG. The
 feed is served through GitHub's latest-release asset redirect, while each
 enclosure points to an immutable versioned release URL. Both the archive and the
 feed are authenticated with Sparkle EdDSA signatures. The public key is embedded
-in the application; private key material exists only in the maintainer Keychain
-and the `SPARKLE_PRIVATE_KEY` GitHub Actions secret.
+in the application; private key material used by the current local publication
+pipeline exists only in the maintainer Keychain.
 
 `CURRENT_PROJECT_VERSION` is the update ordering value and must be a positive,
 monotonically increasing integer. `MARKETING_VERSION` remains the user-facing
-release version. The custom release packager signs Sparkle's nested XPC services,
-updater application, autoupdate executable, and framework before sealing the host
-application.
+release version. Xcode Archive and Export sign Sparkle's nested XPC services,
+updater application, autoupdate executable, framework, bridge, and host with one
+Automatic Signing Team before the read-only packager creates the DMG.
 
 The first iteration retains only the latest feed item and does not generate
 delta updates or prerelease channels.

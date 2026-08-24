@@ -1,4 +1,4 @@
-name: Release
+name: Release Validation
 
 on:
   push:
@@ -6,10 +6,10 @@ on:
       - "v*"
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-validation-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -19,7 +19,6 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: Validate release version
-        id: release
         shell: bash
         run: |
           set -euo pipefail
@@ -34,8 +33,6 @@ jobs:
             echo "::error::CURRENT_PROJECT_VERSION must be a positive integer"
             exit 1
           fi
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "build_version=$BUILD_VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Install pinned Rust toolchain
         run: >-
@@ -53,62 +50,7 @@ jobs:
           npm test --prefix plugins/iina
           python3 scripts/check_repository.py
 
-      - name: Import release signing identity
-        id: signing
-        shell: bash
-        env:
-          CINELARK_SIGNING_CERTIFICATE: ${{ secrets.CINELARK_SIGNING_CERTIFICATE }}
-          CINELARK_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.CINELARK_SIGNING_CERTIFICATE_PASSWORD }}
-        run: |
-          set -euo pipefail
-          if [[ -z "$CINELARK_SIGNING_CERTIFICATE" || -z "$CINELARK_SIGNING_CERTIFICATE_PASSWORD" ]]; then
-            echo "::error::Release signing secrets are not configured"
-            exit 1
-          fi
-
-          CERTIFICATE_PATH="$RUNNER_TEMP/cinelark-release.p12"
-          KEYCHAIN_PATH="$RUNNER_TEMP/cinelark-release.keychain-db"
-          KEYCHAIN_PASSWORD=$(/usr/bin/openssl rand -hex 24)
-          export CERTIFICATE_PATH
-          python3 - <<'PY'
-          import base64
-          import os
-
-          with open(os.environ["CERTIFICATE_PATH"], "wb") as output:
-              output.write(base64.b64decode(os.environ["CINELARK_SIGNING_CERTIFICATE"], validate=True))
-          PY
-
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security set-keychain-settings -lut 3600 "$KEYCHAIN_PATH"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security import "$CERTIFICATE_PATH" \
-            -k "$KEYCHAIN_PATH" \
-            -P "$CINELARK_SIGNING_CERTIFICATE_PASSWORD" \
-            -T /usr/bin/codesign \
-            -T /usr/bin/security >/dev/null
-          security set-key-partition-list \
-            -S apple-tool:,apple:,codesign: \
-            -s \
-            -k "$KEYCHAIN_PASSWORD" \
-            "$KEYCHAIN_PATH" >/dev/null
-          security list-keychains -d user -s "$KEYCHAIN_PATH"
-
-          # A self-signed certificate is intentionally not trusted by
-          # Gatekeeper. codesign can still use its imported private key by the
-          # certificate's SHA-1 hash without opening an authorization UI.
-          IDENTITY=$(security find-certificate \
-            -c 'CineLark Release Signing' \
-            -Z \
-            "$KEYCHAIN_PATH" \
-            | awk '/SHA-1 hash:/ { print $NF; exit }')
-          if [[ -z "$IDENTITY" ]]; then
-            echo "::error::CineLark release signing identity is unavailable"
-            exit 1
-          fi
-          echo "identity=$IDENTITY" >> "$GITHUB_OUTPUT"
-          echo "keychain=$KEYCHAIN_PATH" >> "$GITHUB_OUTPUT"
-
-      - name: Build universal app
+      - name: Build unsigned universal app
         shell: bash
         run: |
           set -euo pipefail
@@ -124,199 +66,8 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             build
 
-      - name: Sign and package universal app
-        id: package
-        shell: bash
-        env:
-          VERSION: ${{ steps.release.outputs.version }}
-          SIGNING_IDENTITY: ${{ steps.signing.outputs.identity }}
-        run: |
-          set -euo pipefail
-          chmod +x scripts/package_macos_release.sh
-          DMG_PATH=$(scripts/package_macos_release.sh \
-            "$RUNNER_TEMP/DerivedData/Build/Products/Release/CineLark.app" \
-            "$VERSION" \
-            "$RUNNER_TEMP/release" \
-            "$SIGNING_IDENTITY")
-          {
-            echo "dmg_path=$DMG_PATH"
-            echo "sha_path=$DMG_PATH.sha256"
-            echo "sha256=$(shasum -a 256 "$DMG_PATH" | awk '{ print $1 }')"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Prepare release notes
-        shell: bash
-        env:
-          VERSION: ${{ steps.release.outputs.version }}
-        run: |
-          set -euo pipefail
-          cat > "$RUNNER_TEMP/release-notes.md" <<EOF
-          CineLark $VERSION for macOS 26 or later.
-
-          ## Highlights
-
-          - Unified Apple TV-inspired media presentation and responsive layouts.
-          - Keyboard-first directional navigation with seamless pointer handoff.
-          - Native Sparkle update checks with signed appcast and archive verification.
-
-          ## Install
-
-          \`\`\`sh
-          brew install --cask samsonlab/cinelark/cinelark
-          \`\`\`
-
-          CineLark uses a project-controlled self-signed code identity and is not
-          Apple-notarized. The Homebrew Cask pins this artifact by SHA-256 and
-          removes its quarantine attribute after installation. In-app updates
-          are authenticated independently with Sparkle EdDSA signatures.
-          EOF
-
-      - name: Generate signed Sparkle appcast
-        id: sparkle
-        shell: bash
-        env:
-          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
-          VERSION: ${{ steps.release.outputs.version }}
-          BUILD_VERSION: ${{ steps.release.outputs.build_version }}
-        run: |
-          set -euo pipefail
-          if [[ -z "$SPARKLE_PRIVATE_KEY" ]]; then
-            echo "::error::SPARKLE_PRIVATE_KEY is not configured"
-            exit 1
-          fi
-
-          SPARKLE_BIN="$RUNNER_TEMP/DerivedData/SourcePackages/artifacts/sparkle/Sparkle/bin"
-          GENERATE_APPCAST="$SPARKLE_BIN/generate_appcast"
-          if [[ ! -x "$GENERATE_APPCAST" ]]; then
-            echo "::error::Sparkle appcast generator is unavailable"
-            exit 1
-          fi
-
-          RELEASE_DIR="$RUNNER_TEMP/release"
-          APPCAST_PATH="$RELEASE_DIR/appcast.xml"
-          cp \
-            "$RUNNER_TEMP/release-notes.md" \
-            "$RELEASE_DIR/CineLark_${VERSION}_universal.md"
-          printf '%s' "$SPARKLE_PRIVATE_KEY" | "$GENERATE_APPCAST" \
-            --ed-key-file - \
-            --download-url-prefix "https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/" \
-            --link "https://github.com/$GITHUB_REPOSITORY" \
-            --embed-release-notes \
-            --maximum-versions 1 \
-            --maximum-deltas 0 \
-            -o "$APPCAST_PATH" \
-            "$RELEASE_DIR"
-
-          if [[ ! -s "$APPCAST_PATH" ]]; then
-            echo "::error::Sparkle appcast was not generated"
-            exit 1
-          fi
-          if ! grep -Fq "CineLark_${VERSION}_universal.dmg" "$APPCAST_PATH"; then
-            echo "::error::Sparkle appcast does not reference the release DMG"
-            exit 1
-          fi
-          if ! grep -Fq "<sparkle:version>${BUILD_VERSION}</sparkle:version>" "$APPCAST_PATH"; then
-            echo "::error::Sparkle appcast does not contain build $BUILD_VERSION"
-            exit 1
-          fi
-          if ! grep -Fq "<sparkle:shortVersionString>${VERSION}</sparkle:shortVersionString>" "$APPCAST_PATH"; then
-            echo "::error::Sparkle appcast does not contain version $VERSION"
-            exit 1
-          fi
-          if ! grep -Fq "sparkle:edSignature" "$APPCAST_PATH"; then
-            echo "::error::Sparkle appcast does not contain an update signature"
-            exit 1
-          fi
-          if ! grep -Fq "<!-- sparkle-signatures:" "$APPCAST_PATH"; then
-            echo "::error::Sparkle appcast is not signed"
-            exit 1
-          fi
-          echo "appcast_path=$APPCAST_PATH" >> "$GITHUB_OUTPUT"
-
-      - name: Publish GitHub release
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ steps.release.outputs.version }}
-          DMG_PATH: ${{ steps.package.outputs.dmg_path }}
-          SHA_PATH: ${{ steps.package.outputs.sha_path }}
-          APPCAST_PATH: ${{ steps.sparkle.outputs.appcast_path }}
-        run: |
-          set -euo pipefail
-          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" "$DMG_PATH" "$SHA_PATH" "$APPCAST_PATH" \
-              --clobber \
-              --repo "$GITHUB_REPOSITORY"
-          else
-            gh release create "$GITHUB_REF_NAME" "$DMG_PATH" "$SHA_PATH" "$APPCAST_PATH" \
-              --title "CineLark $GITHUB_REF_NAME" \
-              --notes-file "$RUNNER_TEMP/release-notes.md" \
-              --repo "$GITHUB_REPOSITORY"
-          fi
-
-      - name: Update Homebrew Cask
-        shell: bash
-        env:
-          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-          VERSION: ${{ steps.release.outputs.version }}
-          SHA256: ${{ steps.package.outputs.sha256 }}
-        run: |
-          set -euo pipefail
-          if [[ -z "$HOMEBREW_TAP_TOKEN" ]]; then
-            echo "::error::HOMEBREW_TAP_TOKEN is not configured"
-            exit 1
-          fi
-
-          export GH_TOKEN="$HOMEBREW_TAP_TOKEN"
-          gh auth setup-git
-          gh repo clone SamsonLab/homebrew-cinelark "$RUNNER_TEMP/homebrew-cinelark"
-
-          mkdir -p "$RUNNER_TEMP/homebrew-cinelark/Casks"
-          cat > "$RUNNER_TEMP/homebrew-cinelark/Casks/cinelark.rb" <<CASK
-          cask "cinelark" do
-            version "$VERSION"
-            sha256 "$SHA256"
-
-            url "https://github.com/SamsonLab/cinelark/releases/download/v#{version}/CineLark_#{version}_universal.dmg"
-            name "CineLark"
-            desc "TV-first media library client using IINA for playback"
-            homepage "https://github.com/SamsonLab/cinelark"
-
-            depends_on macos: :tahoe
-
-            app "CineLark.app"
-
-            postflight_steps do
-              run "/usr/bin/xattr",
-                  args: ["-cr", "{{appdir}}/CineLark.app"]
-            end
-
-            zap trash: [
-              "~/Library/Application Support/CineLark",
-              "~/Library/Caches/com.samsonlab.cinelark",
-              "~/Library/Preferences/com.samsonlab.cinelark.plist",
-              "~/Library/Saved Application State/com.samsonlab.cinelark.savedState",
-            ]
-
-            caveats <<~EOS
-              CineLark requires IINA for playback. If IINA is not already installed:
-                brew install --cask iina
-            EOS
-          end
-          CASK
-
-          cd "$RUNNER_TEMP/homebrew-cinelark"
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Casks/cinelark.rb
-          if ! git diff --cached --quiet; then
-            git commit -m "Update cask to v$VERSION"
-            git push origin main
-          fi
-
-      - name: Remove temporary signing material
-        if: always()
-        shell: bash
-        run: |
-          security delete-keychain "${{ steps.signing.outputs.keychain }}" >/dev/null 2>&1 || true
-          rm -f "$RUNNER_TEMP/cinelark-release.p12"
+      - name: Confirm local publication boundary
+        run: >-
+          echo "Release signing, Sparkle feed generation, publication, and
+          Homebrew Cask updates are performed by scripts/prepare_macos_release.sh
+          and scripts/publish_macos_release.sh on the maintainer Mac."

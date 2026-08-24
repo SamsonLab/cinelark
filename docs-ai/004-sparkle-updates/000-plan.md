@@ -104,3 +104,6 @@ a non-numeric or non-positive bundle version.
 - The sidebar action was explicitly constrained to update-available state. It is
   not a persistent manual-check control; the application menu owns that stable
   entry point.
+- Updated 2026-08-24: the self-signed release model failed Hardened Runtime
+  library validation and was replaced by local Xcode Automatic Signing — see
+  [002-self-signed-library-validation.md](002-self-signed-library-validation.md).

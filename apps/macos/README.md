@@ -71,12 +71,23 @@ swift test --package-path packages/apple/CineLarkKit
 `project.yml` is the source definition for XcodeGen; the generated Xcode project
 is committed so contributors do not need XcodeGen merely to build the app. App
 builds compile and embed the helper with the pinned Rust toolchain; end users do
-not install Cargo or manage a bridge process. Tagged releases are universal,
-self-signed with a stable project identity, and intentionally not Apple-notarized.
-The release workflow also signs the DMG and appcast with Sparkle EdDSA and
-publishes both to the matching GitHub Release. `CURRENT_PROJECT_VERSION` must
-increase for every tag, and `SPARKLE_PRIVATE_KEY` must remain configured as a
-GitHub Actions secret.
+not install Cargo or manage a bridge process. Tagged releases are universal and
+exported on the maintainer Mac with Xcode Automatic Signing. The local release
+scripts verify that the app, bridge, and every Sparkle component share one Team
+ID, launch the exact exported app, create the DMG, and sign its appcast with the
+Sparkle EdDSA key stored under `com.samsonlab.cinelark` in the maintainer
+Keychain. `CURRENT_PROJECT_VERSION` must increase for every tag. The current
+Apple Development export is not Developer ID notarized; GitHub Actions only
+validates tagged source and does not hold release-signing credentials.
+
+Prepare and publish a release from the maintainer Mac:
+
+```sh
+scripts/prepare_macos_release.sh build/release
+git tag v<version>
+git push origin main v<version>
+scripts/publish_macos_release.sh build/release
+```
 
 ## Security
 

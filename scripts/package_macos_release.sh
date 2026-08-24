@@ -4,15 +4,14 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: package_macos_release.sh <app-path> <version> <output-directory> <signing-identity>
+Usage: package_macos_release.sh <exported-app-path> <version> <output-directory>
 
-Signs a universal CineLark.app with the supplied Keychain identity and creates
-CineLark_<version>_universal.dmg. The signing certificate may be self-signed;
-Apple notarization is intentionally outside this script.
+Validates an app exported by Xcode Automatic Signing and creates
+CineLark_<version>_universal.dmg. This script never modifies code signatures.
 EOF
 }
 
-if [[ $# -ne 4 ]]; then
+if [[ $# -ne 3 ]]; then
   usage >&2
   exit 64
 fi
@@ -20,7 +19,6 @@ fi
 APP_PATH=$1
 VERSION=$2
 OUTPUT_DIR=$3
-SIGNING_IDENTITY=$4
 
 if [[ ! -d "$APP_PATH" ]]; then
   echo "App bundle not found: $APP_PATH" >&2
@@ -30,22 +28,31 @@ if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
   echo "Invalid release version: $VERSION" >&2
   exit 65
 fi
-if [[ -z "$SIGNING_IDENTITY" ]]; then
-  echo "A signing identity is required" >&2
-  exit 65
-fi
 
 APP_EXECUTABLE="$APP_PATH/Contents/MacOS/CineLark"
 BRIDGE_EXECUTABLE="$APP_PATH/Contents/Helpers/CineLarkBridge"
 PLUGIN_ARCHIVE="$APP_PATH/Contents/Resources/CineLark.iinaplgz"
 APP_ICON="$APP_PATH/Contents/Resources/AppIcon.icns"
 ASSET_CATALOG="$APP_PATH/Contents/Resources/Assets.car"
+SPARKLE_FRAMEWORK="$APP_PATH/Contents/Frameworks/Sparkle.framework"
+SPARKLE_VERSION_DIR="$SPARKLE_FRAMEWORK/Versions/B"
+SIGNED_COMPONENTS=(
+  "$APP_PATH"
+  "$BRIDGE_EXECUTABLE"
+  "$SPARKLE_FRAMEWORK"
+  "$SPARKLE_VERSION_DIR/Updater.app"
+  "$SPARKLE_VERSION_DIR/Autoupdate"
+  "$SPARKLE_VERSION_DIR/XPCServices/Downloader.xpc"
+  "$SPARKLE_VERSION_DIR/XPCServices/Installer.xpc"
+)
+
 for required_path in \
   "$APP_EXECUTABLE" \
   "$BRIDGE_EXECUTABLE" \
   "$PLUGIN_ARCHIVE" \
   "$APP_ICON" \
-  "$ASSET_CATALOG"; do
+  "$ASSET_CATALOG" \
+  "${SIGNED_COMPONENTS[@]}"; do
   if [[ ! -e "$required_path" ]]; then
     echo "Release bundle is incomplete: $required_path" >&2
     exit 66
@@ -70,74 +77,39 @@ verify_universal() {
   fi
 }
 
-sign_code() {
-  /usr/bin/codesign \
-    --force \
-    --sign "$SIGNING_IDENTITY" \
-    --options runtime \
-    --timestamp=none \
-    "$1"
-}
-
-sign_code_preserving_entitlements() {
-  /usr/bin/codesign \
-    --force \
-    --sign "$SIGNING_IDENTITY" \
-    --options runtime \
-    --timestamp=none \
-    --preserve-metadata=entitlements \
-    "$1"
+signature_value() {
+  local path=$1
+  local key=$2
+  /usr/bin/codesign -dvv "$path" 2>&1 | \
+    /usr/bin/awk -F= -v key="$key" '$1 == key && value == "" { value = $2 } END { print value }'
 }
 
 verify_universal "$APP_EXECUTABLE"
 verify_universal "$BRIDGE_EXECUTABLE"
-
-# Sign from the innermost code outward so the app's resource seal contains the
-# final signatures of every nested executable.
-sign_code "$BRIDGE_EXECUTABLE"
-if [[ -d "$APP_PATH/Contents/Frameworks" ]]; then
-  SPARKLE_FRAMEWORK="$APP_PATH/Contents/Frameworks/Sparkle.framework"
-  if [[ -d "$SPARKLE_FRAMEWORK" ]]; then
-    SPARKLE_VERSION_DIR="$SPARKLE_FRAMEWORK/Versions/B"
-    SPARKLE_INSTALLER="$SPARKLE_VERSION_DIR/XPCServices/Installer.xpc"
-    SPARKLE_DOWNLOADER="$SPARKLE_VERSION_DIR/XPCServices/Downloader.xpc"
-    SPARKLE_AUTOUPDATE="$SPARKLE_VERSION_DIR/Autoupdate"
-    SPARKLE_UPDATER="$SPARKLE_VERSION_DIR/Updater.app"
-    for sparkle_component in \
-      "$SPARKLE_INSTALLER" \
-      "$SPARKLE_DOWNLOADER" \
-      "$SPARKLE_AUTOUPDATE" \
-      "$SPARKLE_UPDATER"; do
-      if [[ ! -e "$sparkle_component" ]]; then
-        echo "Sparkle bundle is incomplete: $sparkle_component" >&2
-        exit 66
-      fi
-    done
-    sign_code "$SPARKLE_INSTALLER"
-    sign_code_preserving_entitlements "$SPARKLE_DOWNLOADER"
-    sign_code "$SPARKLE_AUTOUPDATE"
-    sign_code "$SPARKLE_UPDATER"
-    sign_code "$SPARKLE_FRAMEWORK"
-  fi
-
-  while IFS= read -r -d '' nested_code; do
-    if [[ "${SPARKLE_FRAMEWORK:-}" == "$nested_code" ]]; then
-      continue
-    fi
-    sign_code "$nested_code"
-  done < <(
-    /usr/bin/find "$APP_PATH/Contents/Frameworks" -depth \
-      \( -name '*.framework' -o -name '*.dylib' \) -print0
-  )
-fi
-if [[ -d "$APP_PATH/Contents/PlugIns" ]]; then
-  while IFS= read -r -d '' extension; do
-    sign_code "$extension"
-  done < <(/usr/bin/find "$APP_PATH/Contents/PlugIns" -depth -name '*.appex' -print0)
-fi
-sign_code "$APP_PATH"
-
 /usr/bin/codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+
+HOST_TEAM=$(signature_value "$APP_PATH" TeamIdentifier)
+HOST_AUTHORITY=$(signature_value "$APP_PATH" Authority)
+if [[ -z "$HOST_TEAM" || "$HOST_TEAM" == "not set" ]]; then
+  echo "The exported app has no Apple Team ID" >&2
+  exit 65
+fi
+case "$HOST_AUTHORITY" in
+  "Apple Development:"*|"Developer ID Application:"*) ;;
+  *)
+    echo "Unexpected Xcode signing authority: $HOST_AUTHORITY" >&2
+    exit 65
+    ;;
+esac
+
+for component in "${SIGNED_COMPONENTS[@]}"; do
+  /usr/bin/codesign --verify --strict --verbose=2 "$component"
+  component_team=$(signature_value "$component" TeamIdentifier)
+  if [[ "$component_team" != "$HOST_TEAM" ]]; then
+    echo "Signing Team mismatch: $component uses ${component_team:-no Team ID}, expected $HOST_TEAM" >&2
+    exit 65
+  fi
+done
 
 bundle_version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_PATH/Contents/Info.plist")
 if [[ "$bundle_version" != "$VERSION" ]]; then
