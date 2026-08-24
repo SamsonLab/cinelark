@@ -42,3 +42,4 @@ writing, amendment, and verification rules.
 | 002 | [Keyboard shortcut system](002-keyboard-shortcut-system/000-plan.md) | 2026-08-21 | Fixed navigation keys, directional content focus, overlay help, and back semantics |
 | 003 | [Keyboard-first application navigation](003-keyboard-first-navigation/000-plan.md) | 2026-08-24 | Application-wide focus graphs, resilient input lifecycle, and last-input selection handoff |
 | 004 | [Sparkle updates](004-sparkle-updates/000-plan.md) | 2026-08-24 | Signed native updates with a conditional sidebar availability prompt |
+| 005 | [Native episode playlist](005-native-episode-playlist/000-plan.md) | 2026-08-24 | Rolling IINA/mpv playlist, stock-IINA lifecycle lessons, and five-second real-EOF validation |

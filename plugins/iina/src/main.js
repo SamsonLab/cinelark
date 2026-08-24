@@ -1,6 +1,6 @@
 'use strict';
 
-const { core, event, global, mpv } = iina;
+const { core, event, global, mpv, playlist } = iina;
 
 const label = global.getLabel();
 const isCineLarkManagedPlayer = typeof label === 'string' && label.startsWith('cinelark:');
@@ -14,6 +14,8 @@ let lastDurationSeconds = 0;
 let hasLoadedCurrentMedia = false;
 let terminalEventSent = false;
 let idleFinalizationPending = false;
+let sessionClosed = false;
+let queueEntries = [];
 
 function emit(type, payload = {}, replyTo = null) {
   if (!activeSession) return;
@@ -27,6 +29,31 @@ function emit(type, payload = {}, replyTo = null) {
 
 function finiteNumber(value, fallback = 0) {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function playbackEntry(payload, sessionID) {
+  if (!payload || typeof payload.url !== 'string' || typeof payload.playbackID !== 'string') {
+    return null;
+  }
+  return {
+    sessionID,
+    playbackID: payload.playbackID,
+    url: payload.url,
+    title: typeof payload.title === 'string' ? payload.title : '',
+    startPositionSeconds: Math.max(0, finiteNumber(payload.startPositionSeconds)),
+  };
+}
+
+function activatePlayingEntry() {
+  const items = playlist.list() || [];
+  const playingIndex = items.findIndex((item) => item && item.isPlaying);
+  const playing = playingIndex >= 0 ? items[playingIndex] : null;
+  const entry = playing
+    ? queueEntries.find((candidate) => candidate.url === playing.filename)
+      || queueEntries[playingIndex]
+    : null;
+  if (entry) activeSession = entry;
+  return activeSession;
 }
 
 function snapshot() {
@@ -102,7 +129,7 @@ function scheduleIdleFinalization() {
   if (
     !activeSession ||
     !hasLoadedCurrentMedia ||
-    terminalEventSent ||
+    sessionClosed ||
     idleFinalizationPending ||
     !core.status.idle
   ) {
@@ -111,17 +138,25 @@ function scheduleIdleFinalization() {
   idleFinalizationPending = true;
   setTimeout(() => {
     idleFinalizationPending = false;
-    if (!activeSession || terminalEventSent || !core.status.idle) return;
-    terminalEventSent = true;
-    emitPosition();
-    emit('player.closed', { reason: 'player_stopped' });
+    if (!activeSession || sessionClosed || !core.status.idle) return;
+    sessionClosed = true;
+    if (!terminalEventSent) emitPosition();
+    emit('player.closed', {
+      reason: terminalEventSent ? 'playlist_ended' : 'player_stopped',
+      playbackID: activeSession.playbackID,
+    });
     activeSession = null;
-  }, 250);
+    queueEntries = [];
+  }, 750);
 }
 
 event.on('iina.file-loaded', () => {
-  if (!activeSession) return;
+  if (!activatePlayingEntry()) return;
   hasLoadedCurrentMedia = true;
+  terminalEventSent = false;
+  idleFinalizationPending = false;
+  lastPositionSeconds = Math.max(0, activeSession.startPositionSeconds);
+  lastDurationSeconds = 0;
   const resumePosition = finiteNumber(activeSession.startPositionSeconds);
   if (resumePosition > 0) core.seekTo(resumePosition);
   if (pendingAutoplay) core.resume();
@@ -150,8 +185,8 @@ event.on('mpv.end-file', (details) => {
   terminalEventSent = true;
   const reason = details && typeof details.reason === 'string' ? details.reason : 'unknown';
   emitPosition(null, reason === 'eof');
-  emit('player.ended', { reason });
-  if (reason !== 'eof') activeSession = null;
+  emit('player.ended', { reason, playbackID: activeSession.playbackID });
+  scheduleIdleFinalization();
 });
 
 event.on('mpv.idle-active.changed', () => {
@@ -159,11 +194,15 @@ event.on('mpv.idle-active.changed', () => {
 });
 
 event.on('iina.window-will-close', () => {
-  if (!activeSession || terminalEventSent) return;
-  terminalEventSent = true;
-  emitPosition();
-  emit('player.closed', { reason: 'window_closed' });
+  if (!activeSession || sessionClosed) return;
+  sessionClosed = true;
+  if (!terminalEventSent) emitPosition();
+  emit('player.closed', {
+    reason: 'window_closed',
+    playbackID: activeSession.playbackID,
+  });
   activeSession = null;
+  queueEntries = [];
 });
 
 function handleCommand(command) {
@@ -172,12 +211,10 @@ function handleCommand(command) {
 
   if (command.type === 'player.play') {
     const payload = command.payload || {};
-    if (typeof payload.url !== 'string' || typeof payload.playbackID !== 'string') return;
-    activeSession = {
-      sessionID: command.sessionID,
-      playbackID: payload.playbackID,
-      startPositionSeconds: finiteNumber(payload.startPositionSeconds),
-    };
+    const entry = playbackEntry(payload, command.sessionID);
+    if (!entry) return;
+    activeSession = entry;
+    queueEntries = [entry];
     pendingFullscreen = Boolean(payload.presentation && payload.presentation.fullscreen);
     pendingAutoplay = true;
     lastPositionSeconds = Math.max(0, activeSession.startPositionSeconds);
@@ -185,12 +222,25 @@ function handleCommand(command) {
     hasLoadedCurrentMedia = false;
     terminalEventSent = false;
     idleFinalizationPending = false;
+    sessionClosed = false;
     core.open(payload.url);
     return;
   }
 
   if (!activeSession || command.sessionID !== activeSession.sessionID) return;
   const payload = command.payload || {};
+  if (command.type === 'player.enqueue') {
+    const entry = playbackEntry(payload, command.sessionID);
+    if (!entry || queueEntries.some((candidate) => candidate.playbackID === entry.playbackID)) {
+      return;
+    }
+    queueEntries.push(entry);
+    // IINA's JSExport bridge converts an omitted integer argument to 0 even
+    // though the Swift implementation declares -1 as its default. Pass -1
+    // explicitly so queued episodes are appended after the playing item.
+    playlist.add(entry.url, -1);
+    return;
+  }
   switch (command.type) {
     case 'player.pause':
       core.pause();

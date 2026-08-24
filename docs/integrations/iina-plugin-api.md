@@ -126,6 +126,17 @@ This is sufficient for properties/events not covered by `core`, including
 playlist and end-file behavior. Prefer the narrower `core` API when it provides
 the required semantic operation.
 
+### Playlist
+
+The main entry exposes `playlist.list()`, `playlist.add(url, at)`,
+`playlist.play`, and next/previous controls. CineLark uses
+`playlist.add(url, -1)` for a rolling episode window and lets mpv perform its
+normal automatic advancement. The `-1` must be explicit: JavaScriptCore maps an
+omitted integer argument to `0` despite the Swift implementation's default,
+which inserts the item before the playing entry. The plugin maps the currently
+playing playlist URL back to an in-memory playback descriptor; URLs are never
+included in events or logs.
+
 ## 5. Events
 
 `event.on(name, callback)` returns a listener ID removed with
@@ -166,6 +177,28 @@ Use Keychain only for bridge pairing material. Provider credentials and tokens
 belong to CineLark for Mac and must not be copied into plugin preferences.
 
 `preferences.get/set/sync` is suitable for non-secret configuration.
+
+### IINA Open URL HTTP authentication
+
+Stock IINA 1.4.4 can save HTTP credentials from its Open URL window, but this
+is a separate path from the plugin Keychain API. It stores an Internet Password
+with service `IINA Saved HTTP Password` and matches the exact URL host and port.
+When matched, the window injects the credentials into URL userinfo before
+calling `PlayerCore.openURL`.
+
+If that load fails, IINA 1.4.4 copies the credential-bearing URL back into the
+visible URL field. Automation and diagnostics can then observe the userinfo, so
+this UI flow must not be used for repeatable smoke tests with production
+credentials.
+
+Managed-player `core.open` calls do not pass through that window and therefore
+do not automatically load those credentials. Passwords.app website entries are
+also not interchangeable with IINA's own saved item. Do not put HTTP credentials
+in bridge payloads, playlist URLs, plugin preferences, fixtures, or diagnostics.
+
+The UHDNow VOD route was tested with IINA HTTP authentication and no query
+token; it did not load. Its provider-issued capability token remains required,
+so IINA HTTP credentials are not a substitute for `playbackURL(for:)`.
 
 ## 7. Networking
 
@@ -252,12 +285,22 @@ managed-player, or `core` APIs—directly from that continuation can trap inside
 JavaScriptCore. Every such call after an async boundary must first hop to IINA's
 main run loop through its `setTimeout`/`Timer` polyfill.
 
+Stock IINA 1.4.4 does not safely invalidate that polyfill's pending timers when
+it hot-reloads a global plugin instance. A callback retained by the replaced
+JavaScript context can later call an API whose weak `pluginInstance` is already
+nil, causing a process-level trap in `JavascriptAPIHttp.request`. CineLark must
+therefore treat plugin installation or update as a restart boundary: fully quit
+and reopen IINA before attempting playback. This limitation is independent of
+the managed-player playlist and does not apply to a cleanly launched instance.
+
 ## 10. Capability assessment
 
 | Requirement | Current API | Assessment |
 | --- | --- | --- |
 | Create dedicated player | global managed player | Supported |
-| Open tokenized URL | `core.open` / create option | Supported |
+| Open opaque capability URL | `core.open` / create option | Supported |
+| Reuse Open URL HTTP credential from managed player | none exposed | Gap |
+| Native episode continuation | `playlist.add` / mpv advancement | Supported |
 | Resume after load | file-loaded + `seekTo` | Supported |
 | Pause/seek/stop/state | core/mpv APIs | Supported |
 | Audio/subtitle inventory and selection | track sub-APIs | Supported |

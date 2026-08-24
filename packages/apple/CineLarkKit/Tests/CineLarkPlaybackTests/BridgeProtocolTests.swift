@@ -87,6 +87,43 @@ struct BridgeProtocolTests {
         #expect(descriptor.startsInFullscreen)
     }
 
+    @Test("Queued player events retain the active item playback ID")
+    func queuedEventsRouteToActiveItem() {
+        let sessionID = UUID()
+        let firstPlaybackID = sessionID
+        let secondPlaybackID = UUID()
+        var router = IINAPlaybackEventRouter()
+
+        #expect(
+            router.playbackID(
+                eventType: "player.fileLoaded",
+                sessionID: sessionID,
+                payloadPlaybackID: firstPlaybackID
+            ) == firstPlaybackID
+        )
+        #expect(
+            router.playbackID(
+                eventType: "player.positionChanged",
+                sessionID: sessionID,
+                payloadPlaybackID: nil
+            ) == firstPlaybackID
+        )
+        #expect(
+            router.playbackID(
+                eventType: "player.fileLoaded",
+                sessionID: sessionID,
+                payloadPlaybackID: secondPlaybackID
+            ) == secondPlaybackID
+        )
+        #expect(
+            router.playbackID(
+                eventType: "player.ended",
+                sessionID: sessionID,
+                payloadPlaybackID: secondPlaybackID
+            ) == secondPlaybackID
+        )
+    }
+
     @Test("Canonical JSON sorts nested object keys")
     func canonicalJSON() {
         let value = JSONValue.object([

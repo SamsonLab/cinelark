@@ -121,10 +121,21 @@ The URL is opaque to the plugin. The player acknowledges receipt, opens it,
 applies resume only after the matching file-loaded event, and enters fullscreen
 by default. Actual URLs must never appear in fixtures or logs.
 
+### `player.enqueue`
+
+`player.enqueue` uses the same item fields as `player.play` and the existing
+player session ID. Its `playbackID` identifies the queued item independently
+from the session. The IINA plugin appends the opaque URL to the native playlist
+and keeps the descriptor only in memory. Duplicate playback IDs are ignored.
+
+CineLark keeps at most two future episodes in IINA. Capability URLs are
+resolved immediately before enqueueing rather than for an entire series.
+
 ### Transport commands
 
 | Type | Payload |
 | --- | --- |
+| `player.enqueue` | `{ "playbackID": UUID, "url": string, "title": string, "startPositionSeconds": number }` |
 | `player.pause` | `{}` |
 | `player.resume` | `{}` |
 | `player.stop` | `{}` |
@@ -146,7 +157,7 @@ current player.
 | --- | --- |
 | `bridge.ready` | negotiated versions and player availability |
 | `bridge.error` | redacted protocol or command error |
-| `player.fileLoaded` | selected URL loaded; URL itself is omitted |
+| `player.fileLoaded` | selected URL loaded with its item `playbackID`; URL itself is omitted |
 | `player.stateChanged` | idle/playing/paused/stopped state |
 | `player.positionChanged` | current position and duration in seconds |
 | `player.tracksChanged` | audio/subtitle/video track inventory |
@@ -170,8 +181,10 @@ A state snapshot contains no playback URL and maps to the shared semantics in
 The plugin samples position every second and emits at most once every two
 seconds. The Coordinator currently coalesces provider progress writes to a
 10-second cadence and sends a terminal stopped update on EOF, player close,
-explicit stop, session replacement, or observed IINA process termination. The
-process observer covers quit/crash paths where plugin HTTP cannot finish. After
+explicit stop, session replacement, or observed IINA process termination. EOF
+reporting is serialized in the background and does not gate native playlist
+advancement. The process observer covers quit/crash paths where plugin HTTP
+cannot finish. After
 the stopped request succeeds, CineLark invalidates
 the cached playback shelf and reloads Continue Watching; a failed stopped
 request must not make the UI claim that remote progress was updated.
@@ -182,6 +195,7 @@ request must not make the UI claim that remote progress was updated.
 | --- | --- |
 | Create managed player | `global.createPlayerInstance(options)` |
 | Open URL | `core.open(url)` or managed-player `url` option |
+| Append/advance queue | `playlist.add(url, -1)` and native mpv playlist advancement |
 | Pause/resume/stop | `core.pause/resume/stop()` |
 | Seek | `core.seek` / `core.seekTo` |
 | State | `core.status.*` and mpv properties |

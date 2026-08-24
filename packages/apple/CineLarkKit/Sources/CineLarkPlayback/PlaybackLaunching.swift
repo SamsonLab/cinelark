@@ -98,7 +98,8 @@ public enum PlaybackControlCommand: Sendable, Equatable {
 public protocol PlaybackLaunching: AnyObject {
     var events: AsyncStream<PlaybackEvent> { get }
     func open(_ descriptor: PlaybackDescriptor) async throws
-    func send(_ command: PlaybackControlCommand, playbackID: UUID) async throws
+    func enqueue(_ descriptor: PlaybackDescriptor, sessionID: UUID) async throws
+    func send(_ command: PlaybackControlCommand, sessionID: UUID) async throws
 }
 
 public extension PlaybackLaunching {
@@ -108,7 +109,11 @@ public extension PlaybackLaunching {
         }
     }
 
-    func send(_ command: PlaybackControlCommand, playbackID: UUID) async throws {
+    func enqueue(_ descriptor: PlaybackDescriptor, sessionID: UUID) async throws {
+        throw PlaybackLaunchError.bridgeUnavailable
+    }
+
+    func send(_ command: PlaybackControlCommand, sessionID: UUID) async throws {
         throw PlaybackLaunchError.bridgeUnavailable
     }
 }
@@ -127,7 +132,7 @@ public enum PlaybackLaunchError: Error, LocalizedError {
         case .iinaNotInstalled:
             "IINA is not installed. Install IINA to play this item."
         case .pluginInstallationRequired:
-            "CineLark opened the IINA Bridge installer. Approve the installation or update, then play again."
+            "CineLark opened the IINA Bridge installer. Approve the installation or update, then fully quit and reopen IINA before playing again."
         case .pluginUnavailable:
             "The CineLark IINA Bridge is not enabled. Enable it in IINA, then try again."
         case .helperUnavailable:

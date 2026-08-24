@@ -180,6 +180,13 @@ Selection
 Resume is applied after a matching `file-loaded` event, not merely after sending
 `open`, to avoid races with mpv initialization.
 
+For series episodes, CineLark discovers the ordered remainder of the series in
+the background and maintains two future entries in IINA's native playlist. Each
+entry has an independent playback ID. At natural EOF, mpv advances immediately;
+provider stopped reporting and queue replenishment run without gating the next
+file load. Only metadata is built for the full logical queue because UHDNow
+capability URLs are short-lived.
+
 ### 4.3 Progress
 
 Bridge telemetry uses seconds. Provider adapters convert at their boundary.

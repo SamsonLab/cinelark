@@ -5,6 +5,9 @@ const { readFileSync } = require('node:fs');
 const { resolve } = require('node:path');
 const test = require('node:test');
 const vm = require('node:vm');
+const uhdnowSeries = require('./fixtures/uhdnow-series.js');
+
+const [currentEpisode, nextEpisode] = uhdnowSeries.episodes;
 
 function makeHarness() {
   const eventHandlers = new Map();
@@ -13,6 +16,7 @@ function makeHarness() {
   const calls = [];
   let interval;
   const timeouts = [];
+  const playlistItems = [];
 
   const core = {
     status: {
@@ -36,7 +40,10 @@ function makeHarness() {
       tracks: [{ id: 3, title: 'Main', codec: 'hevc', isSelected: true }],
     },
     window: { loaded: true, fullscreen: false },
-    open: (url) => calls.push(['open', url]),
+    open: (url) => {
+      calls.push(['open', url]);
+      playlistItems.splice(0, playlistItems.length, { filename: url, isPlaying: true });
+    },
     pause: () => calls.push(['pause']),
     resume: () => calls.push(['resume']),
     stop: () => {
@@ -55,6 +62,17 @@ function makeHarness() {
       mpv: {
         set: (name, value) => {
           if (name === 'fullscreen') core.window.fullscreen = Boolean(value);
+        },
+      },
+      playlist: {
+        list: () => playlistItems.map((item) => ({ ...item })),
+        add: (url, at = 0) => {
+          calls.push(['playlist.add', url, at]);
+          if (at === -1) {
+            playlistItems.push({ filename: url, isPlaying: false });
+          } else {
+            playlistItems.splice(at, 0, { filename: url, isPlaying: false });
+          }
         },
       },
       global: {
@@ -84,6 +102,11 @@ function makeHarness() {
     emitted,
     eventHandlers,
     messageHandlers,
+    playPlaylistItem: (index) => {
+      playlistItems.forEach((item, itemIndex) => {
+        item.isPlaying = itemIndex === index;
+      });
+    },
     runInterval: () => interval(),
     runTimeouts: () => {
       while (timeouts.length > 0) timeouts.shift()();
@@ -93,7 +116,7 @@ function makeHarness() {
 
 function playCommand({
   sessionID = '6f55936d-5950-44fd-a696-f989d41785cc',
-  url = 'https://media.example/video?token=<redacted>',
+  url = currentEpisode.asset.playbackURL,
   startPositionSeconds = 42.5,
 } = {}) {
   return {
@@ -103,6 +126,7 @@ function playCommand({
     payload: {
       playbackID: sessionID,
       url,
+      title: currentEpisode.title,
       startPositionSeconds,
       presentation: { fullscreen: true },
     },
@@ -114,7 +138,7 @@ test('player opens the opaque URL and applies resume only after file-loaded', ()
   harness.messageHandlers.get('cinelark.command')(playCommand());
   assert.deepEqual(harness.calls, []);
   harness.runTimeouts();
-  assert.deepEqual(harness.calls, [['open', 'https://media.example/video?token=<redacted>']]);
+  assert.deepEqual(harness.calls, [['open', currentEpisode.asset.playbackURL]]);
 
   harness.eventHandlers.get('iina.file-loaded')();
   assert.deepEqual(harness.calls[1], ['seekTo', 42.5]);
@@ -125,7 +149,7 @@ test('player opens the opaque URL and applies resume only after file-loaded', ()
   assert.equal(events.some((value) => value.type === 'player.fileLoaded'), true);
   assert.equal(events.some((value) => value.type === 'player.tracksChanged'), true);
   const serialized = JSON.stringify(events);
-  assert.equal(serialized.includes('media.example'), false);
+  assert.equal(serialized.includes('v1-vod1.uhdnow.com'), false);
   assert.equal(serialized.includes('token='), false);
 });
 
@@ -139,7 +163,7 @@ test('managed player accepts a replacement playback session', () => {
   send(
     playCommand({
       sessionID: nextSessionID,
-      url: 'https://media.example/next-video?token=<redacted>',
+      url: nextEpisode.asset.playbackURL,
       startPositionSeconds: 0,
     })
   );
@@ -148,10 +172,53 @@ test('managed player accepts a replacement playback session', () => {
   assert.deepEqual(
     harness.calls.filter(([name]) => name === 'open'),
     [
-      ['open', 'https://media.example/video?token=<redacted>'],
-      ['open', 'https://media.example/next-video?token=<redacted>'],
+      ['open', currentEpisode.asset.playbackURL],
+      ['open', nextEpisode.asset.playbackURL],
     ]
   );
+});
+
+test('managed player appends and identifies the next native playlist item', () => {
+  const harness = makeHarness();
+  const sessionID = playCommand().sessionID;
+  const nextPlaybackID = '823daa90-8016-44de-88f2-78048f167d22';
+  const send = harness.messageHandlers.get('cinelark.command');
+
+  send(playCommand({ sessionID, startPositionSeconds: 0 }));
+  harness.runTimeouts();
+  send({
+    id: 'a1c70256-6834-4c91-bbea-acde18cc63c8',
+    type: 'player.enqueue',
+    sessionID,
+    payload: {
+      playbackID: nextPlaybackID,
+      url: nextEpisode.asset.playbackURL,
+      title: nextEpisode.title,
+      startPositionSeconds: 0,
+    },
+  });
+  harness.runTimeouts();
+
+  assert.equal(
+    harness.calls.some(
+      (call) => call[0] === 'playlist.add'
+        && call[1] === nextEpisode.asset.playbackURL
+        && call[2] === -1
+    ),
+    true
+  );
+
+  harness.eventHandlers.get('iina.file-loaded')();
+  harness.eventHandlers.get('mpv.end-file')({ reason: 'eof' });
+  harness.playPlaylistItem(1);
+  harness.core.status.idle = false;
+  harness.eventHandlers.get('iina.file-loaded')();
+
+  const loadedEvents = harness.emitted
+    .map(([, value]) => value)
+    .filter((value) => value.type === 'player.fileLoaded');
+  assert.equal(loadedEvents.length, 2);
+  assert.equal(loadedEvents[1].payload.playbackID, nextPlaybackID);
 });
 
 test('natural EOF reports completion after mpv enters its stopped state', () => {

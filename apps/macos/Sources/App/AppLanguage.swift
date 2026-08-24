@@ -100,7 +100,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         "This provider capability is not supported yet.": "error.unsupported",
         "IINA is not installed. Install IINA to play this item.": "error.iina_missing",
         "CineLark could not open this item in IINA.": "error.iina_launch",
-        "CineLark opened the IINA Bridge installer. Approve the installation, then play again.": "error.iina_plugin_install",
+        "CineLark opened the IINA Bridge installer. Approve the installation or update, then fully quit and reopen IINA before playing again.": "error.iina_plugin_install",
         "The CineLark IINA Bridge is not enabled. Enable it in IINA, then try again.": "error.iina_plugin_unavailable",
         "CineLark could not start its bundled playback helper.": "error.bridge_helper",
         "IINA could not authenticate with CineLark. Reinstall the bridge to pair it again.": "error.bridge_authentication",

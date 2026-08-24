@@ -6,7 +6,7 @@ import CineLarkDomain
 public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
     public let events: AsyncStream<PlaybackEvent>
 
-    private static let minimumPluginVersion = "0.1.7"
+    private static let minimumPluginVersion = "0.1.9"
 
     private let bundle: Bundle
     private let workspace: NSWorkspace
@@ -18,6 +18,7 @@ public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
     private var sequence: UInt64 = 1
     private var isBridgeReady = false
     private var lifecycle = IINAApplicationTerminationTracker()
+    private var eventRouter = IINAPlaybackEventRouter()
     private var terminationObserver: NSObjectProtocol?
 
     public init(
@@ -68,26 +69,36 @@ public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
         try await ensureBridgeStarted(secret: secret)
         try await launchIINA(at: iinaURL)
         try await waitForPlugin()
-        let envelope = BridgeEnvelope(
+        let envelope = playbackEnvelope(
             type: "player.play",
+            descriptor: descriptor,
             sessionID: descriptor.id,
-            sequence: nextSequence(),
-            payload: [
-                "playbackID": .string(descriptor.id.uuidString.lowercased()),
-                "url": .string(descriptor.url.absoluteString),
-                "title": .string(descriptor.title),
-                "startPositionSeconds": .number(descriptor.startPositionSeconds),
-                "presentation": .object(["fullscreen": .bool(descriptor.startsInFullscreen)])
-            ],
             secret: secret
         )
         try await client.send(envelope)
         lifecycle.begin(playbackID: descriptor.id)
     }
 
+    public func enqueue(
+        _ descriptor: PlaybackDescriptor,
+        sessionID: UUID
+    ) async throws {
+        guard let secret else {
+            throw PlaybackLaunchError.bridgeUnavailable
+        }
+        try await client.send(
+            playbackEnvelope(
+                type: "player.enqueue",
+                descriptor: descriptor,
+                sessionID: sessionID,
+                secret: secret
+            )
+        )
+    }
+
     public func send(
         _ command: PlaybackControlCommand,
-        playbackID: UUID
+        sessionID: UUID
     ) async throws {
         guard let secret else {
             throw PlaybackLaunchError.bridgeUnavailable
@@ -95,7 +106,7 @@ public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
         let (type, payload) = command.bridgeRepresentation
         let envelope = BridgeEnvelope(
             type: type,
-            sessionID: playbackID,
+            sessionID: sessionID,
             sequence: nextSequence(),
             payload: payload,
             secret: secret
@@ -126,7 +137,14 @@ public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
             return
         }
 
-        let playbackID = envelope.sessionID.flatMap(UUID.init(uuidString:))
+        let sessionID = envelope.sessionID.flatMap(UUID.init(uuidString:))
+        let payloadPlaybackID = envelope.payload["playbackID"]?.stringValue
+            .flatMap(UUID.init(uuidString:))
+        let playbackID = eventRouter.playbackID(
+            eventType: envelope.type,
+            sessionID: sessionID,
+            payloadPlaybackID: payloadPlaybackID
+        )
         switch envelope.type {
         case "bridge.ready":
             isBridgeReady = true
@@ -140,6 +158,7 @@ public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
             )
         case "player.fileLoaded":
             guard let playbackID else { return }
+            lifecycle.begin(playbackID: playbackID)
             eventContinuation.yield(
                 .fileLoaded(
                     playbackID: playbackID,
@@ -247,6 +266,27 @@ public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
         return sequence
     }
 
+    private func playbackEnvelope(
+        type: String,
+        descriptor: PlaybackDescriptor,
+        sessionID: UUID,
+        secret: Data
+    ) -> BridgeEnvelope {
+        BridgeEnvelope(
+            type: type,
+            sessionID: sessionID,
+            sequence: nextSequence(),
+            payload: [
+                "playbackID": .string(descriptor.id.uuidString.lowercased()),
+                "url": .string(descriptor.url.absoluteString),
+                "title": .string(descriptor.title),
+                "startPositionSeconds": .number(descriptor.startPositionSeconds),
+                "presentation": .object(["fullscreen": .bool(descriptor.startsInFullscreen)])
+            ],
+            secret: secret
+        )
+    }
+
     private var pluginRequiresInstallation: Bool {
         guard let applicationSupport = FileManager.default.urls(
             for: .applicationSupportDirectory,
@@ -312,6 +352,28 @@ public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
                 }
             }
         }
+    }
+}
+
+struct IINAPlaybackEventRouter {
+    private var activePlaybackBySession: [UUID: UUID] = [:]
+
+    mutating func playbackID(
+        eventType: String,
+        sessionID: UUID?,
+        payloadPlaybackID: UUID?
+    ) -> UUID? {
+        let playbackID = payloadPlaybackID
+            ?? sessionID.flatMap { activePlaybackBySession[$0] }
+            ?? sessionID
+        if eventType == "player.fileLoaded",
+           let sessionID,
+           let playbackID {
+            activePlaybackBySession[sessionID] = playbackID
+        } else if eventType == "player.closed", let sessionID {
+            activePlaybackBySession[sessionID] = nil
+        }
+        return playbackID
     }
 }
 

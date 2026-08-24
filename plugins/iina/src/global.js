@@ -10,7 +10,7 @@ const {
 
 const { global, http, menu, utils } = iina;
 
-const PLUGIN_VERSION = '0.1.7';
+const PLUGIN_VERSION = '0.1.9';
 const KEYCHAIN_SERVICE = 'bridge';
 const KEYCHAIN_ACCOUNT = 'pairing-key';
 const PORT_START = 43191;

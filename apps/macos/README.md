@@ -13,7 +13,7 @@ Native Swift 6 / SwiftUI client for the observed UHDNow API.
 - release/name/rating/update/asset-update/popularity sorting in both directions
 - movie/series details, cast and crew pages, seasons, and episodes
 - detail-level last-watched context, one-action resume, and episode progress states
-- automatic next-episode playback after natural completion
+- rolling native IINA playlists for automatic cross-season episode continuation
 - movie/episode version chooser with expandable codec, color, track, and size metadata
 - explicit copy-playback-link, copy-download-link, and browser-download actions
 - runtime English/Simplified Chinese interface switching

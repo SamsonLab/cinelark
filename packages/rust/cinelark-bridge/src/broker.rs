@@ -337,6 +337,7 @@ fn is_command_type(value: &str) -> bool {
     matches!(
         value,
         "player.play"
+            | "player.enqueue"
             | "player.pause"
             | "player.resume"
             | "player.stop"
@@ -410,6 +411,28 @@ mod tests {
         envelope.sign(&[3_u8; 32]);
         state.enqueue_command(envelope.clone()).await.unwrap();
         assert_eq!(state.enqueue_command(envelope).await, Err("stale_sequence"));
+    }
+
+    #[tokio::test]
+    async fn accepts_native_playlist_enqueue_commands() {
+        let state = test_state();
+        let mut envelope = Envelope {
+            protocol_version: 1,
+            id: uuid::Uuid::new_v4().to_string(),
+            message_type: "player.enqueue".to_owned(),
+            sent_at: "2026-08-20T03:09:00Z".to_owned(),
+            session_id: Some(uuid::Uuid::new_v4().to_string()),
+            reply_to: None,
+            sequence: 1,
+            payload: json!({
+                "playbackID": uuid::Uuid::new_v4().to_string(),
+                "url": "https://media.example/video?token=<redacted>"
+            }),
+            mac: String::new(),
+        };
+        envelope.sign(&[3_u8; 32]);
+
+        state.enqueue_command(envelope).await.unwrap();
     }
 
     #[tokio::test]

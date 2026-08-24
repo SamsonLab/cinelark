@@ -174,7 +174,7 @@
 "error.iina_missing" = "IINA is not installed. Install IINA to play this item.";
 "error.download_iina" = "Download IINA";
 "error.iina_launch" = "Unable to open this item in IINA. Try again.";
-"error.iina_plugin_install" = "CineLark opened the IINA Bridge installer. Approve the installation or update, then play again.";
+"error.iina_plugin_install" = "CineLark opened the IINA Bridge installer. Approve the installation or update, then fully quit and reopen IINA before playing again.";
 "error.iina_plugin_unavailable" = "The CineLark IINA Bridge is not enabled. Enable it in IINA, then try again.";
 "error.bridge_helper" = "CineLark could not start its bundled playback helper. Reinstall CineLark, then try again.";
 "error.bridge_authentication" = "IINA could not authenticate with CineLark. Reinstall the bridge to pair it again.";

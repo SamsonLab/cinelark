@@ -6,8 +6,10 @@ const { resolve } = require('node:path');
 const test = require('node:test');
 const vm = require('node:vm');
 const protocol = require('../src/lib/protocol.js');
+const uhdnowSeries = require('./fixtures/uhdnow-series.js');
 
 const globalSource = readFileSync(resolve(__dirname, '../src/global.js'), 'utf8');
+const [currentEpisode, nextEpisode] = uhdnowSeries.episodes;
 
 async function settlePromises(iterations = 20) {
   for (let index = 0; index < iterations; index += 1) await Promise.resolve();
@@ -57,19 +59,21 @@ test('all broker, Keychain, and player IINA APIs execute on the main run loop', 
     secret,
     payload: {
       playbackID: sessionID,
-      url: 'https://media.example/video?token=<redacted>',
+      url: currentEpisode.asset.playbackURL,
+      title: currentEpisode.title,
       startPositionSeconds: 0,
     },
   });
-  const nextSessionID = '823daa90-8016-44de-88f2-78048f167d22';
+  const nextPlaybackID = '823daa90-8016-44de-88f2-78048f167d22';
   const nextCommand = protocol.createEnvelope({
-    type: 'player.play',
+    type: 'player.enqueue',
     sequence: 2,
-    sessionID: nextSessionID,
+    sessionID,
     secret,
     payload: {
-      playbackID: nextSessionID,
-      url: 'https://media.example/next-video?token=<redacted>',
+      playbackID: nextPlaybackID,
+      url: nextEpisode.asset.playbackURL,
+      title: nextEpisode.title,
       startPositionSeconds: 0,
     },
   });

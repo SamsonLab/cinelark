@@ -7,6 +7,7 @@ import CineLarkPlayback
 @Observable
 @MainActor
 final class PlaybackCoordinator {
+    private static let futureQueueDepth = 2
     private static let logger = Logger(
         subsystem: "com.samsonlab.cinelark",
         category: "Playback"
@@ -46,13 +47,28 @@ final class PlaybackCoordinator {
         var durationSeconds: Double
     }
 
+    private struct EpisodeQueueCandidate {
+        let item: PlayableItem
+        let title: String
+        let startPositionSeconds: Double
+        let durationSeconds: Double
+    }
+
     @ObservationIgnored private let provider: any MediaLibraryProvider
     @ObservationIgnored private let launcher: any PlaybackLaunching
     @ObservationIgnored private let progressReporter: PlaybackProgressReporter
     @ObservationIgnored private var activePlayback: ActivePlayback?
+    @ObservationIgnored private var playbackSessionID: UUID?
+    @ObservationIgnored private var playbackSeriesID: String?
+    @ObservationIgnored private var queuedPlaybacks: [UUID: ActivePlayback] = [:]
+    @ObservationIgnored private var pendingEpisodes: [EpisodeQueueCandidate] = []
+    @ObservationIgnored private var lastEndedPlaybackID: UUID?
     @ObservationIgnored private var eventTask: Task<Void, Never>?
     @ObservationIgnored private var progressTask: Task<Void, Never>?
     @ObservationIgnored private var eventWatchdogTask: Task<Void, Never>?
+    @ObservationIgnored private var queueDiscoveryTask: Task<Void, Never>?
+    @ObservationIgnored private var queueFillTask: Task<Void, Never>?
+    @ObservationIgnored private var terminalReportTask: Task<Void, Never>?
 
     init(provider: any MediaLibraryProvider, launcher: any PlaybackLaunching) {
         self.provider = provider
@@ -103,7 +119,7 @@ final class PlaybackCoordinator {
         startPositionSeconds: Double = 0,
         seriesID: String? = nil
     ) async throws {
-        if activePlayback != nil {
+        if playbackSessionID != nil || activePlayback != nil {
             await stop()
         }
         let url = try await provider.playbackURL(for: asset)
@@ -121,26 +137,42 @@ final class PlaybackCoordinator {
             positionSeconds: descriptor.startPositionSeconds,
             durationSeconds: asset.durationSeconds ?? 0
         )
+        playbackSessionID = descriptor.id
+        playbackSeriesID = seriesID
+        lastEndedPlaybackID = nil
         do {
             try await launcher.open(descriptor)
         } catch {
             activePlayback = nil
+            clearQueueState()
             throw error
+        }
+        if item.kind == .episode, let seriesID {
+            discoverEpisodeQueue(
+                seriesID: seriesID,
+                afterEpisodeID: item.id,
+                sessionID: descriptor.id
+            )
         }
     }
 
     func send(_ command: PlaybackControlCommand) async throws {
-        guard let playbackID = activePlayback?.playbackID else {
+        guard let sessionID = playbackSessionID else {
             throw PlaybackLaunchError.bridgeUnavailable
         }
-        try await launcher.send(command, playbackID: playbackID)
+        try await launcher.send(command, sessionID: sessionID)
     }
 
     func stop() async {
-        if let playbackID = activePlayback?.playbackID {
-            try? await launcher.send(.stop, playbackID: playbackID)
+        queueDiscoveryTask?.cancel()
+        queueFillTask?.cancel()
+        if let sessionID = playbackSessionID {
+            try? await launcher.send(.stop, sessionID: sessionID)
         }
-        await finalizeActivePlayback()
+        finalizeActivePlayback()
+        await terminalReportTask?.value
+        terminalReportTask = nil
+        clearQueueState()
     }
 
     private func handle(_ event: PlaybackEvent) async {
@@ -162,16 +194,29 @@ final class PlaybackCoordinator {
             // distinguish natural EOF from an explicit stop.
         case .ended(let playbackID, let reason):
             guard activePlayback?.playbackID == playbackID else { return }
-            if let completedPlayback = await finalizeActivePlayback(completed: reason == "eof"),
-               reason == "eof" {
-                await playNextEpisode(after: completedPlayback)
+            lastEndedPlaybackID = playbackID
+            finalizeActivePlayback(completed: reason == "eof")
+            if reason != "eof" {
+                clearQueueState()
             }
         case .closed(let playbackID, _):
-            guard activePlayback?.playbackID == playbackID else { return }
-            await finalizeActivePlayback()
+            guard activePlayback?.playbackID == playbackID
+                    || lastEndedPlaybackID == playbackID
+                    || queuedPlaybacks[playbackID] != nil else { return }
+            if activePlayback?.playbackID == playbackID {
+                finalizeActivePlayback()
+            }
+            clearQueueState()
         case .fileLoaded(let playbackID, _):
-            guard activePlayback?.playbackID == playbackID else { return }
+            if activePlayback?.playbackID != playbackID {
+                guard let queuedPlayback = queuedPlaybacks.removeValue(forKey: playbackID) else {
+                    return
+                }
+                activePlayback = queuedPlayback
+                lastEndedPlaybackID = nil
+            }
             resetEventWatchdog(for: playbackID)
+            scheduleQueueFill()
         case .bridgeReady,
              .tracksChanged,
              .bridgeError:
@@ -184,9 +229,20 @@ final class PlaybackCoordinator {
         eventWatchdogTask = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(4))
             guard !Task.isCancelled,
-                  self?.activePlayback?.playbackID == playbackID else { return }
+                  let self,
+                  activePlayback?.playbackID == playbackID,
+                  let sessionID = playbackSessionID else { return }
+            do {
+                try await launcher.send(.requestState, sessionID: sessionID)
+            } catch {
+                Self.logger.notice("IINA event stream probe failed")
+            }
+            try? await Task.sleep(for: .seconds(4))
+            guard !Task.isCancelled,
+                  activePlayback?.playbackID == playbackID else { return }
             Self.logger.notice("IINA event stream stopped; finalizing the last sampled position")
-            await self?.finalizeActivePlayback()
+            finalizeActivePlayback()
+            clearQueueState()
         }
     }
 
@@ -212,7 +268,7 @@ final class PlaybackCoordinator {
     }
 
     @discardableResult
-    private func finalizeActivePlayback(completed: Bool = false) async -> ActivePlayback? {
+    private func finalizeActivePlayback(completed: Bool = false) -> ActivePlayback? {
         progressTask?.cancel()
         progressTask = nil
         eventWatchdogTask?.cancel()
@@ -228,11 +284,20 @@ final class PlaybackCoordinator {
             played: completed,
             updatedAt: Date()
         )
+        let previous = terminalReportTask
+        terminalReportTask = Task { @MainActor [weak self] in
+            await previous?.value
+            await self?.reportStopped(activePlayback)
+        }
+        return activePlayback
+    }
+
+    private func reportStopped(_ playback: ActivePlayback) async {
         let update = PlaybackUpdate(
-            item: activePlayback.item,
-            assetID: activePlayback.assetID,
-            positionSeconds: activePlayback.positionSeconds,
-            seriesID: activePlayback.seriesID
+            item: playback.item,
+            assetID: playback.assetID,
+            positionSeconds: playback.positionSeconds,
+            seriesID: playback.seriesID
         )
         do {
             try await progressReporter.reportStopped(update)
@@ -242,30 +307,142 @@ final class PlaybackCoordinator {
         }
         playbackStateRevision &+= 1
         onStoppedReported?()
-        return activePlayback
     }
 
-    private func playNextEpisode(after completedPlayback: ActivePlayback) async {
-        guard let seriesID = completedPlayback.seriesID else { return }
-        do {
-            let state = try await provider.playbackState(seriesID: seriesID)
-            guard let nextEpisode = state.nextUp,
-                  nextEpisode.item.id != completedPlayback.item.id else {
-                Self.logger.info("Automatic next episode unavailable")
+    private func discoverEpisodeQueue(
+        seriesID: String,
+        afterEpisodeID: String,
+        sessionID: UUID
+    ) {
+        queueDiscoveryTask?.cancel()
+        queueDiscoveryTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                let episodes = try await remainingEpisodes(
+                    seriesID: seriesID,
+                    afterEpisodeID: afterEpisodeID
+                )
+                guard !Task.isCancelled, playbackSessionID == sessionID else { return }
+                pendingEpisodes = episodes
+                Self.logger.info("Prepared logical episode queue with \(episodes.count) remaining items")
+                scheduleQueueFill()
+            } catch is CancellationError {
                 return
+            } catch {
+                Self.logger.error(
+                    "Episode queue discovery failed with \(String(reflecting: type(of: error)), privacy: .public)"
+                )
             }
-            Self.logger.info("Starting automatic next episode")
-            try await playFirst(
-                item: nextEpisode.item,
-                title: nextEpisode.title,
-                startPositionSeconds: nextEpisode.userState.positionSeconds,
-                seriesID: seriesID
-            )
-        } catch {
-            Self.logger.error(
-                "Automatic next episode failed with \(String(reflecting: type(of: error)), privacy: .public)"
+        }
+    }
+
+    private func remainingEpisodes(
+        seriesID: String,
+        afterEpisodeID: String
+    ) async throws -> [EpisodeQueueCandidate] {
+        let seasons = try await provider.seasons(seriesID: seriesID)
+            .sorted { lhs, rhs in
+                if lhs.number != rhs.number { return lhs.number < rhs.number }
+                return lhs.id < rhs.id
+            }
+        var episodes: [Episode] = []
+        for season in seasons {
+            var pageNumber = 1
+            while true {
+                try Task.checkCancellation()
+                let page = try await provider.episodes(
+                    seriesID: seriesID,
+                    seasonID: season.id,
+                    page: PageRequest(number: pageNumber, size: 100)
+                )
+                episodes.append(
+                    contentsOf: page.items.sorted { lhs, rhs in
+                        if lhs.number != rhs.number { return lhs.number < rhs.number }
+                        return lhs.id < rhs.id
+                    }
+                )
+                guard page.number * page.size < page.total, !page.items.isEmpty else { break }
+                pageNumber += 1
+            }
+        }
+        guard let currentIndex = episodes.firstIndex(where: { $0.id == afterEpisodeID }) else {
+            return []
+        }
+        return episodes.suffix(from: episodes.index(after: currentIndex)).map { episode in
+            EpisodeQueueCandidate(
+                item: PlayableItem(id: episode.id, kind: .episode),
+                title: episode.title,
+                startPositionSeconds: episode.userState.played
+                    ? 0
+                    : episode.userState.positionSeconds,
+                durationSeconds: episode.durationSeconds ?? 0
             )
         }
+    }
+
+    private func scheduleQueueFill() {
+        guard queueFillTask == nil,
+              let sessionID = playbackSessionID,
+              queuedPlaybacks.count < Self.futureQueueDepth,
+              !pendingEpisodes.isEmpty else { return }
+        queueFillTask = Task { @MainActor [weak self] in
+            await self?.fillQueue()
+            guard self?.playbackSessionID == sessionID else { return }
+            self?.queueFillTask = nil
+        }
+    }
+
+    private func fillQueue() async {
+        guard let sessionID = playbackSessionID else { return }
+        while queuedPlaybacks.count < Self.futureQueueDepth,
+              let candidate = pendingEpisodes.first {
+            do {
+                guard let asset = try await provider.assets(for: candidate.item).first else {
+                    throw ProviderError.notFound
+                }
+                let url = try await provider.playbackURL(for: asset)
+                guard !Task.isCancelled, playbackSessionID == sessionID else { return }
+                let descriptor = PlaybackDescriptor(
+                    url: url,
+                    title: candidate.title,
+                    startPositionSeconds: candidate.startPositionSeconds
+                )
+                try await launcher.enqueue(descriptor, sessionID: sessionID)
+                guard !Task.isCancelled, playbackSessionID == sessionID else { return }
+                pendingEpisodes.removeFirst()
+                queuedPlaybacks[descriptor.id] = ActivePlayback(
+                    playbackID: descriptor.id,
+                    item: candidate.item,
+                    assetID: asset.id,
+                    seriesID: playbackSeriesID,
+                    title: candidate.title,
+                    positionSeconds: descriptor.startPositionSeconds,
+                    durationSeconds: asset.durationSeconds ?? candidate.durationSeconds
+                )
+                Self.logger.info(
+                    "Enqueued future episode; \(self.queuedPlaybacks.count) items ready"
+                )
+            } catch is CancellationError {
+                return
+            } catch {
+                Self.logger.error(
+                    "Episode queue refill failed with \(String(reflecting: type(of: error)), privacy: .public)"
+                )
+                return
+            }
+        }
+    }
+
+    private func clearQueueState() {
+        queueDiscoveryTask?.cancel()
+        queueDiscoveryTask = nil
+        queueFillTask?.cancel()
+        queueFillTask = nil
+        playbackSessionID = nil
+        playbackSeriesID = nil
+        queuedPlaybacks = [:]
+        pendingEpisodes = []
+        lastEndedPlaybackID = nil
     }
 }
 

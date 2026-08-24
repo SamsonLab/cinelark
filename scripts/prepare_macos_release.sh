@@ -103,11 +103,12 @@ CineLark $VERSION for macOS 26 or later.
 
 ## Highlights
 
-- Exported the app and all embedded Sparkle components with one Xcode Automatic
-  Signing Team while keeping Hardened Runtime library validation enabled.
-- Preserved the unified Apple TV-inspired interface and keyboard-first
-  navigation refinements from the previous release.
-- Kept native signed Sparkle update checks and the Homebrew installation path.
+- Added rolling native IINA playlists for automatic episode continuation with
+  two future episodes prepared ahead of natural EOF.
+- Preserved independent playback identity, resume, progress, and completion
+  reporting for every episode while mpv advances without a provider round trip.
+- Fixed stock IINA 1.4.4 playlist insertion semantics, added telemetry recovery,
+  and upgraded the bundled CineLark Bridge plugin to version 0.1.9.
 
 ## Install
 
