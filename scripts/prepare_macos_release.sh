@@ -103,8 +103,8 @@ CineLark $VERSION for macOS 26 or later.
 
 ## Highlights
 
-- Fixed launch-time library validation by exporting the app and all embedded
-  Sparkle components with one Xcode Automatic Signing Team.
+- Exported the app and all embedded Sparkle components with one Xcode Automatic
+  Signing Team while keeping Hardened Runtime library validation enabled.
 - Preserved the unified Apple TV-inspired interface and keyboard-first
   navigation refinements from the previous release.
 - Kept native signed Sparkle update checks and the Homebrew installation path.
