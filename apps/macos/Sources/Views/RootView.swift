@@ -2,6 +2,7 @@ import SwiftUI
 
 struct RootView: View {
     @Environment(\.appLanguage) private var language
+    @Environment(ShortcutCoordinator.self) private var shortcuts
     @Bindable var model: AppModel
 
     var body: some View {
@@ -36,6 +37,13 @@ struct RootView: View {
         }
         .task {
             await model.bootstrap()
+        }
+        .overlay(alignment: .bottom) {
+            if shortcuts.showsHints {
+                ShortcutNavigationOverlay()
+                    .padding(.bottom, 24)
+                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
+            }
         }
         .preferredColorScheme(.dark)
     }

@@ -3,6 +3,7 @@ import CineLarkDomain
 
 struct AssetRow: View {
     @Environment(\.appLanguage) private var language
+    @Environment(ShortcutCoordinator.self) private var shortcuts
     let asset: MediaAsset
     let action: () -> Void
     @State private var isHovering = false
@@ -53,7 +54,7 @@ struct AssetRow: View {
                 .font(.callout.weight(.semibold))
                 .padding(.horizontal, 14)
                 .frame(height: 34)
-                .background(Color.accentColor.opacity(isHovering ? 1 : 0.82), in: Capsule())
+                .background(Color.accentColor.opacity(isActive ? 1 : 0.82), in: Capsule())
                 .foregroundStyle(.white)
             }
             .padding(16)
@@ -65,17 +66,26 @@ struct AssetRow: View {
         .focusEffectDisabled()
         .accessibilityHint(language.localized("asset.choose_hint"))
         .background(
-            isHovering || isFocused
+            isActive
                 ? Color.accentColor.opacity(0.10)
                 : Color.white.opacity(0.05),
             in: RoundedRectangle(cornerRadius: 14, style: .continuous)
         )
         .cineLarkFocusSurface(
-            isActive: isHovering || isFocused,
+            isActive: isActive,
             cornerRadius: 14,
             scale: 1.01
         )
-        .onHover { isHovering = $0 }
+        .onHover { hovering in
+            isHovering = hovering
+        }
         .animation(.easeOut(duration: 0.12), value: isHovering)
+    }
+
+    private var isActive: Bool {
+        switch shortcuts.inputModality {
+        case .pointer: isHovering
+        case .keyboard: isFocused
+        }
     }
 }

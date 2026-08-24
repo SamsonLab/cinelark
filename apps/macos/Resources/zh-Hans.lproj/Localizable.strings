@@ -7,6 +7,7 @@
 "general.not_selected" = "未选择";
 "shortcut.navigate" = "方向键选择";
 "shortcut.activate" = "确认";
+"shortcut.back" = "返回";
 
 "root.opening" = "正在打开 CineLark…";
 

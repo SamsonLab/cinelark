@@ -33,6 +33,7 @@ enum CineLarkShortcutChord: Hashable {
 enum CineLarkFixedCommand: Hashable {
     case navigation(Int)
     case refresh
+    case focusSearch
 
     fileprivate var keyCode: UInt16? {
         switch self {
@@ -42,70 +43,98 @@ enum CineLarkFixedCommand: Hashable {
         case .navigation(4): 21
         case .navigation(5): 23
         case .refresh: 15
+        case .focusSearch: 3
         default: nil
         }
     }
 }
 
-enum CineLarkFocusDirection {
+enum CineLarkFocusDirection: Equatable {
     case left
     case right
     case up
     case down
 }
 
+enum CineLarkInputModality: Equatable {
+    case pointer
+    case keyboard
+}
+
 @Observable
 @MainActor
 final class ShortcutCoordinator {
     private(set) var showsHints = false
+    private(set) var inputModality: CineLarkInputModality = .pointer
+
+    var usesKeyboardNavigation: Bool {
+        inputModality == .keyboard
+    }
+
+    private struct NavigationSurface {
+        let owner: UUID
+        let registrationOrder: UInt64
+        let handlesPresentedModal: Bool
+        let handoffToKeyboard: (() -> Void)?
+        let move: (CineLarkFocusDirection) -> Bool
+        let activate: () -> Bool
+        let navigateBack: (() -> Bool)?
+    }
 
     @ObservationIgnored private var eventMonitor: Any?
+    @ObservationIgnored private var applicationObservers: [NSObjectProtocol] = []
     @ObservationIgnored private var commandHoldTask: Task<Void, Never>?
     @ObservationIgnored private var isCommandPressed = false
+    @ObservationIgnored private var nextRegistrationOrder: UInt64 = 0
     @ObservationIgnored private var backAction: (() -> Bool)?
     @ObservationIgnored private var fixedActions: [UInt16: () -> Bool] = [:]
     @ObservationIgnored private var openMediaAction: ((MediaSummary) -> Bool)?
-    @ObservationIgnored private var directionalAction: (
-        owner: UUID,
-        move: (CineLarkFocusDirection) -> Bool,
-        activate: () -> Bool
-    )?
+    @ObservationIgnored private var openCollectionAction: ((MediaCollection) -> Bool)?
+    @ObservationIgnored private var openPersonAction: ((PersonCredit) -> Bool)?
+    @ObservationIgnored private var navigationSurfaces: [UUID: NavigationSurface] = [:]
 
     func start() {
+        installApplicationObserversIfNeeded()
+        installEventMonitorIfNeeded()
+        resetCommandState()
+    }
+
+    private func installEventMonitorIfNeeded() {
         guard eventMonitor == nil else { return }
         eventMonitor = NSEvent.addLocalMonitorForEvents(
-            matching: [.flagsChanged, .keyDown, .swipe]
+            matching: [
+                .flagsChanged,
+                .keyDown,
+                .swipe,
+                .mouseMoved,
+                .leftMouseDown,
+                .rightMouseDown,
+                .otherMouseDown,
+                .leftMouseDragged,
+                .rightMouseDragged,
+                .otherMouseDragged,
+                .scrollWheel
+            ]
         ) { [weak self] event in
             guard let self else { return event }
-            let type = event.type
-            let commandPressed = event.modifierFlags.contains(.command)
-            let keyCode = event.keyCode
-            let characters = event.charactersIgnoringModifiers
-            let deltaX = event.deltaX
-            let deltaY = event.deltaY
             let shouldConsume = MainActor.assumeIsolated {
-                self.handle(
-                    type: type,
-                    commandPressed: commandPressed,
-                    keyCode: keyCode,
-                    characters: characters,
-                    deltaX: deltaX,
-                    deltaY: deltaY
-                )
+                self.handle(event)
             }
             return shouldConsume ? nil : event
         }
     }
 
     func stop() {
-        commandHoldTask?.cancel()
-        commandHoldTask = nil
+        resetCommandState()
         if let eventMonitor {
             NSEvent.removeMonitor(eventMonitor)
             self.eventMonitor = nil
         }
-        isCommandPressed = false
-        showsHints = false
+        for observer in applicationObservers {
+            NotificationCenter.default.removeObserver(observer)
+        }
+        applicationObservers.removeAll()
+        navigationSurfaces.removeAll()
     }
 
     func setBackAction(_ action: (() -> Bool)?) {
@@ -120,21 +149,46 @@ final class ShortcutCoordinator {
         fixedActions[keyCode] = action
     }
 
-    func setDirectionalAction(
+    func setNavigationSurface(
         owner: UUID,
+        handlesPresentedModal: Bool = false,
+        handoffToKeyboard: (() -> Void)? = nil,
         move: @escaping (CineLarkFocusDirection) -> Bool,
-        activate: @escaping () -> Bool
+        activate: @escaping () -> Bool,
+        navigateBack: (() -> Bool)? = nil
     ) {
-        directionalAction = (owner, move, activate)
+        let registrationOrder: UInt64
+        if let existing = navigationSurfaces[owner] {
+            registrationOrder = existing.registrationOrder
+        } else {
+            nextRegistrationOrder &+= 1
+            registrationOrder = nextRegistrationOrder
+        }
+        navigationSurfaces[owner] = NavigationSurface(
+            owner: owner,
+            registrationOrder: registrationOrder,
+            handlesPresentedModal: handlesPresentedModal,
+            handoffToKeyboard: handoffToKeyboard,
+            move: move,
+            activate: activate,
+            navigateBack: navigateBack
+        )
     }
 
-    func clearDirectionalAction(owner: UUID) {
-        guard directionalAction?.owner == owner else { return }
-        directionalAction = nil
+    func removeNavigationSurface(owner: UUID) {
+        navigationSurfaces.removeValue(forKey: owner)
     }
 
     func setOpenMediaAction(_ action: ((MediaSummary) -> Bool)?) {
         openMediaAction = action
+    }
+
+    func setOpenCollectionAction(_ action: ((MediaCollection) -> Bool)?) {
+        openCollectionAction = action
+    }
+
+    func setOpenPersonAction(_ action: ((PersonCredit) -> Bool)?) {
+        openPersonAction = action
     }
 
     @discardableResult
@@ -143,40 +197,87 @@ final class ShortcutCoordinator {
     }
 
     @discardableResult
+    func openCollection(_ collection: MediaCollection) -> Bool {
+        openCollectionAction?(collection) == true
+    }
+
+    @discardableResult
+    func openPerson(_ person: PersonCredit) -> Bool {
+        openPersonAction?(person) == true
+    }
+
+    @discardableResult
     func navigateBack() -> Bool {
         backAction?() == true
     }
 
-    private func handle(
-        type: NSEvent.EventType,
-        commandPressed: Bool,
-        keyCode: UInt16,
-        characters: String?,
-        deltaX: CGFloat,
-        deltaY: CGFloat
-    ) -> Bool {
-        switch type {
+    private func activatePointerInput() {
+        setInputModality(.pointer)
+    }
+
+    private func handle(_ event: NSEvent) -> Bool {
+        switch event.type {
         case .flagsChanged:
-            updateCommandState(commandPressed)
+            updateCommandState(event.modifierFlags.contains(.command))
+            return false
+        case .mouseMoved,
+             .leftMouseDown,
+             .rightMouseDown,
+             .otherMouseDown,
+             .leftMouseDragged,
+             .rightMouseDragged,
+             .otherMouseDragged,
+             .scrollWheel:
+            activatePointerInput()
             return false
         case .keyDown:
-            if commandPressed, let action = fixedActions[keyCode] {
-                return action()
-            }
-            guard !isEditingText, !hasPresentedModal else { return false }
-            if let direction = focusDirection(for: keyCode),
-               directionalAction?.move(direction) == true {
+            let commandPressed = event.modifierFlags.contains(.command)
+            let keyCode = event.keyCode
+            let characters = event.charactersIgnoringModifiers
+            if commandPressed, !hasPresentedModal, let action = fixedActions[keyCode] {
+                guard action() else { return false }
+                setInputModality(.keyboard)
                 return true
             }
-            if isConfirmationKey(keyCode: keyCode, characters: characters),
-               directionalAction?.activate() == true {
-                return true
+            guard !isEditingText else { return false }
+            let navigationSurface = activeNavigationSurface
+            if hasPresentedModal,
+               navigationSurface?.handlesPresentedModal != true {
+                return false
             }
-            if keyCode == 51 || (commandPressed && (keyCode == 33 || keyCode == 123)) {
-                return navigateBack()
+            if let direction = focusDirection(for: keyCode) {
+                handoffSelectionIfNeeded(to: navigationSurface)
+                if navigationSurface?.move(direction) == true {
+                    setInputModality(.keyboard)
+                    return true
+                }
+            }
+            if isConfirmationKey(keyCode: keyCode, characters: characters) {
+                handoffSelectionIfNeeded(to: navigationSurface)
+                if navigationSurface?.activate() == true {
+                    setInputModality(.keyboard)
+                    return true
+                }
+            }
+            if isBackKey(
+                keyCode: keyCode,
+                characters: characters,
+                commandPressed: commandPressed
+            ) {
+                if navigationSurface?.navigateBack?() == true {
+                    setInputModality(.keyboard)
+                    return true
+                }
+                guard !hasPresentedModal else { return false }
+                guard navigateBack() else { return false }
+                setInputModality(.keyboard)
+                return true
             }
             return false
         case .swipe:
+            activatePointerInput()
+            let deltaX = event.deltaX
+            let deltaY = event.deltaY
             guard !hasPresentedModal,
                   abs(deltaX) > abs(deltaY),
                   deltaX > 0 else {
@@ -186,6 +287,18 @@ final class ShortcutCoordinator {
         default:
             return false
         }
+    }
+
+    private func setInputModality(_ modality: CineLarkInputModality) {
+        guard modality != inputModality else { return }
+        withAnimation(.easeOut(duration: 0.12)) {
+            inputModality = modality
+        }
+    }
+
+    private func handoffSelectionIfNeeded(to surface: NavigationSurface?) {
+        guard inputModality == .pointer else { return }
+        surface?.handoffToKeyboard?()
     }
 
     private func focusDirection(for keyCode: UInt16) -> CineLarkFocusDirection? {
@@ -204,6 +317,15 @@ final class ShortcutCoordinator {
     ) -> Bool {
         keyCode == 36 || keyCode == 49 || keyCode == 76 ||
             characters == "\r" || characters == " "
+    }
+
+    private func isBackKey(
+        keyCode: UInt16,
+        characters: String?,
+        commandPressed: Bool
+    ) -> Bool {
+        keyCode == 51 || keyCode == 53 || characters == "\u{1B}" ||
+            (commandPressed && (keyCode == 33 || keyCode == 123))
     }
 
     private func updateCommandState(_ isPressed: Bool) {
@@ -229,6 +351,45 @@ final class ShortcutCoordinator {
                 showsHints = false
             }
         }
+    }
+
+    private var activeNavigationSurface: NavigationSurface? {
+        navigationSurfaces.values.max {
+            $0.registrationOrder < $1.registrationOrder
+        }
+    }
+
+    private func installApplicationObserversIfNeeded() {
+        guard applicationObservers.isEmpty else { return }
+        let center = NotificationCenter.default
+        applicationObservers = [
+            center.addObserver(
+                forName: NSApplication.didBecomeActiveNotification,
+                object: NSApp,
+                queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    self?.installEventMonitorIfNeeded()
+                    self?.resetCommandState()
+                }
+            },
+            center.addObserver(
+                forName: NSApplication.didResignActiveNotification,
+                object: NSApp,
+                queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    self?.resetCommandState()
+                }
+            }
+        ]
+    }
+
+    private func resetCommandState() {
+        commandHoldTask?.cancel()
+        commandHoldTask = nil
+        isCommandPressed = false
+        showsHints = false
     }
 
     private var isEditingText: Bool {
@@ -281,6 +442,33 @@ private struct ShortcutHintBadge: View {
     }
 }
 
+private struct KeyboardSelectionHintModifier: ViewModifier {
+    @Environment(\.appLanguage) private var language
+    @Environment(ShortcutCoordinator.self) private var coordinator
+    let isActive: Bool
+
+    func body(content: Content) -> some View {
+        content.overlay(alignment: .topTrailing) {
+            if isActive && coordinator.usesKeyboardNavigation {
+                HStack(spacing: 5) {
+                    Text("↩")
+                        .font(.caption.weight(.bold).monospaced())
+                    Text(language.localized("shortcut.activate"))
+                        .font(.caption2.weight(.semibold))
+                }
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 8)
+                .frame(height: 24)
+                .glassEffect(.regular, in: Capsule())
+                .padding(8)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+                .transition(.opacity.combined(with: .scale(scale: 0.92)))
+            }
+        }
+    }
+}
+
 struct ShortcutNavigationOverlay: View {
     @Environment(\.appLanguage) private var language
 
@@ -294,6 +482,11 @@ struct ShortcutNavigationOverlay: View {
             Text("↩ / Space")
                 .font(.callout.weight(.semibold).monospaced())
             Text(language.localized("shortcut.activate"))
+            Divider()
+                .frame(height: 14)
+            Text("Esc / ⌫")
+                .font(.callout.weight(.semibold).monospaced())
+            Text(language.localized("shortcut.back"))
         }
         .font(.callout.weight(.medium))
         .foregroundStyle(.secondary)
@@ -323,6 +516,10 @@ extension View {
         alignment: Alignment = .trailing
     ) -> some View {
         modifier(FixedShortcutModifier(chord: chord, alignment: alignment))
+    }
+
+    func cineLarkKeyboardSelectionHint(isActive: Bool) -> some View {
+        modifier(KeyboardSelectionHintModifier(isActive: isActive))
     }
 
 }

@@ -73,13 +73,6 @@ struct LibraryView: View {
             .background(CineLarkPageBackground())
         }
         .navigationSplitViewStyle(.prominentDetail)
-        .overlay(alignment: .bottom) {
-            if shortcuts.showsHints {
-                ShortcutNavigationOverlay()
-                    .padding(.bottom, 24)
-                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
-            }
-        }
         .task {
             let path = $navigationPath
             let selectedSection = $selection
@@ -92,6 +85,14 @@ struct LibraryView: View {
                 path.wrappedValue.append(
                     MediaDetailRoute(item: item, transitionID: UUID())
                 )
+                return true
+            }
+            shortcuts.setOpenCollectionAction { collection in
+                path.wrappedValue.append(collection)
+                return true
+            }
+            shortcuts.setOpenPersonAction { person in
+                path.wrappedValue.append(person)
                 return true
             }
             shortcuts.setFixedAction(.navigation(1)) {
@@ -128,6 +129,8 @@ struct LibraryView: View {
         .onDisappear {
             shortcuts.setBackAction(nil)
             shortcuts.setOpenMediaAction(nil)
+            shortcuts.setOpenCollectionAction(nil)
+            shortcuts.setOpenPersonAction(nil)
             for number in 1...5 {
                 shortcuts.setFixedAction(.navigation(number), action: nil)
             }

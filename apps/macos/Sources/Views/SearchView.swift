@@ -3,8 +3,10 @@ import CineLarkDomain
 
 struct SearchView: View {
     @Environment(\.appLanguage) private var language
+    @Environment(ShortcutCoordinator.self) private var shortcuts
     @Bindable var model: AppModel
     @State private var query = ""
+    @State private var keyboardOwner = UUID()
     @FocusState private var isSearchFocused: Bool
 
     var body: some View {
@@ -51,6 +53,7 @@ struct SearchView: View {
                     .regular.interactive(),
                     in: RoundedRectangle(cornerRadius: 22, style: .continuous)
                 )
+                .cineLarkShortcut(.commandKey("f"))
             }
             .padding(.horizontal, CineLarkDesign.Layout.contentMargin)
             .padding(.top, CineLarkDesign.Layout.pageTopInset)
@@ -61,8 +64,13 @@ struct SearchView: View {
         }
         .background(CineLarkPageBackground())
         .navigationTitle(language.localized("nav.search"))
-        .task {
-            isSearchFocused = true
+        .onAppear {
+            registerKeyboardNavigation()
+            focusSearchInput()
+        }
+        .onDisappear {
+            shortcuts.removeNavigationSurface(owner: keyboardOwner)
+            shortcuts.setFixedAction(.focusSearch, action: nil)
         }
         .task(id: query) {
             do {
@@ -88,7 +96,34 @@ struct SearchView: View {
         } else if model.searchResults.isEmpty {
             ContentUnavailableView.search(text: query)
         } else {
-            PosterGrid(items: model.searchResults, autoFocusFirst: false)
+            PosterGrid(
+                items: model.searchResults,
+                autoFocusFirst: false,
+                topContentInset: CineLarkDesign.Layout.focusSafeTopInset
+            )
         }
+    }
+
+    private func registerKeyboardNavigation() {
+        let searchFocus = $isSearchFocused
+        shortcuts.setFixedAction(.focusSearch) {
+            searchFocus.wrappedValue = true
+            return true
+        }
+        shortcuts.setNavigationSurface(
+            owner: keyboardOwner,
+            move: { _ in
+                searchFocus.wrappedValue = true
+                return true
+            },
+            activate: {
+                searchFocus.wrappedValue = true
+                return true
+            }
+        )
+    }
+
+    private func focusSearchInput() {
+        isSearchFocused = true
     }
 }

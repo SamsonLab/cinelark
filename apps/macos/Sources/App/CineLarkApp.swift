@@ -38,12 +38,10 @@ struct CineLarkApp: App {
                 .frame(minWidth: 960, minHeight: 640)
                 .task {
                     shortcuts.start()
-                    appDelegate.prepareForTermination = { [weak model] in
+                    appDelegate.prepareForTermination = { [weak model, weak shortcuts] in
                         await model?.prepareForTermination()
+                        shortcuts?.stop()
                     }
-                }
-                .onDisappear {
-                    shortcuts.stop()
                 }
         }
         .windowStyle(.hiddenTitleBar)

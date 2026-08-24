@@ -26,6 +26,8 @@ enum CineLarkDesign {
         static let contentMargin: CGFloat = 48
         static let compactMargin: CGFloat = 32
         static let pageTopInset: CGFloat = 34
+        static let focusSafeTopInset: CGFloat = 52
+        static let focusScrollClearance: CGFloat = 18
         static let shelfSpacing: CGFloat = 26
         static let lockupSpacing: CGFloat = 11
         static let posterGridColumnSpacing: CGFloat = 32
@@ -100,37 +102,74 @@ struct CineLarkPageHeader: View {
 }
 
 struct CineLarkFilterBar<Content: View>: View {
+    private let selectedID: String?
     private let content: Content
 
-    init(@ViewBuilder content: () -> Content) {
+    init(selectedID: String? = nil, @ViewBuilder content: () -> Content) {
+        self.selectedID = selectedID
         self.content = content()
     }
 
     var body: some View {
-        ScrollView(.horizontal) {
-            HStack(spacing: 12) {
-                content
+        ScrollViewReader { scrollProxy in
+            ScrollView(.horizontal) {
+                HStack(spacing: 12) {
+                    content
+                }
+                .scrollTargetLayout()
+                .padding(.vertical, 10)
             }
-            .padding(.vertical, 10)
+            .contentMargins(
+                .horizontal,
+                CineLarkDesign.Layout.contentMargin,
+                for: .scrollContent
+            )
+            .scrollIndicators(.hidden)
+            .scrollClipDisabled()
+            .focusSection()
+            .onAppear {
+                scrollSelectedID(scrollProxy)
+            }
+            .onChange(of: selectedID) {
+                scrollSelectedID(scrollProxy)
+            }
         }
-        .contentMargins(
-            .horizontal,
-            CineLarkDesign.Layout.contentMargin,
-            for: .scrollContent
-        )
-        .scrollIndicators(.hidden)
-        .scrollClipDisabled()
-        .focusSection()
+    }
+
+    private func scrollSelectedID(_ scrollProxy: ScrollViewProxy) {
+        guard let selectedID else { return }
+        withAnimation(.easeOut(duration: 0.2)) {
+            scrollProxy.scrollTo(selectedID, anchor: .center)
+        }
     }
 }
 
 struct CineLarkFilterButton: View {
     @Environment(\.appLanguage) private var language
+    @Environment(ShortcutCoordinator.self) private var shortcuts
 
     let title: String
     let count: Int
     let isSelected: Bool
+    let isKeyboardSelected: Bool
+    let onPointerSelection: ((Bool) -> Void)?
     let action: () -> Void
+
+    init(
+        title: String,
+        count: Int,
+        isSelected: Bool,
+        isKeyboardSelected: Bool = false,
+        onPointerSelection: ((Bool) -> Void)? = nil,
+        action: @escaping () -> Void
+    ) {
+        self.title = title
+        self.count = count
+        self.isSelected = isSelected
+        self.isKeyboardSelected = isKeyboardSelected
+        self.onPointerSelection = onPointerSelection
+        self.action = action
+    }
 
     var body: some View {
         Group {
@@ -147,6 +186,15 @@ struct CineLarkFilterButton: View {
             }
         }
         .controlSize(.large)
+        .focusEffectDisabled()
+        .cineLarkFocusSurface(
+            isActive: shortcuts.usesKeyboardNavigation && isKeyboardSelected,
+            cornerRadius: 18,
+            scale: 1.02
+        )
+        .cineLarkPointerSelection { hovering in
+            onPointerSelection?(hovering)
+        }
     }
 
     private var label: String {
@@ -221,6 +269,7 @@ private struct CineLarkFocusSurfaceModifier: ViewModifier {
 }
 
 struct CineLarkHoverSurface: ViewModifier {
+    @Environment(ShortcutCoordinator.self) private var shortcuts
     let cornerRadius: CGFloat
     var normalFillOpacity: Double = 0.05
     var hoverFillOpacity: Double = 0.11
@@ -231,21 +280,50 @@ struct CineLarkHoverSurface: ViewModifier {
 
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        let presentsHover = shortcuts.inputModality == .pointer && isHovering
         content
             .background {
                 shape.fill(
-                    Color.white.opacity(isHovering ? hoverFillOpacity : normalFillOpacity)
+                    Color.white.opacity(presentsHover ? hoverFillOpacity : normalFillOpacity)
                 )
             }
             .overlay {
                 shape.stroke(
-                    Color.white.opacity(isHovering ? hoverStrokeOpacity : normalStrokeOpacity),
+                    Color.white.opacity(
+                        presentsHover ? hoverStrokeOpacity : normalStrokeOpacity
+                    ),
                     lineWidth: 1
                 )
             }
             .contentShape(shape)
-            .onHover { isHovering = $0 }
-            .animation(.easeOut(duration: 0.14), value: isHovering)
+            .onHover { hovering in
+                isHovering = hovering
+            }
+            .animation(.easeOut(duration: 0.14), value: presentsHover)
+    }
+}
+
+private struct CineLarkPointerSelectionModifier: ViewModifier {
+    @Environment(ShortcutCoordinator.self) private var shortcuts
+    let selectionChanged: (Bool) -> Void
+    @State private var isPointerInside = false
+
+    func body(content: Content) -> some View {
+        content
+            .onHover { hovering in
+                isPointerInside = hovering
+                if !hovering || shortcuts.inputModality == .pointer {
+                    selectionChanged(hovering)
+                }
+            }
+            .onChange(of: shortcuts.inputModality) {
+                if shortcuts.inputModality == .pointer, isPointerInside {
+                    selectionChanged(true)
+                }
+            }
+            .onDisappear {
+                if isPointerInside { selectionChanged(false) }
+            }
     }
 }
 
@@ -312,6 +390,14 @@ extension View {
                 normalStrokeOpacity: normalStrokeOpacity,
                 hoverStrokeOpacity: hoverStrokeOpacity
             )
+        )
+    }
+
+    func cineLarkPointerSelection(
+        _ selectionChanged: @escaping (Bool) -> Void
+    ) -> some View {
+        modifier(
+            CineLarkPointerSelectionModifier(selectionChanged: selectionChanged)
         )
     }
 }

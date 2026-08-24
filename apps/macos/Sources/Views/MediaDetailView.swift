@@ -2,11 +2,37 @@ import SwiftUI
 import CineLarkDomain
 
 struct MediaDetailView: View {
+    private enum KeyboardTarget: Hashable {
+        case primaryPlayback
+        case favorite
+        case movieAsset(String)
+        case season(String)
+        case episode(String)
+        case showMore
+        case person(String)
+    }
+
+    private enum KeyboardSectionAxis: Equatable {
+        case horizontal
+        case vertical
+    }
+
+    private struct KeyboardSection {
+        let id: String
+        let axis: KeyboardSectionAxis
+        let targets: [KeyboardTarget]
+    }
+
     @Environment(\.appLanguage) private var language
     @Environment(\.mediaTransitionNamespace) private var transitionNamespace
+    @Environment(ShortcutCoordinator.self) private var shortcuts
     @State private var model: MediaDetailModel
     @State private var playbackOptions: PlaybackOptionsContext? = nil
     @State private var showsAllEpisodes = false
+    @State private var keyboardSelection: KeyboardTarget?
+    @State private var rememberedKeyboardSelections: [String: KeyboardTarget] = [:]
+    @State private var pointerSelection: KeyboardTarget?
+    @State private var keyboardOwner = UUID()
     private let transitionID: UUID?
 
     init(
@@ -26,29 +52,45 @@ struct MediaDetailView: View {
     }
 
     var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 34) {
-                hero
+        ScrollViewReader { scrollProxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 34) {
+                    hero
+                        .id(Self.heroSectionID)
 
-                if model.item.kind == .movie {
-                    movieVersions
-                } else {
-                    seriesContent
+                    if model.item.kind == .movie {
+                        movieVersions
+                            .id(Self.movieVersionsSectionID)
+                    } else {
+                        seriesContent
+                    }
+
+                    if let detail = model.detail, !credits(in: detail).isEmpty {
+                        cast(credits(in: detail))
+                            .id(Self.castSectionID)
+                    }
                 }
-
-                if let detail = model.detail, !credits(in: detail).isEmpty {
-                    cast(credits(in: detail))
+                .padding(.bottom, 48)
+            }
+            .background(CineLarkPageBackground())
+            .navigationTitle(model.item.title)
+            .task(id: model.playback.playbackStateRevision) {
+                if model.detail == nil {
+                    await model.load()
+                } else {
+                    await model.refreshPlaybackContext()
                 }
             }
-            .padding(.bottom, 48)
-        }
-        .background(CineLarkPageBackground())
-        .navigationTitle(model.item.title)
-        .task(id: model.playback.playbackStateRevision) {
-            if model.detail == nil {
-                await model.load()
-            } else {
-                await model.refreshPlaybackContext()
+            .onAppear {
+                registerKeyboardNavigation(scrollProxy: scrollProxy)
+            }
+            .onDisappear {
+                pointerSelection = nil
+                shortcuts.removeNavigationSurface(owner: keyboardOwner)
+            }
+            .onChange(of: keyboardSignature) {
+                reconcileKeyboardSelection()
+                registerKeyboardNavigation(scrollProxy: scrollProxy)
             }
         }
         .alert(
@@ -185,6 +227,15 @@ struct MediaDetailView: View {
                     .buttonStyle(.glassProminent)
                     .controlSize(.extraLarge)
                     .disabled(!model.canStartPlayback || model.isStartingPlayback)
+                    .focusEffectDisabled()
+                    .cineLarkFocusSurface(
+                        isActive: visibleKeyboardSelection == .primaryPlayback,
+                        cornerRadius: 22,
+                        scale: 1.02
+                    )
+                    .cineLarkPointerSelection { hovering in
+                        updatePointerSelection(.primaryPlayback, hovering: hovering)
+                    }
                 }
 
 
@@ -211,6 +262,15 @@ struct MediaDetailView: View {
                     model.isUpdatingFavorite ||
                     (model.isFavorite && !model.canRemoveFavorite)
                 )
+                .focusEffectDisabled()
+                .cineLarkFocusSurface(
+                    isActive: visibleKeyboardSelection == .favorite,
+                    cornerRadius: 22,
+                    scale: 1.02
+                )
+                .cineLarkPointerSelection { hovering in
+                    updatePointerSelection(.favorite, hovering: hovering)
+                }
 
                 playbackStatusBadge
             }
@@ -350,7 +410,14 @@ struct MediaDetailView: View {
                             : model.item.userState.positionSeconds,
                         initialAssets: model.movieAssets
                     ),
-                    playback: model.playback
+                    playback: model.playback,
+                    selectedAssetID: selectedMovieAssetID,
+                    onPointerSelection: { assetID, hovering in
+                        updatePointerSelection(
+                            .movieAsset(assetID),
+                            hovering: hovering
+                        )
+                    }
                 )
             }
         }
@@ -386,9 +453,20 @@ struct MediaDetailView: View {
             } else {
                 LazyVStack(spacing: 16) {
                     ForEach(visibleEpisodes) { episode in
-                        EpisodeRow(episode: episode) {
+                        EpisodeRow(
+                            episode: episode,
+                            isKeyboardSelected: visibleKeyboardSelection == .episode(episode.id),
+                            isKeyboardNavigationActive: visibleKeyboardSelection != nil,
+                            onPointerSelection: { hovering in
+                                updatePointerSelection(
+                                    .episode(episode.id),
+                                    hovering: hovering
+                                )
+                            }
+                        ) {
                             presentEpisodeOptions(episode)
                         }
+                        .id(episodeScrollID(episode.id))
                     }
                 }
                 .focusSection()
@@ -410,10 +488,21 @@ struct MediaDetailView: View {
                     }
                     .buttonStyle(.glass)
                     .controlSize(.large)
+                    .focusEffectDisabled()
+                    .cineLarkFocusSurface(
+                        isActive: visibleKeyboardSelection == .showMore,
+                        cornerRadius: 16,
+                        scale: 1.01
+                    )
+                    .cineLarkPointerSelection { hovering in
+                        updatePointerSelection(.showMore, hovering: hovering)
+                    }
+                    .id(Self.showMoreScrollID)
                 }
             }
         }
         .padding(.horizontal, 40)
+        .id(Self.episodesSectionID)
         .onChange(of: model.selectedSeasonID) {
             showsAllEpisodes = false
         }
@@ -427,21 +516,38 @@ struct MediaDetailView: View {
     }
 
     private var seasonStrip: some View {
-        ScrollView(.horizontal) {
-            LazyHStack(spacing: 12) {
-                ForEach(model.seasons) { season in
-                    SeasonPill(
-                        season: season,
-                        isSelected: model.selectedSeasonID == season.id
-                    ) {
-                        Task { await model.selectSeason(season.id) }
+        ScrollViewReader { scrollProxy in
+            ScrollView(.horizontal) {
+                LazyHStack(spacing: 12) {
+                    ForEach(model.seasons) { season in
+                        SeasonPill(
+                            season: season,
+                            isSelected: model.selectedSeasonID == season.id,
+                            isKeyboardSelected: visibleKeyboardSelection == .season(season.id),
+                            onPointerSelection: { hovering in
+                                updatePointerSelection(
+                                    .season(season.id),
+                                    hovering: hovering
+                                )
+                            }
+                        ) {
+                            Task { await model.selectSeason(season.id) }
+                        }
+                        .id(season.id)
                     }
                 }
+                .focusSection()
+                .padding(.vertical, 4)
             }
-            .focusSection()
-            .padding(.vertical, 4)
+            .scrollIndicators(.hidden)
+            .onChange(of: selectedSeasonID) {
+                guard let selectedSeasonID else { return }
+                withAnimation(.easeOut(duration: 0.2)) {
+                    scrollProxy.scrollTo(selectedSeasonID, anchor: .leading)
+                }
+            }
         }
-        .scrollIndicators(.hidden)
+        .id(Self.seasonsSectionID)
     }
 
     private func presentEpisodeOptions(_ episode: Episode) {
@@ -473,15 +579,34 @@ struct MediaDetailView: View {
             Text(language.localized("detail.cast_crew"))
                 .font(.title2.bold())
 
-            ScrollView(.horizontal) {
-                LazyHStack(alignment: .top, spacing: 20) {
-                    ForEach(Array(people.prefix(36))) { person in
-                        PersonCreditLink(person: person)
+            ScrollViewReader { scrollProxy in
+                ScrollView(.horizontal) {
+                    LazyHStack(alignment: .top, spacing: 20) {
+                        ForEach(Array(people.prefix(36))) { person in
+                            PersonCreditLink(
+                                person: person,
+                                isKeyboardSelected: visibleKeyboardSelection == .person(person.id),
+                                isKeyboardNavigationActive: visibleKeyboardSelection != nil,
+                                onPointerSelection: { hovering in
+                                    updatePointerSelection(
+                                        .person(person.id),
+                                        hovering: hovering
+                                    )
+                                }
+                            )
+                            .id(person.id)
+                        }
+                    }
+                    .focusSection()
+                }
+                .scrollIndicators(.hidden)
+                .onChange(of: selectedPersonID) {
+                    guard let selectedPersonID else { return }
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        scrollProxy.scrollTo(selectedPersonID, anchor: .leading)
                     }
                 }
-                .focusSection()
             }
-            .scrollIndicators(.hidden)
         }
         .padding(.horizontal, 40)
     }
@@ -490,10 +615,326 @@ struct MediaDetailView: View {
         var seen: Set<String> = []
         return (detail.directors + detail.cast).filter { seen.insert($0.id).inserted }
     }
+
+    private static let heroSectionID = "detail.hero"
+    private static let movieVersionsSectionID = "detail.versions"
+    private static let seasonsSectionID = "detail.seasons"
+    private static let episodesSectionID = "detail.episodes"
+    private static let castSectionID = "detail.cast"
+    private static let showMoreScrollID = "detail.episodes.more"
+
+    private var keyboardSections: [KeyboardSection] {
+        var sections = [
+            KeyboardSection(
+                id: Self.heroSectionID,
+                axis: .horizontal,
+                targets: [.primaryPlayback, .favorite]
+            )
+        ]
+        if model.item.kind == .movie, !model.movieAssets.isEmpty {
+            sections.append(
+                KeyboardSection(
+                    id: Self.movieVersionsSectionID,
+                    axis: .vertical,
+                    targets: model.movieAssets.map { .movieAsset($0.id) }
+                )
+            )
+        }
+        if model.item.kind == .series {
+            if !model.seasons.isEmpty {
+                sections.append(
+                    KeyboardSection(
+                        id: Self.seasonsSectionID,
+                        axis: .horizontal,
+                        targets: model.seasons.map { .season($0.id) }
+                    )
+                )
+            }
+            if !model.isLoadingEpisodes {
+                var episodeTargets = visibleEpisodes.map { KeyboardTarget.episode($0.id) }
+                if model.episodes.count > Self.collapsedEpisodeCount {
+                    episodeTargets.append(.showMore)
+                }
+                if !episodeTargets.isEmpty {
+                    sections.append(
+                        KeyboardSection(
+                            id: Self.episodesSectionID,
+                            axis: .vertical,
+                            targets: episodeTargets
+                        )
+                    )
+                }
+            }
+        }
+        if let detail = model.detail {
+            let people = Array(credits(in: detail).prefix(36))
+            if !people.isEmpty {
+                sections.append(
+                    KeyboardSection(
+                        id: Self.castSectionID,
+                        axis: .horizontal,
+                        targets: people.map { .person($0.id) }
+                    )
+                )
+            }
+        }
+        return sections
+    }
+
+    private var keyboardSignature: [String] {
+        keyboardSections.flatMap { section in
+            [section.id] + section.targets.map { String(describing: $0) }
+        }
+    }
+
+    private var selectedMovieAssetID: String? {
+        guard case .movieAsset(let id) = visibleKeyboardSelection else { return nil }
+        return id
+    }
+
+    private var selectedSeasonID: String? {
+        guard case .season(let id) = visibleKeyboardSelection else { return nil }
+        return id
+    }
+
+    private var selectedPersonID: String? {
+        guard case .person(let id) = visibleKeyboardSelection else { return nil }
+        return id
+    }
+
+    private var visibleKeyboardSelection: KeyboardTarget? {
+        playbackOptions == nil && shortcuts.usesKeyboardNavigation
+            ? keyboardSelection
+            : nil
+    }
+
+    private func episodeScrollID(_ episodeID: String) -> String {
+        "detail.episode.\(episodeID)"
+    }
+
+    private func registerKeyboardNavigation(scrollProxy: ScrollViewProxy) {
+        let sections = keyboardSections
+        let selection = $keyboardSelection
+        let rememberedSelections = $rememberedKeyboardSelections
+        let pointerSelection = $pointerSelection
+        shortcuts.setNavigationSurface(
+            owner: keyboardOwner,
+            handoffToKeyboard: {
+                guard let pointerTarget = pointerSelection.wrappedValue,
+                      sections.contains(where: {
+                          $0.targets.contains(pointerTarget)
+                      }) else {
+                    return
+                }
+                selection.wrappedValue = pointerTarget
+                if let section = sections.first(where: {
+                    $0.targets.contains(pointerTarget)
+                }) {
+                    rememberedSelections.wrappedValue[section.id] = pointerTarget
+                }
+            },
+            move: { direction in
+                moveKeyboardSelection(
+                    direction,
+                    sections: sections,
+                    selection: selection,
+                    rememberedSelections: rememberedSelections,
+                    startingTarget: shortcuts.inputModality == .pointer
+                        ? pointerSelection.wrappedValue
+                        : nil,
+                    scrollProxy: scrollProxy
+                )
+            },
+            activate: {
+                activateKeyboardSelection(
+                    shortcuts.inputModality == .pointer
+                        ? pointerSelection.wrappedValue ?? selection.wrappedValue
+                        : selection.wrappedValue
+                )
+            }
+        )
+    }
+
+    private func moveKeyboardSelection(
+        _ direction: CineLarkFocusDirection,
+        sections: [KeyboardSection],
+        selection: Binding<KeyboardTarget?>,
+        rememberedSelections: Binding<[String: KeyboardTarget]>,
+        startingTarget: KeyboardTarget?,
+        scrollProxy: ScrollViewProxy
+    ) -> Bool {
+        guard let firstSection = sections.first,
+              let firstTarget = firstSection.targets.first else {
+            return false
+        }
+        guard let current = startingTarget ?? selection.wrappedValue,
+              let sectionIndex = sections.firstIndex(where: { $0.targets.contains(current) }),
+              let targetIndex = sections[sectionIndex].targets.firstIndex(of: current) else {
+            selectKeyboardTarget(
+                firstTarget,
+                sectionID: firstSection.id,
+                selection: selection,
+                rememberedSelections: rememberedSelections,
+                scrollProxy: scrollProxy
+            )
+            return true
+        }
+
+        let section = sections[sectionIndex]
+        let movesWithinSection =
+            (section.axis == .horizontal && (direction == .left || direction == .right)) ||
+            (section.axis == .vertical && (direction == .up || direction == .down))
+        if movesWithinSection {
+            let delta = (direction == .left || direction == .up) ? -1 : 1
+            let nextIndex = targetIndex + delta
+            if section.targets.indices.contains(nextIndex) {
+                selectKeyboardTarget(
+                    section.targets[nextIndex],
+                    sectionID: section.id,
+                    selection: selection,
+                    rememberedSelections: rememberedSelections,
+                    scrollProxy: scrollProxy
+                )
+                return true
+            }
+        }
+
+        let movesToPreviousSection = direction == .up ||
+            (section.axis == .vertical && direction == .left)
+        let movesToNextSection = direction == .down ||
+            (section.axis == .vertical && direction == .right)
+        guard movesToPreviousSection || movesToNextSection else { return true }
+        let nextSectionIndex = movesToPreviousSection
+            ? max(0, sectionIndex - 1)
+            : min(sections.count - 1, sectionIndex + 1)
+        let nextSection = sections[nextSectionIndex]
+        let nextTarget: KeyboardTarget
+        if nextSectionIndex == sectionIndex {
+            nextTarget = section.targets[targetIndex]
+        } else if let rememberedTarget = rememberedSelections.wrappedValue[nextSection.id],
+                  nextSection.targets.contains(rememberedTarget) {
+            nextTarget = rememberedTarget
+        } else if let firstTarget = nextSection.targets.first {
+            nextTarget = firstTarget
+        } else {
+            return false
+        }
+        selectKeyboardTarget(
+            nextTarget,
+            sectionID: nextSection.id,
+            selection: selection,
+            rememberedSelections: rememberedSelections,
+            scrollProxy: scrollProxy
+        )
+        return true
+    }
+
+    private func selectKeyboardTarget(
+        _ target: KeyboardTarget,
+        sectionID: String,
+        selection: Binding<KeyboardTarget?>,
+        rememberedSelections: Binding<[String: KeyboardTarget]>,
+        scrollProxy: ScrollViewProxy
+    ) {
+        let scrollID: String
+        switch target {
+        case .movieAsset(let id):
+            scrollID = movieAssetScrollID(id)
+        case .episode(let id):
+            scrollID = episodeScrollID(id)
+        case .showMore:
+            scrollID = Self.showMoreScrollID
+        default:
+            scrollID = sectionID
+        }
+        withAnimation(.easeOut(duration: 0.2)) {
+            selection.wrappedValue = target
+            rememberedSelections.wrappedValue[sectionID] = target
+            scrollProxy.scrollTo(scrollID, anchor: .top)
+        }
+    }
+
+    private func movieAssetScrollID(_ assetID: String) -> String {
+        "detail.version.\(assetID)"
+    }
+
+    private func activateKeyboardSelection(_ target: KeyboardTarget?) -> Bool {
+        guard let target else { return false }
+        switch target {
+        case .primaryPlayback:
+            guard model.canStartPlayback, !model.isStartingPlayback else { return false }
+            Task { await model.playPrimary() }
+            return true
+        case .favorite:
+            guard !model.isUpdatingFavorite,
+                  !model.isFavorite || model.canRemoveFavorite else {
+                return false
+            }
+            Task { await model.toggleFavorite() }
+            return true
+        case .movieAsset(let id):
+            guard let asset = model.movieAssets.first(where: { $0.id == id }) else {
+                return false
+            }
+            Task { await model.playMovieAsset(asset) }
+            return true
+        case .season(let id):
+            guard model.seasons.contains(where: { $0.id == id }) else { return false }
+            Task { await model.selectSeason(id) }
+            return true
+        case .episode(let id):
+            guard let episode = visibleEpisodes.first(where: { $0.id == id }) else {
+                return false
+            }
+            presentEpisodeOptions(episode)
+            return true
+        case .showMore:
+            showsAllEpisodes.toggle()
+            return true
+        case .person(let id):
+            guard let detail = model.detail,
+                  let person = credits(in: detail).first(where: { $0.id == id }) else {
+                return false
+            }
+            return shortcuts.openPerson(person)
+        }
+    }
+
+    private func reconcileKeyboardSelection() {
+        let sectionsByID = Dictionary(
+            uniqueKeysWithValues: keyboardSections.map { ($0.id, $0.targets) }
+        )
+        rememberedKeyboardSelections = rememberedKeyboardSelections.filter {
+            sectionsByID[$0.key]?.contains($0.value) == true
+        }
+        if let keyboardSelection,
+           !keyboardSections.contains(where: { $0.targets.contains(keyboardSelection) }) {
+            self.keyboardSelection = nil
+        }
+        if let pointerSelection,
+           !keyboardSections.contains(where: { $0.targets.contains(pointerSelection) }) {
+            self.pointerSelection = nil
+        }
+    }
+
+    private func updatePointerSelection(
+        _ target: KeyboardTarget,
+        hovering: Bool
+    ) {
+        if hovering {
+            pointerSelection = target
+        } else if pointerSelection == target {
+            pointerSelection = nil
+        }
+    }
 }
 
 private struct PersonCreditLink: View {
+    @Environment(ShortcutCoordinator.self) private var shortcuts
     let person: PersonCredit
+    let isKeyboardSelected: Bool
+    let isKeyboardNavigationActive: Bool
+    let onPointerSelection: (Bool) -> Void
     @State private var isHovering = false
     @FocusState private var isFocused: Bool
 
@@ -507,10 +948,11 @@ private struct PersonCreditLink: View {
                 .frame(width: 104, height: 104)
                 .clipShape(Circle())
                 .cineLarkFocusSurface(
-                    isActive: isHovering || isFocused,
+                    isActive: isActive,
                     cornerRadius: 52,
                     scale: 1.06
                 )
+                .cineLarkKeyboardSelectionHint(isActive: isKeyboardSelected)
                 Text(person.name)
                     .font(.callout.weight(.medium))
                     .lineLimit(1)
@@ -527,15 +969,46 @@ private struct PersonCreditLink: View {
         .buttonStyle(CineLarkPressButtonStyle())
         .focused($isFocused)
         .focusEffectDisabled()
-        .onHover { isHovering = $0 }
+        .onHover { hovering in
+            isHovering = hovering
+            if !hovering || shortcuts.inputModality == .pointer {
+                onPointerSelection(hovering)
+            }
+        }
+        .onChange(of: shortcuts.inputModality) {
+            if shortcuts.inputModality == .pointer, isHovering {
+                onPointerSelection(true)
+            }
+        }
+        .onDisappear {
+            if isHovering { onPointerSelection(false) }
+        }
+    }
+
+    private var isActive: Bool {
+        switch shortcuts.inputModality {
+        case .pointer:
+            isHovering
+        case .keyboard:
+            isKeyboardSelected || (!isKeyboardNavigationActive && isFocused)
+        }
     }
 }
 
 private struct InlineMovieVersionsView: View {
     @Environment(\.appLanguage) private var language
     @State private var model: PlaybackOptionsModel
+    let selectedAssetID: String?
+    let onPointerSelection: (String, Bool) -> Void
 
-    init(context: PlaybackOptionsContext, playback: PlaybackCoordinator) {
+    init(
+        context: PlaybackOptionsContext,
+        playback: PlaybackCoordinator,
+        selectedAssetID: String? = nil,
+        onPointerSelection: @escaping (String, Bool) -> Void
+    ) {
+        self.selectedAssetID = selectedAssetID
+        self.onPointerSelection = onPointerSelection
         _model = State(
             initialValue: PlaybackOptionsModel(
                 context: context,
@@ -545,7 +1018,12 @@ private struct InlineMovieVersionsView: View {
     }
 
     var body: some View {
-        PlaybackVersionCards(model: model)
+        PlaybackVersionCards(
+            model: model,
+            selectedAssetID: selectedAssetID,
+            onPointerSelection: onPointerSelection,
+            scrollID: { "detail.version.\($0)" }
+        )
             .alert(
                 "CineLark",
                 isPresented: Binding(
@@ -564,24 +1042,33 @@ private struct InlineMovieVersionsView: View {
 
 private struct SeasonPill: View {
     @Environment(\.appLanguage) private var language
+    @Environment(ShortcutCoordinator.self) private var shortcuts
     let season: Season
     let isSelected: Bool
+    let isKeyboardSelected: Bool
+    let onPointerSelection: (Bool) -> Void
     let action: () -> Void
 
-    @ViewBuilder
     var body: some View {
-        if isSelected {
-            Button(action: action) { label }
-                .buttonStyle(.glassProminent)
-                .controlSize(.large)
-                .accessibilityLabel(season.title)
-                .accessibilityAddTraits(.isSelected)
-        } else {
-            Button(action: action) { label }
-                .buttonStyle(.glass)
-                .controlSize(.large)
-                .accessibilityLabel(season.title)
+        Group {
+            if isSelected {
+                Button(action: action) { label }
+                    .buttonStyle(.glassProminent)
+                    .accessibilityAddTraits(.isSelected)
+            } else {
+                Button(action: action) { label }
+                    .buttonStyle(.glass)
+            }
         }
+        .controlSize(.large)
+        .accessibilityLabel(season.title)
+        .focusEffectDisabled()
+        .cineLarkFocusSurface(
+            isActive: shortcuts.usesKeyboardNavigation && isKeyboardSelected,
+            cornerRadius: 18,
+            scale: 1.02
+        )
+        .cineLarkPointerSelection(onPointerSelection)
     }
 
     private var label: some View {
@@ -673,7 +1160,11 @@ private struct EpisodePill: View {
 
 private struct EpisodeRow: View {
     @Environment(\.appLanguage) private var language
+    @Environment(ShortcutCoordinator.self) private var shortcuts
     let episode: Episode
+    let isKeyboardSelected: Bool
+    let isKeyboardNavigationActive: Bool
+    let onPointerSelection: (Bool) -> Void
     let action: () -> Void
     @State private var isHovering = false
     @FocusState private var isFocused: Bool
@@ -769,17 +1260,40 @@ private struct EpisodeRow: View {
         .focused($isFocused)
         .focusEffectDisabled()
         .background(
-            Color.white.opacity(isHovering || isFocused ? 0.10 : 0.05),
+            Color.white.opacity(isActive ? 0.10 : 0.05),
             in: RoundedRectangle(cornerRadius: 16, style: .continuous)
         )
         .cineLarkFocusSurface(
-            isActive: isHovering || isFocused,
+            isActive: isActive,
             cornerRadius: 16,
             scale: 1.01
         )
-        .onHover { isHovering = $0 }
+        .cineLarkKeyboardSelectionHint(isActive: isKeyboardSelected)
+        .onHover { hovering in
+            isHovering = hovering
+            if !hovering || shortcuts.inputModality == .pointer {
+                onPointerSelection(hovering)
+            }
+        }
+        .onChange(of: shortcuts.inputModality) {
+            if shortcuts.inputModality == .pointer, isHovering {
+                onPointerSelection(true)
+            }
+        }
+        .onDisappear {
+            if isHovering { onPointerSelection(false) }
+        }
         .accessibilityLabel(episodeAccessibilityLabel)
         .accessibilityHint(language.localized("episode.choose_hint"))
+    }
+
+    private var isActive: Bool {
+        switch shortcuts.inputModality {
+        case .pointer:
+            isHovering
+        case .keyboard:
+            isKeyboardSelected || (!isKeyboardNavigationActive && isFocused)
+        }
     }
 
     private var episodeAccessibilityLabel: String {

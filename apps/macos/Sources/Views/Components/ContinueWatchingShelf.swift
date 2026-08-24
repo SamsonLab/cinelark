@@ -4,57 +4,96 @@ import CineLarkDomain
 struct ContinueWatchingShelf: View {
     @Environment(\.appLanguage) private var language
     @Bindable var model: AppModel
+    let headingID: String?
+    let selectedItemID: String?
+    let isKeyboardNavigationActive: Bool
+    let onPointerSelection: ((ContinueWatchingItem, Bool) -> Void)?
     let onHighlight: ((ContinueWatchingItem) -> Void)?
 
     init(
         model: AppModel,
+        headingID: String? = nil,
+        selectedItemID: String? = nil,
+        isKeyboardNavigationActive: Bool = false,
+        onPointerSelection: ((ContinueWatchingItem, Bool) -> Void)? = nil,
         onHighlight: ((ContinueWatchingItem) -> Void)? = nil
     ) {
         self.model = model
+        self.headingID = headingID
+        self.selectedItemID = selectedItemID
+        self.isKeyboardNavigationActive = isKeyboardNavigationActive
+        self.onPointerSelection = onPointerSelection
         self.onHighlight = onHighlight
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(language.localized("home.continue_watching"))
-                .font(CineLarkDesign.Typography.sectionTitle)
-                .padding(.horizontal, CineLarkDesign.Layout.contentMargin)
+            heading
 
-            ScrollView(.horizontal) {
-                LazyHStack(alignment: .top, spacing: CineLarkDesign.Layout.shelfSpacing) {
-                    ForEach(model.continueWatching) { item in
-                        PlaybackLandscapeLockup(
-                            item: item,
-                            isPlaying: model.playingItemID == item.id,
-                            isPlaybackDisabled: model.playingItemID != nil,
-                            prefersInitialFocus: item.id == model.continueWatching.first?.id,
-                            onHighlight: onHighlight
-                        ) {
-                            Task { await model.play(item) }
+            ScrollViewReader { scrollProxy in
+                ScrollView(.horizontal) {
+                    LazyHStack(alignment: .top, spacing: CineLarkDesign.Layout.shelfSpacing) {
+                        ForEach(model.continueWatching) { item in
+                            PlaybackLandscapeLockup(
+                                item: item,
+                                isPlaying: model.playingItemID == item.id,
+                                isPlaybackDisabled: model.playingItemID != nil,
+                                prefersInitialFocus: item.id == model.continueWatching.first?.id,
+                                isKeyboardSelected: selectedItemID == item.id,
+                                isKeyboardNavigationActive: isKeyboardNavigationActive,
+                                onPointerSelection: onPointerSelection,
+                                onHighlight: onHighlight
+                            ) {
+                                Task { await model.play(item) }
+                            }
+                            .id(item.id)
                         }
                     }
+                    .scrollTargetLayout()
+                    .padding(.vertical, 26)
                 }
-                .scrollTargetLayout()
-                .padding(.vertical, 26)
+                .contentMargins(
+                    .horizontal,
+                    CineLarkDesign.Layout.contentMargin,
+                    for: .scrollContent
+                )
+                .scrollIndicators(.hidden)
+                .scrollTargetBehavior(.viewAligned)
+                .focusSection()
+                .onChange(of: selectedItemID) {
+                    guard let selectedItemID else { return }
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        scrollProxy.scrollTo(selectedItemID, anchor: .leading)
+                    }
+                }
             }
-            .contentMargins(
-                .horizontal,
-                CineLarkDesign.Layout.contentMargin,
-                for: .scrollContent
-            )
-            .scrollIndicators(.hidden)
-            .scrollTargetBehavior(.viewAligned)
-            .focusSection()
+        }
+    }
+
+    @ViewBuilder
+    private var heading: some View {
+        let title = Text(language.localized("home.continue_watching"))
+            .font(CineLarkDesign.Typography.sectionTitle)
+            .padding(.horizontal, CineLarkDesign.Layout.contentMargin)
+
+        if let headingID {
+            title.id(headingID)
+        } else {
+            title
         }
     }
 }
 
 private struct PlaybackLandscapeLockup: View {
     @Environment(\.appLanguage) private var language
+    @Environment(ShortcutCoordinator.self) private var shortcuts
     let item: ContinueWatchingItem
     let isPlaying: Bool
     let isPlaybackDisabled: Bool
     let prefersInitialFocus: Bool
+    let isKeyboardSelected: Bool
+    let isKeyboardNavigationActive: Bool
+    let onPointerSelection: ((ContinueWatchingItem, Bool) -> Void)?
     let onHighlight: ((ContinueWatchingItem) -> Void)?
     let play: () -> Void
     @State private var isHovering = false
@@ -62,7 +101,13 @@ private struct PlaybackLandscapeLockup: View {
     @FocusState private var isDetailFocused: Bool
 
     private var isActive: Bool {
-        isHovering || isPlayFocused || isDetailFocused
+        switch shortcuts.inputModality {
+        case .pointer:
+            isHovering
+        case .keyboard:
+            isKeyboardSelected ||
+                (!isKeyboardNavigationActive && (isPlayFocused || isDetailFocused))
+        }
     }
 
     var body: some View {
@@ -107,7 +152,21 @@ private struct PlaybackLandscapeLockup: View {
         }
         .onHover { hovering in
             isHovering = hovering
-            if hovering { onHighlight?(item) }
+            if !hovering || shortcuts.inputModality == .pointer {
+                onPointerSelection?(item, hovering)
+            }
+            if hovering, shortcuts.inputModality == .pointer {
+                onHighlight?(item)
+            }
+        }
+        .onChange(of: shortcuts.inputModality) {
+            if shortcuts.inputModality == .pointer, isHovering {
+                onPointerSelection?(item, true)
+                onHighlight?(item)
+            }
+        }
+        .onDisappear {
+            if isHovering { onPointerSelection?(item, false) }
         }
         .onChange(of: isPlayFocused) {
             if isPlayFocused { onHighlight?(item) }
@@ -148,6 +207,7 @@ private struct PlaybackLandscapeLockup: View {
             cornerRadius: CineLarkDesign.Shape.cardRadius,
             scale: 1.04
         )
+        .cineLarkKeyboardSelectionHint(isActive: isKeyboardSelected)
     }
 
     @ViewBuilder

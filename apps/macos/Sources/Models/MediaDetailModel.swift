@@ -194,6 +194,28 @@ final class MediaDetailModel {
         }
     }
 
+    func playMovieAsset(_ asset: MediaAsset) async {
+        guard initialItem.kind == .movie,
+              movieAssets.contains(where: { $0.id == asset.id }),
+              !isStartingPlayback else {
+            return
+        }
+        isStartingPlayback = true
+        defer { isStartingPlayback = false }
+        do {
+            try await playback.play(
+                item: PlayableItem(id: item.id, kind: .movie),
+                asset: asset,
+                title: item.title,
+                startPositionSeconds: item.userState.played
+                    ? 0
+                    : item.userState.positionSeconds
+            )
+        } catch {
+            present(error)
+        }
+    }
+
     func toggleFavorite() async {
         guard !isUpdatingFavorite else { return }
         let desiredState = !isFavorite

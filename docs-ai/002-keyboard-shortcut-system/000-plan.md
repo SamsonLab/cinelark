@@ -2,7 +2,7 @@
 
 | | |
 | --- | --- |
-| **Status** | Implemented |
+| **Status** | Superseded by [003 — Keyboard-first application navigation](../003-keyboard-first-navigation/000-plan.md) |
 | **Anchor date** | 2026-08-21 |
 | **Primary refs** | Implementation commit containing this record |
 | **Related** | [001 — AI knowledge system](../001-ai-knowledge-system/000-plan.md) |
@@ -26,8 +26,9 @@ by spatial keyboard focus.
   outline, and activate the selected item with Return or Space.
 - Present every shortcut reminder as an overlay so revealing help never changes
   layout or scroll geometry.
-- Support Return-driven submission, Escape dismissal, Backspace navigation,
-  command-based back navigation, and trackpad swipe-back where appropriate.
+- Support Return-driven submission, contextual Escape dismissal in editable
+  controls, Backspace/Escape navigation, command-based back navigation, and
+  trackpad swipe-back where appropriate.
 
 ### Non-goals
 
@@ -59,9 +60,10 @@ reliably mutate `List(selection:)` during runtime verification. SwiftUI shortcut
 modifiers remain responsible for badge presentation and ordinary button wiring.
 
 The navigation stack exposes one back action to the coordinator. Backspace,
-`Command-[`, `Command-Left`, Escape handling owned by the current view, and
-horizontal trackpad swipe events all converge on native view or stack semantics
-without affecting text editing or presented modal UI.
+Escape outside editable controls, `Command-[`, `Command-Left`, and horizontal
+trackpad swipe events converge on native stack semantics without affecting text
+editing or presented modal UI. Editable controls may retain contextual Escape
+behavior such as clearing a Search query.
 
 ## Alternatives & decisions
 
@@ -77,3 +79,9 @@ without affecting text editing or presented modal UI.
 - Updated 2026-08-21: Replaced dynamic numbering with directional focus and
   unified Return/Space confirmation — see
   [002 — Directional focus simplification](002-directional-focus-simplification.md).
+- Updated 2026-08-24: Required directional selection to remain visible and
+  prefer top alignment — see
+  [003 — Directional selection visibility](003-directional-selection-visibility.md).
+- Updated 2026-08-24: Replaced the single directional callback and view-owned
+  event lifecycle with application-wide navigation surfaces — see
+  [003 — Keyboard-first application navigation](../003-keyboard-first-navigation/000-plan.md).

@@ -11,6 +11,8 @@
 | 2026-08-21 | Added input submission, Escape behavior, stack back commands, and swipe-back handling. | Working tree |
 | 2026-08-21 | Replaced dynamic numeric allocation with arrow-key selection, Return activation, and a non-layout overlay; reduced Command hold to one second. | [Follow-up](002-directional-focus-simplification.md) |
 | 2026-08-21 | Built the Debug app and exercised the reliable automation paths in the running app. | Working tree |
+| 2026-08-24 | Bound directional selection to explicit poster scroll IDs and top-aligned every move. | [Visibility follow-up](003-directional-selection-visibility.md) |
+| 2026-08-24 | Unified Escape and Backspace on the global navigation-back route outside editable controls. | Working tree |
 
 ## Outcome & current state (as of 2026-08-21)
 
@@ -27,10 +29,15 @@ Return activation. They no longer register per-control geometry or consume a
 numeric shortcut pool. Language selection and other state-dependent controls do
 not own permanent shortcuts.
 
+Poster grids coordinate selection and scrolling through stable media IDs. Every
+directional move reveals the selected row at the viewport top when scroll bounds
+allow, so keyboard state cannot advance into invisible content.
+
 `apps/macos/Sources/Views/SearchView.swift` owns Return submission and contextual
-Escape clearing. Backspace, `Command-[`, `Command-Left`, and horizontal swipe
-events delegate to the current navigation-stack back action when text input and
-modal presentation do not own the event.
+Escape clearing. Backspace, Escape outside editable controls, `Command-[`,
+`Command-Left`, and horizontal swipe events delegate to the current
+navigation-stack back action when text input and modal presentation do not own
+the event.
 
 ## Validation
 
@@ -42,9 +49,13 @@ modal presentation do not own the event.
   selected sidebar section did not change.
 - Backspace returned from media detail to Home.
 - Escape cleared a non-empty Search field while retaining field focus.
+- Escape returned from media detail to Movies through the same back action as
+  Backspace.
 - In Movies, the initial poster had a visible focus outline, Right moved it to
   the next poster, and both Return and Space opened that selected poster's
   detail screen.
+- In Movies, one Down move top-aligned the next row, and three rapid additional
+  Down moves kept the final selected row visible at the grid viewport top.
 - `git diff --check` reported no whitespace errors after implementation.
 
 ## Deviations from plan

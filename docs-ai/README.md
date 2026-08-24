@@ -40,3 +40,4 @@ writing, amendment, and verification rules.
 | --- | --- | --- | --- |
 | 001 | [AI knowledge system](001-ai-knowledge-system/000-plan.md) | 2026-08-21 | Shared Claude/Codex skills and curated engineering-memory governance |
 | 002 | [Keyboard shortcut system](002-keyboard-shortcut-system/000-plan.md) | 2026-08-21 | Fixed navigation keys, directional content focus, overlay help, and back semantics |
+| 003 | [Keyboard-first application navigation](003-keyboard-first-navigation/000-plan.md) | 2026-08-24 | Application-wide focus graphs, resilient input lifecycle, and last-input selection handoff |

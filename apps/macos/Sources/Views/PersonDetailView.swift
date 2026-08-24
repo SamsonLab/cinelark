@@ -3,7 +3,10 @@ import CineLarkDomain
 
 struct PersonDetailView: View {
     @Environment(\.appLanguage) private var language
+    @Environment(ShortcutCoordinator.self) private var shortcuts
     @State private var model: PersonDetailModel
+    @State private var isFavoriteKeyboardSelected = false
+    @State private var pointerSelectedLeadingActionID: String?
 
     init(person: PersonCredit, provider: any MediaLibraryProvider) {
         _model = State(
@@ -32,7 +35,19 @@ struct PersonDetailView: View {
                         .font(.title2.bold())
                         .padding(.horizontal, 32)
                         .padding(.top, 24)
-                    PosterGrid(items: model.works)
+                    PosterGrid(
+                        items: model.works,
+                        pointerSelectedLeadingActionID: pointerSelectedLeadingActionID,
+                        leadingKeyboardActions: [
+                            PosterGridLeadingKeyboardAction(
+                                id: "person.favorite",
+                                activate: activateFavorite
+                            )
+                        ],
+                        onLeadingSelectionChange: {
+                            isFavoriteKeyboardSelected = $0 == "person.favorite"
+                        }
+                    )
                 }
             }
         }
@@ -105,6 +120,20 @@ struct PersonDetailView: View {
                 .controlSize(.extraLarge)
                 .tint(model.isFavorite ? .orange : .accentColor)
                 .disabled(model.isFavorite || model.isUpdatingFavorite || model.detail == nil)
+                .focusEffectDisabled()
+                .cineLarkFocusSurface(
+                    isActive: shortcuts.usesKeyboardNavigation &&
+                        isFavoriteKeyboardSelected,
+                    cornerRadius: 22,
+                    scale: 1.02
+                )
+                .cineLarkPointerSelection { hovering in
+                    if hovering {
+                        pointerSelectedLeadingActionID = "person.favorite"
+                    } else if pointerSelectedLeadingActionID == "person.favorite" {
+                        pointerSelectedLeadingActionID = nil
+                    }
+                }
             }
 
             Spacer()
@@ -119,5 +148,15 @@ struct PersonDetailView: View {
                 endRadius: 560
             )
         }
+    }
+
+    private func activateFavorite() -> Bool {
+        guard !model.isFavorite,
+              !model.isUpdatingFavorite,
+              model.detail != nil else {
+            return false
+        }
+        Task { await model.addToFavorites() }
+        return true
     }
 }

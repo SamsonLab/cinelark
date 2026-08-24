@@ -33,6 +33,8 @@ struct MediaCategoryView: View {
     let kind: MediaKind
     @Bindable var model: AppModel
     @State private var selectedCollectionID: String?
+    @State private var keyboardSelectedCollectionID: String?
+    @State private var pointerSelectedCollectionID: String?
     @State private var sortField: MediaSort.Field = .releaseDate
     @State private var sortOrder: MediaSort.Order = .descending
 
@@ -47,7 +49,12 @@ struct MediaCategoryView: View {
                     CollectionBrowserContent(
                         collection: selectedCollection,
                         sort: sort,
-                        model: model
+                        model: model,
+                        pointerSelectedLeadingActionID: pointerSelectedCollectionID,
+                        leadingKeyboardActions: collectionKeyboardActions,
+                        onLeadingSelectionChange: {
+                            keyboardSelectedCollectionID = $0
+                        }
                     )
                 }
             } else {
@@ -83,21 +90,39 @@ struct MediaCategoryView: View {
     }
 
     private var collectionSelector: some View {
-        CineLarkFilterBar {
+        CineLarkFilterBar(selectedID: keyboardSelectedCollectionID) {
             ForEach(collections) { collection in
                 CineLarkFilterButton(
                     title: collection.name,
                     count: collection.itemCount,
-                    isSelected: selectedCollection?.id == collection.id
+                    isSelected: selectedCollection?.id == collection.id,
+                    isKeyboardSelected: keyboardSelectedCollectionID == collection.id,
+                    onPointerSelection: { hovering in
+                        if hovering {
+                            pointerSelectedCollectionID = collection.id
+                        } else if pointerSelectedCollectionID == collection.id {
+                            pointerSelectedCollectionID = nil
+                        }
+                    }
                 ) {
                     selectedCollectionID = collection.id
                 }
+                .id(collection.id)
             }
         }
     }
 
     private var sort: MediaSort {
         MediaSort(field: sortField, order: sortOrder)
+    }
+
+    private var collectionKeyboardActions: [PosterGridLeadingKeyboardAction] {
+        collections.map { collection in
+            PosterGridLeadingKeyboardAction(id: collection.id) {
+                selectedCollectionID = collection.id
+                return true
+            }
+        }
     }
 
     private var title: String {
@@ -110,9 +135,25 @@ private struct CollectionBrowserContent: View {
     let collection: MediaCollection
     let sort: MediaSort
     @Bindable var model: AppModel
+    var pointerSelectedLeadingActionID: String? = nil
+    var leadingKeyboardActions: [PosterGridLeadingKeyboardAction] = []
+    var onLeadingSelectionChange: ((String?) -> Void)? = nil
 
     var body: some View {
-        Group {
+        ZStack {
+            PosterGrid(
+                items: items,
+                isLoadingMore: model.isLoading(collection, sort: sort),
+                canLoadMore: model.canLoadMore(collection, sort: sort),
+                pointerSelectedLeadingActionID: pointerSelectedLeadingActionID,
+                preferredLeadingKeyboardID: collection.id,
+                leadingKeyboardActions: leadingKeyboardActions,
+                onLeadingSelectionChange: onLeadingSelectionChange,
+                onLoadMore: {
+                    await model.loadMore(in: collection, sort: sort)
+                }
+            )
+
             if model.isLoading(collection, sort: sort) && items.isEmpty {
                 ProgressView(language.localized("collection.loading", collection.name))
                     .controlSize(.large)
@@ -122,15 +163,6 @@ private struct CollectionBrowserContent: View {
                     language.localized("collection.empty"),
                     systemImage: "rectangle.stack",
                     description: Text(language.localized("collection.empty_description"))
-                )
-            } else {
-                PosterGrid(
-                    items: items,
-                    isLoadingMore: model.isLoading(collection, sort: sort),
-                    canLoadMore: model.canLoadMore(collection, sort: sort),
-                    onLoadMore: {
-                        await model.loadMore(in: collection, sort: sort)
-                    }
                 )
             }
         }

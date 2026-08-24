@@ -5,8 +5,12 @@ import CineLarkDomain
 struct PlaybackOptionsView: View {
     @Environment(\.appLanguage) private var language
     @Environment(\.dismiss) private var dismiss
+    @Environment(ShortcutCoordinator.self) private var shortcuts
     @State private var model: PlaybackOptionsModel
     @State private var bodyContentHeight: CGFloat = 220
+    @State private var selectedAssetID: String?
+    @State private var pointerSelectedAssetID: String?
+    @State private var keyboardOwner = UUID()
 
     private static let heroHeight: CGFloat = 260
 
@@ -23,18 +27,34 @@ struct PlaybackOptionsView: View {
         VStack(spacing: 0) {
             hero
 
-            ScrollView {
-                bodyContent
-                    .background {
-                        GeometryReader { geometry in
-                            Color.clear.preference(
-                                key: PlaybackOptionsContentHeightKey.self,
-                                value: geometry.size.height
-                            )
+            ScrollViewReader { scrollProxy in
+                ScrollView {
+                    bodyContent
+                        .background {
+                            GeometryReader { geometry in
+                                Color.clear.preference(
+                                    key: PlaybackOptionsContentHeightKey.self,
+                                    value: geometry.size.height
+                                )
+                            }
                         }
+                }
+                .scrollIndicators(.visible)
+                .onAppear {
+                    registerKeyboardNavigation(scrollProxy: scrollProxy)
+                }
+                .onChange(of: model.assets.map(\.id)) {
+                    if let selectedAssetID,
+                       !model.assets.contains(where: { $0.id == selectedAssetID }) {
+                        self.selectedAssetID = nil
                     }
+                    if let pointerSelectedAssetID,
+                       !model.assets.contains(where: { $0.id == pointerSelectedAssetID }) {
+                        self.pointerSelectedAssetID = nil
+                    }
+                    registerKeyboardNavigation(scrollProxy: scrollProxy)
+                }
             }
-            .scrollIndicators(.visible)
         }
         .frame(minWidth: 760, idealWidth: 840, maxWidth: 900)
         .frame(height: dialogHeight)
@@ -45,6 +65,10 @@ struct PlaybackOptionsView: View {
         }
         .task {
             await model.load()
+        }
+        .onDisappear {
+            pointerSelectedAssetID = nil
+            shortcuts.removeNavigationSurface(owner: keyboardOwner)
         }
         .alert(
             "CineLark",
@@ -155,11 +179,101 @@ struct PlaybackOptionsView: View {
                     .foregroundStyle(.secondary)
             }
 
-            PlaybackVersionCards(model: model) {
-                dismiss()
-            }
+            PlaybackVersionCards(
+                model: model,
+                selectedAssetID: shortcuts.usesKeyboardNavigation
+                    ? selectedAssetID
+                    : nil,
+                onPointerSelection: updatePointerSelection,
+                scrollID: versionScrollID,
+                onPlayed: { dismiss() }
+            )
         }
         .padding(24)
+    }
+
+    private func versionScrollID(_ assetID: String) -> String {
+        "playback.version.\(assetID)"
+    }
+
+    private func registerKeyboardNavigation(scrollProxy: ScrollViewProxy) {
+        let assetIDs = model.assets.map(\.id)
+        let selection = $selectedAssetID
+        let pointerSelection = $pointerSelectedAssetID
+        shortcuts.setNavigationSurface(
+            owner: keyboardOwner,
+            handlesPresentedModal: true,
+            handoffToKeyboard: {
+                guard let pointerAssetID = pointerSelection.wrappedValue,
+                      assetIDs.contains(pointerAssetID) else {
+                    return
+                }
+                selection.wrappedValue = pointerAssetID
+            },
+            move: { direction in
+                guard !assetIDs.isEmpty else { return false }
+                let currentSelection = shortcuts.inputModality == .pointer
+                    ? pointerSelection.wrappedValue ?? selection.wrappedValue
+                    : selection.wrappedValue
+                guard let currentID = currentSelection,
+                      let currentIndex = assetIDs.firstIndex(of: currentID) else {
+                    selectAsset(assetIDs[0], selection: selection, scrollProxy: scrollProxy)
+                    return true
+                }
+                let targetIndex: Int
+                switch direction {
+                case .up, .left:
+                    targetIndex = max(0, currentIndex - 1)
+                case .down, .right:
+                    targetIndex = min(assetIDs.count - 1, currentIndex + 1)
+                }
+                selectAsset(
+                    assetIDs[targetIndex],
+                    selection: selection,
+                    scrollProxy: scrollProxy
+                )
+                return true
+            },
+            activate: {
+                let currentSelection = shortcuts.inputModality == .pointer
+                    ? pointerSelection.wrappedValue ?? selection.wrappedValue
+                    : selection.wrappedValue
+                guard let selectedAssetID = currentSelection,
+                      let asset = model.assets.first(where: { $0.id == selectedAssetID }),
+                      model.playingAssetID == nil else {
+                    return false
+                }
+                Task {
+                    if await model.play(asset) {
+                        dismiss()
+                    }
+                }
+                return true
+            },
+            navigateBack: {
+                dismiss()
+                return true
+            }
+        )
+    }
+
+    private func selectAsset(
+        _ assetID: String,
+        selection: Binding<String?>,
+        scrollProxy: ScrollViewProxy
+    ) {
+        withAnimation(.easeOut(duration: 0.2)) {
+            selection.wrappedValue = assetID
+            scrollProxy.scrollTo(versionScrollID(assetID), anchor: .top)
+        }
+    }
+
+    private func updatePointerSelection(_ assetID: String, _ hovering: Bool) {
+        if hovering {
+            pointerSelectedAssetID = assetID
+        } else if pointerSelectedAssetID == assetID {
+            pointerSelectedAssetID = nil
+        }
     }
 }
 
@@ -173,7 +287,24 @@ private struct PlaybackOptionsContentHeightKey: PreferenceKey {
 
 struct PlaybackVersionCards: View {
     @Bindable var model: PlaybackOptionsModel
+    var selectedAssetID: String?
+    var onPointerSelection: ((String, Bool) -> Void)?
+    var scrollID: ((String) -> String)?
     var onPlayed: (() -> Void)?
+
+    init(
+        model: PlaybackOptionsModel,
+        selectedAssetID: String? = nil,
+        onPointerSelection: ((String, Bool) -> Void)? = nil,
+        scrollID: ((String) -> String)? = nil,
+        onPlayed: (() -> Void)? = nil
+    ) {
+        self.model = model
+        self.selectedAssetID = selectedAssetID
+        self.onPointerSelection = onPointerSelection
+        self.scrollID = scrollID
+        self.onPlayed = onPlayed
+    }
 
     var body: some View {
         VStack(spacing: 12) {
@@ -182,6 +313,11 @@ struct PlaybackVersionCards: View {
                     asset: asset,
                     isExpanded: model.expandedAssetID == asset.id,
                     isPlaying: model.playingAssetID == asset.id,
+                    isKeyboardSelected: selectedAssetID == asset.id,
+                    isKeyboardNavigationActive: selectedAssetID != nil,
+                    onPointerSelection: { hovering in
+                        onPointerSelection?(asset.id, hovering)
+                    },
                     isResolvingLink: model.resolvingLinkAssetID == asset.id,
                     didCopyLink: model.copiedLinkAssetID == asset.id,
                     onPlay: {
@@ -202,6 +338,7 @@ struct PlaybackVersionCards: View {
                         Task { await model.openDownload(for: asset) }
                     }
                 )
+                .id(scrollID?(asset.id) ?? asset.id)
             }
         }
         .focusSection()
@@ -210,9 +347,13 @@ struct PlaybackVersionCards: View {
 
 struct PlaybackVersionCard: View {
     @Environment(\.appLanguage) private var language
+    @Environment(ShortcutCoordinator.self) private var shortcuts
     let asset: MediaAsset
     let isExpanded: Bool
     let isPlaying: Bool
+    let isKeyboardSelected: Bool
+    let isKeyboardNavigationActive: Bool
+    let onPointerSelection: (Bool) -> Void
     let isResolvingLink: Bool
     let didCopyLink: Bool
     let onPlay: () -> Void
@@ -226,7 +367,13 @@ struct PlaybackVersionCard: View {
     @FocusState private var isDetailsFocused: Bool
 
     private var isActive: Bool {
-        isHovering || isPlayFocused || isDetailsFocused
+        switch shortcuts.inputModality {
+        case .pointer:
+            isHovering
+        case .keyboard:
+            isKeyboardSelected ||
+                (!isKeyboardNavigationActive && (isPlayFocused || isDetailsFocused))
+        }
     }
 
     var body: some View {
@@ -340,7 +487,21 @@ struct PlaybackVersionCard: View {
             cornerRadius: 16,
             scale: 1.008
         )
-        .onHover { isHovering = $0 }
+        .cineLarkKeyboardSelectionHint(isActive: isKeyboardSelected)
+        .onHover { hovering in
+            isHovering = hovering
+            if !hovering || shortcuts.inputModality == .pointer {
+                onPointerSelection(hovering)
+            }
+        }
+        .onChange(of: shortcuts.inputModality) {
+            if shortcuts.inputModality == .pointer, isHovering {
+                onPointerSelection(true)
+            }
+        }
+        .onDisappear {
+            if isHovering { onPointerSelection(false) }
+        }
         .animation(.easeOut(duration: 0.12), value: isHovering)
     }
 
