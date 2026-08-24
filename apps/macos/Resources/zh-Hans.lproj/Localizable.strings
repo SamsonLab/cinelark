@@ -6,7 +6,7 @@
 "general.selected" = "已选择";
 "general.not_selected" = "未选择";
 "update.check" = "检查更新…";
-"update.available" = "更新至 v%@";
+"update.available" = "CineLark v%@ 已发布";
 "update.check_help" = "检查 CineLark 是否有新版本";
 "shortcut.navigate" = "方向键选择";
 "shortcut.activate" = "确认";

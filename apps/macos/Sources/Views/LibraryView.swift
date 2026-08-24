@@ -1,5 +1,4 @@
 import SwiftUI
-import Sparkle
 import CineLarkDomain
 
 private enum LibrarySelection: Hashable {
@@ -14,8 +13,6 @@ struct LibraryView: View {
     @Environment(\.appLanguage) private var language
     @Environment(ShortcutCoordinator.self) private var shortcuts
     @Bindable var model: AppModel
-    let updater: SPUUpdater
-    @ObservedObject var updateMonitor: SparkleUpdateMonitor
     @State private var selection: LibrarySelection? = .home
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var navigationPath = NavigationPath()
@@ -198,19 +195,10 @@ struct LibraryView: View {
                     .foregroundStyle(.tertiary)
 
                 Spacer(minLength: 4)
-
-                if let availableVersion = updateMonitor.availableVersion {
-                    SparkleSidebarUpdateButton(
-                        updater: updater,
-                        availableVersion: availableVersion
-                    )
-                    .transition(.opacity.combined(with: .scale(scale: 0.94)))
-                }
             }
             .frame(maxWidth: .infinity)
             .padding(.horizontal, 10)
             .padding(.top, 2)
-            .animation(.easeOut(duration: 0.18), value: updateMonitor.availableVersion)
         }
         .frame(maxWidth: .infinity)
         .padding(12)

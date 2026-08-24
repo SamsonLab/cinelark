@@ -103,12 +103,12 @@ CineLark $VERSION for macOS 26 or later.
 
 ## Highlights
 
-- Added rolling native IINA playlists for automatic episode continuation with
-  two future episodes prepared ahead of natural EOF.
-- Preserved independent playback identity, resume, progress, and completion
-  reporting for every episode while mpv advances without a provider round trip.
-- Fixed stock IINA 1.4.4 playlist insertion semantics, added telemetry recovery,
-  and upgraded the bundled CineLark Bridge plugin to version 0.1.9.
+- Moved available-update notifications out of the constrained sidebar and into
+  a dedicated bottom overlay that matches CineLark's shortcut guidance.
+- Preserved the complete localized update message at its intrinsic width so
+  version text is never truncated by sidebar utility layout constraints.
+- Kept Sparkle update actions, availability state, accessibility labels, and
+  keyboard guidance visually coordinated in the global root presentation.
 
 ## Install
 

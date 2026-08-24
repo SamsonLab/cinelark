@@ -6,7 +6,7 @@ struct RootView: View {
     @Environment(ShortcutCoordinator.self) private var shortcuts
     @Bindable var model: AppModel
     let updater: SPUUpdater
-    let updateMonitor: SparkleUpdateMonitor
+    @ObservedObject var updateMonitor: SparkleUpdateMonitor
 
     var body: some View {
         Group {
@@ -35,22 +35,30 @@ struct RootView: View {
             case .signedOut:
                 LoginView(model: model)
             case .signedIn:
-                LibraryView(
-                    model: model,
-                    updater: updater,
-                    updateMonitor: updateMonitor
-                )
+                LibraryView(model: model)
             }
         }
         .task {
             await model.bootstrap()
         }
         .overlay(alignment: .bottom) {
-            if shortcuts.showsHints {
-                ShortcutNavigationOverlay()
-                    .padding(.bottom, 24)
+            VStack(spacing: 10) {
+                if let availableVersion = updateMonitor.availableVersion {
+                    SparkleUpdateOverlay(
+                        updater: updater,
+                        availableVersion: availableVersion
+                    )
                     .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                }
+
+                if shortcuts.showsHints {
+                    ShortcutNavigationOverlay()
+                        .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                }
             }
+            .padding(.horizontal, 24)
+            .padding(.bottom, 24)
+            .animation(.easeOut(duration: 0.18), value: updateMonitor.availableVersion)
         }
         .preferredColorScheme(.dark)
     }

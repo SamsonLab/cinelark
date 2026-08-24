@@ -6,7 +6,7 @@
 "general.selected" = "Selected";
 "general.not_selected" = "Not selected";
 "update.check" = "Check for Updates…";
-"update.available" = "Update v%@";
+"update.available" = "CineLark v%@ is available";
 "update.check_help" = "Check for a newer version of CineLark";
 "shortcut.navigate" = "Navigate";
 "shortcut.activate" = "Confirm";

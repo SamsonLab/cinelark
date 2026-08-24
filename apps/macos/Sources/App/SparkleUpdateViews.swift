@@ -57,7 +57,7 @@ struct SparkleMenuUpdateButton: View {
     }
 }
 
-struct SparkleSidebarUpdateButton: View {
+struct SparkleUpdateOverlay: View {
     @Environment(\.appLanguage) private var language
     @ObservedObject private var availability: SparkleUpdateAvailability
     private let updater: SPUUpdater
@@ -73,17 +73,19 @@ struct SparkleSidebarUpdateButton: View {
         Button(action: updater.checkForUpdates) {
             Label(
                 language.localized("update.available", availableVersion),
-                systemImage: "arrow.down.circle"
+                systemImage: "arrow.down.circle.fill"
             )
-            .font(.caption2.weight(.semibold))
-            .padding(.horizontal, 8)
-            .frame(height: 24)
+            .font(.callout.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .fixedSize()
+            .padding(.horizontal, 16)
+            .frame(height: 38)
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
         .glassEffect(.regular.interactive(), in: Capsule())
         .disabled(!availability.canCheckForUpdates)
         .help(language.localized("update.check_help"))
-        .accessibilityLabel(language.localized("update.check"))
+        .accessibilityLabel(language.localized("update.available", availableVersion))
     }
 }
