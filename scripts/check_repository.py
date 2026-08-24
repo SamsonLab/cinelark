@@ -12,6 +12,8 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 LINK = re.compile(r"\[[^]]*\]\(([^)]+)\)")
+FENCED_CODE = re.compile(r"```.*?```|~~~.*?~~~", re.DOTALL)
+INLINE_CODE = re.compile(r"`[^`\n]*`")
 SECRET_PATTERNS = {
     "GitHub token": re.compile(r"gh[opusr]_[A-Za-z0-9_]{20,}"),
     "AWS access key": re.compile(r"AKIA[0-9A-Z]{16}"),
@@ -65,7 +67,8 @@ def check_text(files: list[Path]) -> list[str]:
             if pattern.search(text):
                 errors.append(f"{path.relative_to(ROOT)}: possible {name}")
         if path.suffix.lower() == ".md":
-            for target in LINK.findall(text):
+            prose = INLINE_CODE.sub("", FENCED_CODE.sub("", text))
+            for target in LINK.findall(prose):
                 if target.startswith(("http://", "https://", "#", "mailto:")):
                     continue
                 local_target = target.split("#", 1)[0]

@@ -1,9 +1,12 @@
 import SwiftUI
+import Sparkle
 
 struct RootView: View {
     @Environment(\.appLanguage) private var language
     @Environment(ShortcutCoordinator.self) private var shortcuts
     @Bindable var model: AppModel
+    let updater: SPUUpdater
+    let updateMonitor: SparkleUpdateMonitor
 
     var body: some View {
         Group {
@@ -32,7 +35,11 @@ struct RootView: View {
             case .signedOut:
                 LoginView(model: model)
             case .signedIn:
-                LibraryView(model: model)
+                LibraryView(
+                    model: model,
+                    updater: updater,
+                    updateMonitor: updateMonitor
+                )
             }
         }
         .task {

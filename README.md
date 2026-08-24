@@ -98,6 +98,7 @@ maintained once under `.claude/skills/` and exposed to Codex through
 - [Rust bridge helper](docs/implementation-plan.md#4-rust-bridge-helper)
 - [Remote protocol](docs/interfaces/remote-protocol.md)
 - [Homebrew distribution decision](docs/decisions/0005-homebrew-distribution.md)
+- [Sparkle update decision](docs/decisions/0006-sparkle-updates.md)
 - [Observed UHDNow API](docs/integrations/uhdnow-api.md)
 - [Verified IINA plugin capabilities](docs/integrations/iina-plugin-api.md)
 

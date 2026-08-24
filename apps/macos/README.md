@@ -17,6 +17,7 @@ Native Swift 6 / SwiftUI client for the observed UHDNow API.
 - movie/episode version chooser with expandable codec, color, track, and size metadata
 - explicit copy-playback-link, copy-download-link, and browser-download actions
 - runtime English/Simplified Chinese interface switching
+- native Sparkle update checks with an availability-only sidebar prompt
 - keyboard-accessible media-version selection and reduced-motion-aware interactions
 - native Icon Composer app icon in `Resources/AppIcon.icon`
 - persistent bounded metadata cache with stale outage fallback
@@ -72,6 +73,10 @@ is committed so contributors do not need XcodeGen merely to build the app. App
 builds compile and embed the helper with the pinned Rust toolchain; end users do
 not install Cargo or manage a bridge process. Tagged releases are universal,
 self-signed with a stable project identity, and intentionally not Apple-notarized.
+The release workflow also signs the DMG and appcast with Sparkle EdDSA and
+publishes both to the matching GitHub Release. `CURRENT_PROJECT_VERSION` must
+increase for every tag, and `SPARKLE_PRIVATE_KEY` must remain configured as a
+GitHub Actions secret.
 
 ## Security
 

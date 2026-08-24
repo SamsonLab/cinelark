@@ -25,6 +25,7 @@ Documents use the following status labels:
 | [ADR-0003](decisions/0003-bundled-rust-bridge-helper.md) | Accepted direction | Bundled Rust helper and thin IINA adapter |
 | [ADR-0004](decisions/0004-iina-bridge-pairing.md) | Phase 0 accepted | Keychain provisioning, authentication, replay resistance, and threat model |
 | [ADR-0005](decisions/0005-homebrew-distribution.md) | Accepted | Self-signed releases and project Homebrew tap |
+| [ADR-0006](decisions/0006-sparkle-updates.md) | Accepted | Signed Sparkle feeds and native in-app updates |
 
 ## Interfaces
 

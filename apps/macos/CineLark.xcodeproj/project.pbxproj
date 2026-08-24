@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0B93F6D1056AE1362FE8965C /* ShortcutSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04957063F0E0AEF64D673B82 /* ShortcutSystem.swift */; };
 		0C44B5A2A8EE59306E51572F /* CollectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE6FDC450494CEE6E6F6391F /* CollectionView.swift */; };
 		0FBA55BD2D5A9E90186B12A9 /* ImagePipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = E446DFF475AB6BE1AC655007 /* ImagePipeline.swift */; };
 		1B7F01EBA86DBED26D6882EA /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B054FB68231FF0E76CF25C1B /* LibraryView.swift */; };
@@ -24,6 +25,7 @@
 		8155FA4E5C6FABC1B3BCD74E /* ContinueWatchingShelf.swift in Sources */ = {isa = PBXBuildFile; fileRef = D053D9E6E0ADD452EA014CE5 /* ContinueWatchingShelf.swift */; };
 		93AD63E64AD20F41CDBAAC48 /* PlaybackOptionsModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21000BE7263769BB8C5E6578 /* PlaybackOptionsModel.swift */; };
 		9E77C3A3A69B22DCE4090CC1 /* CineLarkDomain in Frameworks */ = {isa = PBXBuildFile; productRef = A749D953D7ACF6BC4D462B11 /* CineLarkDomain */; };
+		9F58F9BAE526FBA7C72D2E66 /* SparkleUpdateViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0D1C3B91534B390EFC9F800 /* SparkleUpdateViews.swift */; };
 		AB3DEB8DC0E87B47BC5A5F4A /* PersonDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B636A10BFC193AD5217DD9F /* PersonDetailView.swift */; };
 		AD35F8FB63FF52A556814D76 /* ArtworkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 883B64BCA708D6239E86FF3B /* ArtworkView.swift */; };
 		ADC1B1396C8B9111A0C77D54 /* FavoritesModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AFAB30FB02C68C461F76FF7 /* FavoritesModel.swift */; };
@@ -31,9 +33,9 @@
 		B3AE41D5BF04A4DEE93A0AF9 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = FA9FAFAB2F795541DE7F6F3C /* AppIcon.icon */; };
 		B489F5A60889975CD929D5D1 /* Kingfisher in Frameworks */ = {isa = PBXBuildFile; productRef = E6C9969F909E6E89FA05FD2C /* Kingfisher */; };
 		B5F3BB1A14D77C4536307248 /* MediaDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 159CEAD9CEDB3B09B0577D62 /* MediaDetailView.swift */; };
+		BACE446FC6892B1913D8E6C3 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 8EA55C2C2EAB1572004F61D1 /* Sparkle */; };
 		D4A3375820C95BFF5B7AA2F7 /* AppLanguage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3E20D588912F0D88C2F56C8 /* AppLanguage.swift */; };
 		D9A6D26E54F24FD83C78A2CB /* InteractiveStyles.swift in Sources */ = {isa = PBXBuildFile; fileRef = F130F10368D8C9CE780999BB /* InteractiveStyles.swift */; };
-		DA7A91E613C54D1A91A6F7C2 /* ShortcutSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8F2E3A40E914F68B519AA73 /* ShortcutSystem.swift */; };
 		E0FD14EF20191C638ADD81B9 /* MediaCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A02668E828AF3DF47ADD782D /* MediaCard.swift */; };
 		EF4E62F26D7A69E13E8531B9 /* CineLarkAppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B08A8B1D616822F23271FF8A /* CineLarkAppDelegate.swift */; };
 		F188B954EB4C3636BB951E00 /* FavoritesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE58BCE702D398987224468F /* FavoritesView.swift */; };
@@ -44,6 +46,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		04957063F0E0AEF64D673B82 /* ShortcutSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutSystem.swift; sourceTree = "<group>"; };
 		11E72F191AE8AB81C1DD9B26 /* MediaFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaFormatting.swift; sourceTree = "<group>"; };
 		159CEAD9CEDB3B09B0577D62 /* MediaDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaDetailView.swift; sourceTree = "<group>"; };
 		183367EC683AD255C1BFE33E /* PlaybackOptionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackOptionsView.swift; sourceTree = "<group>"; };
@@ -62,9 +65,9 @@
 		7645BC2B798D0AEDE94D2340 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		883B64BCA708D6239E86FF3B /* ArtworkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkView.swift; sourceTree = "<group>"; };
 		A02668E828AF3DF47ADD782D /* MediaCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaCard.swift; sourceTree = "<group>"; };
+		A0D1C3B91534B390EFC9F800 /* SparkleUpdateViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparkleUpdateViews.swift; sourceTree = "<group>"; };
 		B054FB68231FF0E76CF25C1B /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
 		B08A8B1D616822F23271FF8A /* CineLarkAppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CineLarkAppDelegate.swift; sourceTree = "<group>"; };
-		C8F2E3A40E914F68B519AA73 /* ShortcutSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutSystem.swift; sourceTree = "<group>"; };
 		B5976220527170DE4D05D69F /* CineLarkKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = CineLarkKit; path = ../../packages/apple/CineLarkKit; sourceTree = SOURCE_ROOT; };
 		BF267C700713EED89267F34A /* PersonDetailModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonDetailModel.swift; sourceTree = "<group>"; };
 		D053D9E6E0ADD452EA014CE5 /* ContinueWatchingShelf.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContinueWatchingShelf.swift; sourceTree = "<group>"; };
@@ -72,6 +75,7 @@
 		DF1BEAD272C89D962C8DB178 /* CineLarkApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CineLarkApp.swift; sourceTree = "<group>"; };
 		E446DFF475AB6BE1AC655007 /* ImagePipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagePipeline.swift; sourceTree = "<group>"; };
 		F130F10368D8C9CE780999BB /* InteractiveStyles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InteractiveStyles.swift; sourceTree = "<group>"; };
+		F1D2496EB325A3E93FE941D2 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		F3E20D588912F0D88C2F56C8 /* AppLanguage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLanguage.swift; sourceTree = "<group>"; };
 		FA9FAFAB2F795541DE7F6F3C /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 		FCA18E1430C347EE66F26BDC /* PlaybackCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackCoordinator.swift; sourceTree = "<group>"; };
@@ -88,6 +92,7 @@
 				33A2489883DF240055FA80B1 /* CineLarkPersistence in Frameworks */,
 				B05299F38635BB6EA6EBF3E8 /* CineLarkPlayback in Frameworks */,
 				B489F5A60889975CD929D5D1 /* Kingfisher in Frameworks */,
+				BACE446FC6892B1913D8E6C3 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -103,7 +108,7 @@
 				F130F10368D8C9CE780999BB /* InteractiveStyles.swift */,
 				A02668E828AF3DF47ADD782D /* MediaCard.swift */,
 				11E72F191AE8AB81C1DD9B26 /* MediaFormatting.swift */,
-				C8F2E3A40E914F68B519AA73 /* ShortcutSystem.swift */,
+				04957063F0E0AEF64D673B82 /* ShortcutSystem.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -130,6 +135,7 @@
 			isa = PBXGroup;
 			children = (
 				FA9FAFAB2F795541DE7F6F3C /* AppIcon.icon */,
+				F1D2496EB325A3E93FE941D2 /* Info.plist */,
 				E717D917BD15FA54CE607D7F /* Localizable.strings */,
 			);
 			path = Resources;
@@ -167,6 +173,7 @@
 				F3E20D588912F0D88C2F56C8 /* AppLanguage.swift */,
 				DF1BEAD272C89D962C8DB178 /* CineLarkApp.swift */,
 				B08A8B1D616822F23271FF8A /* CineLarkAppDelegate.swift */,
+				A0D1C3B91534B390EFC9F800 /* SparkleUpdateViews.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -218,6 +225,7 @@
 				0DF4E3AD538E0D86CCDBFF48 /* CineLarkPersistence */,
 				AA501AC6C8C7D61D9DA24810 /* CineLarkPlayback */,
 				E6C9969F909E6E89FA05FD2C /* Kingfisher */,
+				8EA55C2C2EAB1572004F61D1 /* Sparkle */,
 			);
 			productName = CineLark;
 			productReference = 5A2B52C7CCEA6A44B30EEBF8 /* CineLark.app */;
@@ -233,6 +241,7 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					B2701EC98C811CAD1D5C76B6 = {
+						DevelopmentTeam = 4B8LRMN347;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -249,6 +258,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				1BD70C7F06E98826E21B12CB /* XCRemoteSwiftPackageReference "Kingfisher" */,
+				1E1B1739F43B06B77FCE51C6 /* XCRemoteSwiftPackageReference "Sparkle" */,
 				1A4251650E4F085C04F20600 /* XCLocalSwiftPackageReference "../../packages/apple/CineLarkKit" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -313,7 +323,6 @@
 				FEA0753FFBFC5DE2AFB1F5E6 /* HomeView.swift in Sources */,
 				0FBA55BD2D5A9E90186B12A9 /* ImagePipeline.swift in Sources */,
 				D9A6D26E54F24FD83C78A2CB /* InteractiveStyles.swift in Sources */,
-				DA7A91E613C54D1A91A6F7C2 /* ShortcutSystem.swift in Sources */,
 				1B7F01EBA86DBED26D6882EA /* LibraryView.swift in Sources */,
 				42F2C14657B60EB006A35194 /* LoginView.swift in Sources */,
 				E0FD14EF20191C638ADD81B9 /* MediaCard.swift in Sources */,
@@ -327,6 +336,8 @@
 				549F2C928050FD9D7C2E7826 /* PlaybackOptionsView.swift in Sources */,
 				FB650FF02184DCAD4CB1DED2 /* RootView.swift in Sources */,
 				6BBD5F518C903329BDE07471 /* SearchView.swift in Sources */,
+				0B93F6D1056AE1362FE8965C /* ShortcutSystem.swift in Sources */,
+				9F58F9BAE526FBA7C72D2E66 /* SparkleUpdateViews.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -379,10 +390,10 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = 4B8LRMN347;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 4B8LRMN347;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -395,7 +406,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 0.1.2;
+				MARKETING_VERSION = 0.1.3;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -413,11 +424,8 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = CineLark;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 SamsonLab";
-				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -462,10 +470,10 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = 4B8LRMN347;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 4B8LRMN347;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -484,7 +492,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 0.1.2;
+				MARKETING_VERSION = 0.1.3;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -503,11 +511,8 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = CineLark;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 SamsonLab";
-				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -557,6 +562,14 @@
 				minimumVersion = 8.11.0;
 			};
 		};
+		1E1B1739F43B06B77FCE51C6 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle.git";
+			requirement = {
+				kind = exactVersion;
+				version = 2.9.2;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -567,6 +580,11 @@
 		0DF4E3AD538E0D86CCDBFF48 /* CineLarkPersistence */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = CineLarkPersistence;
+		};
+		8EA55C2C2EAB1572004F61D1 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1E1B1739F43B06B77FCE51C6 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
 		};
 		A749D953D7ACF6BC4D462B11 /* CineLarkDomain */ = {
 			isa = XCSwiftPackageProductDependency;

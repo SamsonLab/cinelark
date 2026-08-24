@@ -1,4 +1,5 @@
 import SwiftUI
+import Sparkle
 import CineLarkDomain
 import CineLarkPersistence
 import CineLarkPlayback
@@ -11,8 +12,17 @@ struct CineLarkApp: App {
     @AppStorage(AppLanguage.storageKey) private var storedLanguage = AppLanguage.systemDefault.rawValue
     @State private var model: AppModel
     @State private var shortcuts = ShortcutCoordinator()
+    private let updateMonitor: SparkleUpdateMonitor
+    private let updaterController: SPUStandardUpdaterController
 
     init() {
+        let updateMonitor = SparkleUpdateMonitor()
+        self.updateMonitor = updateMonitor
+        updaterController = SPUStandardUpdaterController(
+            startingUpdater: true,
+            updaterDelegate: updateMonitor,
+            userDriverDelegate: nil
+        )
         let sessionStore = KeychainSessionStore()
         let upstreamProvider = UHDNowProvider(sessionStore: sessionStore)
         let metadataCache = PersistentMetadataCache(
@@ -31,7 +41,11 @@ struct CineLarkApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView(model: model)
+            RootView(
+                model: model,
+                updater: updaterController.updater,
+                updateMonitor: updateMonitor
+            )
                 .environment(\.appLanguage, language)
                 .environment(\.locale, language.locale)
                 .environment(shortcuts)
@@ -46,6 +60,11 @@ struct CineLarkApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1440, height: 900)
+        .commands {
+            CommandGroup(after: .appInfo) {
+                SparkleMenuUpdateButton(updater: updaterController.updater)
+            }
+        }
     }
 
     private var language: AppLanguage {

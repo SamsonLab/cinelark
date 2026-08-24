@@ -79,6 +79,16 @@ sign_code() {
     "$1"
 }
 
+sign_code_preserving_entitlements() {
+  /usr/bin/codesign \
+    --force \
+    --sign "$SIGNING_IDENTITY" \
+    --options runtime \
+    --timestamp=none \
+    --preserve-metadata=entitlements \
+    "$1"
+}
+
 verify_universal "$APP_EXECUTABLE"
 verify_universal "$BRIDGE_EXECUTABLE"
 
@@ -86,7 +96,34 @@ verify_universal "$BRIDGE_EXECUTABLE"
 # final signatures of every nested executable.
 sign_code "$BRIDGE_EXECUTABLE"
 if [[ -d "$APP_PATH/Contents/Frameworks" ]]; then
+  SPARKLE_FRAMEWORK="$APP_PATH/Contents/Frameworks/Sparkle.framework"
+  if [[ -d "$SPARKLE_FRAMEWORK" ]]; then
+    SPARKLE_VERSION_DIR="$SPARKLE_FRAMEWORK/Versions/B"
+    SPARKLE_INSTALLER="$SPARKLE_VERSION_DIR/XPCServices/Installer.xpc"
+    SPARKLE_DOWNLOADER="$SPARKLE_VERSION_DIR/XPCServices/Downloader.xpc"
+    SPARKLE_AUTOUPDATE="$SPARKLE_VERSION_DIR/Autoupdate"
+    SPARKLE_UPDATER="$SPARKLE_VERSION_DIR/Updater.app"
+    for sparkle_component in \
+      "$SPARKLE_INSTALLER" \
+      "$SPARKLE_DOWNLOADER" \
+      "$SPARKLE_AUTOUPDATE" \
+      "$SPARKLE_UPDATER"; do
+      if [[ ! -e "$sparkle_component" ]]; then
+        echo "Sparkle bundle is incomplete: $sparkle_component" >&2
+        exit 66
+      fi
+    done
+    sign_code "$SPARKLE_INSTALLER"
+    sign_code_preserving_entitlements "$SPARKLE_DOWNLOADER"
+    sign_code "$SPARKLE_AUTOUPDATE"
+    sign_code "$SPARKLE_UPDATER"
+    sign_code "$SPARKLE_FRAMEWORK"
+  fi
+
   while IFS= read -r -d '' nested_code; do
+    if [[ "${SPARKLE_FRAMEWORK:-}" == "$nested_code" ]]; then
+      continue
+    fi
     sign_code "$nested_code"
   done < <(
     /usr/bin/find "$APP_PATH/Contents/Frameworks" -depth \
@@ -105,6 +142,11 @@ sign_code "$APP_PATH"
 bundle_version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_PATH/Contents/Info.plist")
 if [[ "$bundle_version" != "$VERSION" ]]; then
   echo "Bundle version $bundle_version does not match release version $VERSION" >&2
+  exit 65
+fi
+bundle_build=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP_PATH/Contents/Info.plist")
+if [[ ! "$bundle_build" =~ ^[1-9][0-9]*$ ]]; then
+  echo "Bundle build version must be a positive integer: $bundle_build" >&2
   exit 65
 fi
 

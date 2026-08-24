@@ -13,6 +13,9 @@ packages:
   Kingfisher:
     url: https://github.com/onevcat/Kingfisher.git
     from: 8.11.0
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle.git
+    exactVersion: 2.9.2
 settings:
   base:
     SWIFT_VERSION: "6.0"
@@ -20,8 +23,9 @@ settings:
     CLANG_ENABLE_MODULES: true
     ENABLE_HARDENED_RUNTIME: true
     CODE_SIGN_STYLE: Automatic
-    MARKETING_VERSION: 0.1.2
-    CURRENT_PROJECT_VERSION: 3
+    DEVELOPMENT_TEAM: 4B8LRMN347
+    MARKETING_VERSION: 0.1.3
+    CURRENT_PROJECT_VERSION: 4
 targets:
   CineLark:
     type: application
@@ -29,6 +33,19 @@ targets:
     sources:
       - path: Sources
       - path: Resources
+    info:
+      path: Resources/Info.plist
+      properties:
+        CFBundleDisplayName: CineLark
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSApplicationCategoryType: public.app-category.entertainment
+        NSPrincipalClass: NSApplication
+        NSHumanReadableCopyright: Copyright © 2026 SamsonLab
+        SUFeedURL: https://github.com/SamsonLab/cinelark/releases/latest/download/appcast.xml
+        SUPublicEDKey: HcV9Bm5OCtcIwB2tvhEq5J1UPzgcgb6ZTxF0lQCUPTU=
+        SURequireSignedFeed: true
+        SUVerifyUpdateBeforeExtraction: true
     preBuildScripts:
       - name: Build Playback Bridge
         basedOnDependencyAnalysis: false
@@ -85,15 +102,13 @@ targets:
         product: CineLarkPlayback
       - package: Kingfisher
         product: Kingfisher
+      - package: Sparkle
+        product: Sparkle
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.samsonlab.cinelark
         PRODUCT_NAME: CineLark
-        GENERATE_INFOPLIST_FILE: true
-        INFOPLIST_KEY_CFBundleDisplayName: CineLark
-        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.entertainment
-        INFOPLIST_KEY_NSPrincipalClass: NSApplication
-        INFOPLIST_KEY_NSHumanReadableCopyright: Copyright © 2026 SamsonLab
+        GENERATE_INFOPLIST_FILE: false
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ENABLE_PREVIEWS: true
     scheme:

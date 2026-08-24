@@ -25,11 +25,17 @@ jobs:
           set -euo pipefail
           VERSION="${GITHUB_REF_NAME#v}"
           PROJECT_VERSION=$(awk '/MARKETING_VERSION:/ { print $2; exit }' apps/macos/project.yml)
+          BUILD_VERSION=$(awk '/CURRENT_PROJECT_VERSION:/ { print $2; exit }' apps/macos/project.yml)
           if [[ "$GITHUB_REF_NAME" != v* || "$VERSION" != "$PROJECT_VERSION" ]]; then
             echo "::error::Tag $GITHUB_REF_NAME does not match project version $PROJECT_VERSION"
             exit 1
           fi
+          if [[ ! "$BUILD_VERSION" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::CURRENT_PROJECT_VERSION must be a positive integer"
+            exit 1
+          fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "build_version=$BUILD_VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Install pinned Rust toolchain
         run: >-
@@ -138,17 +144,20 @@ jobs:
             echo "sha256=$(shasum -a 256 "$DMG_PATH" | awk '{ print $1 }')"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Publish GitHub release
+      - name: Prepare release notes
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.release.outputs.version }}
-          DMG_PATH: ${{ steps.package.outputs.dmg_path }}
-          SHA_PATH: ${{ steps.package.outputs.sha_path }}
         run: |
           set -euo pipefail
           cat > "$RUNNER_TEMP/release-notes.md" <<EOF
-          CineLark $VERSION for macOS 14 or later.
+          CineLark $VERSION for macOS 26 or later.
+
+          ## Highlights
+
+          - Unified Apple TV-inspired media presentation and responsive layouts.
+          - Keyboard-first directional navigation with seamless pointer handoff.
+          - Native Sparkle update checks with signed appcast and archive verification.
 
           ## Install
 
@@ -158,15 +167,88 @@ jobs:
 
           CineLark uses a project-controlled self-signed code identity and is not
           Apple-notarized. The Homebrew Cask pins this artifact by SHA-256 and
-          removes its quarantine attribute after installation.
+          removes its quarantine attribute after installation. In-app updates
+          are authenticated independently with Sparkle EdDSA signatures.
           EOF
 
+      - name: Generate signed Sparkle appcast
+        id: sparkle
+        shell: bash
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+          VERSION: ${{ steps.release.outputs.version }}
+          BUILD_VERSION: ${{ steps.release.outputs.build_version }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$SPARKLE_PRIVATE_KEY" ]]; then
+            echo "::error::SPARKLE_PRIVATE_KEY is not configured"
+            exit 1
+          fi
+
+          SPARKLE_BIN="$RUNNER_TEMP/DerivedData/SourcePackages/artifacts/sparkle/Sparkle/bin"
+          GENERATE_APPCAST="$SPARKLE_BIN/generate_appcast"
+          if [[ ! -x "$GENERATE_APPCAST" ]]; then
+            echo "::error::Sparkle appcast generator is unavailable"
+            exit 1
+          fi
+
+          RELEASE_DIR="$RUNNER_TEMP/release"
+          APPCAST_PATH="$RELEASE_DIR/appcast.xml"
+          cp \
+            "$RUNNER_TEMP/release-notes.md" \
+            "$RELEASE_DIR/CineLark_${VERSION}_universal.md"
+          printf '%s' "$SPARKLE_PRIVATE_KEY" | "$GENERATE_APPCAST" \
+            --ed-key-file - \
+            --download-url-prefix "https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/" \
+            --link "https://github.com/$GITHUB_REPOSITORY" \
+            --embed-release-notes \
+            --maximum-versions 1 \
+            --maximum-deltas 0 \
+            -o "$APPCAST_PATH" \
+            "$RELEASE_DIR"
+
+          if [[ ! -s "$APPCAST_PATH" ]]; then
+            echo "::error::Sparkle appcast was not generated"
+            exit 1
+          fi
+          if ! grep -Fq "CineLark_${VERSION}_universal.dmg" "$APPCAST_PATH"; then
+            echo "::error::Sparkle appcast does not reference the release DMG"
+            exit 1
+          fi
+          if ! grep -Fq "<sparkle:version>${BUILD_VERSION}</sparkle:version>" "$APPCAST_PATH"; then
+            echo "::error::Sparkle appcast does not contain build $BUILD_VERSION"
+            exit 1
+          fi
+          if ! grep -Fq "<sparkle:shortVersionString>${VERSION}</sparkle:shortVersionString>" "$APPCAST_PATH"; then
+            echo "::error::Sparkle appcast does not contain version $VERSION"
+            exit 1
+          fi
+          if ! grep -Fq "sparkle:edSignature" "$APPCAST_PATH"; then
+            echo "::error::Sparkle appcast does not contain an update signature"
+            exit 1
+          fi
+          if ! grep -Fq "<!-- sparkle-signatures:" "$APPCAST_PATH"; then
+            echo "::error::Sparkle appcast is not signed"
+            exit 1
+          fi
+          echo "appcast_path=$APPCAST_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.release.outputs.version }}
+          DMG_PATH: ${{ steps.package.outputs.dmg_path }}
+          SHA_PATH: ${{ steps.package.outputs.sha_path }}
+          APPCAST_PATH: ${{ steps.sparkle.outputs.appcast_path }}
+        run: |
+          set -euo pipefail
           if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" "$DMG_PATH" "$SHA_PATH" \
+            gh release upload "$GITHUB_REF_NAME" "$DMG_PATH" "$SHA_PATH" "$APPCAST_PATH" \
               --clobber \
               --repo "$GITHUB_REPOSITORY"
           else
-            gh release create "$GITHUB_REF_NAME" "$DMG_PATH" "$SHA_PATH" \
+            gh release create "$GITHUB_REF_NAME" "$DMG_PATH" "$SHA_PATH" "$APPCAST_PATH" \
               --title "CineLark $GITHUB_REF_NAME" \
               --notes-file "$RUNNER_TEMP/release-notes.md" \
               --repo "$GITHUB_REPOSITORY"

@@ -5,6 +5,9 @@
 "general.view_all" = "查看全部";
 "general.selected" = "已选择";
 "general.not_selected" = "未选择";
+"update.check" = "检查更新…";
+"update.available" = "更新至 v%@";
+"update.check_help" = "检查 CineLark 是否有新版本";
 "shortcut.navigate" = "方向键选择";
 "shortcut.activate" = "确认";
 "shortcut.back" = "返回";

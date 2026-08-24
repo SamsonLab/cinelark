@@ -51,3 +51,6 @@ refs/
 *.log
 *.tmp
 .tmp/
+
+# .pi
+.pi/
