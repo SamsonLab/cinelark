@@ -7,13 +7,12 @@ import CineLarkPlayback
 @Observable
 @MainActor
 final class PlaybackCoordinator {
-    private static let futureQueueDepth = 2
     private static let logger = Logger(
         subsystem: "com.samsonlab.cinelark",
         category: "Playback"
     )
 
-    var onStoppedReported: (@MainActor @Sendable () -> Void)?
+    var onStoppedReported: (@MainActor @Sendable () async -> Void)?
     private(set) var playbackStateRevision = 0
 
     struct RecentPlayback: Equatable {
@@ -45,6 +44,18 @@ final class PlaybackCoordinator {
         let title: String
         var positionSeconds: Double
         var durationSeconds: Double
+
+        func synchronizationSnapshot() -> PlaybackSynchronizationSnapshot {
+            PlaybackSynchronizationSnapshot(
+                playbackID: playbackID,
+                update: PlaybackUpdate(
+                    item: item,
+                    assetID: assetID,
+                    positionSeconds: positionSeconds,
+                    seriesID: seriesID
+                )
+            )
+        }
     }
 
     private struct EpisodeQueueCandidate {
@@ -56,24 +67,32 @@ final class PlaybackCoordinator {
 
     @ObservationIgnored private let provider: any MediaLibraryProvider
     @ObservationIgnored private let launcher: any PlaybackLaunching
-    @ObservationIgnored private let progressReporter: PlaybackProgressReporter
+    @ObservationIgnored private let progressSynchronizer: PlaybackProgressSynchronizer
+    @ObservationIgnored private let eventSilenceInterval: Duration
+    @ObservationIgnored private let progressSynchronizationInterval: Duration
     @ObservationIgnored private var activePlayback: ActivePlayback?
     @ObservationIgnored private var playbackSessionID: UUID?
     @ObservationIgnored private var playbackSeriesID: String?
-    @ObservationIgnored private var queuedPlaybacks: [UUID: ActivePlayback] = [:]
     @ObservationIgnored private var pendingEpisodes: [EpisodeQueueCandidate] = []
     @ObservationIgnored private var lastEndedPlaybackID: UUID?
     @ObservationIgnored private var eventTask: Task<Void, Never>?
     @ObservationIgnored private var progressTask: Task<Void, Never>?
     @ObservationIgnored private var eventWatchdogTask: Task<Void, Never>?
     @ObservationIgnored private var queueDiscoveryTask: Task<Void, Never>?
-    @ObservationIgnored private var queueFillTask: Task<Void, Never>?
     @ObservationIgnored private var terminalReportTask: Task<Void, Never>?
+    @ObservationIgnored private var appRefreshTask: Task<Void, Never>?
 
-    init(provider: any MediaLibraryProvider, launcher: any PlaybackLaunching) {
+    init(
+        provider: any MediaLibraryProvider,
+        launcher: any PlaybackLaunching,
+        eventSilenceInterval: Duration = .seconds(4),
+        progressSynchronizationInterval: Duration = .seconds(10)
+    ) {
         self.provider = provider
         self.launcher = launcher
-        self.progressReporter = PlaybackProgressReporter(provider: provider)
+        self.progressSynchronizer = PlaybackProgressSynchronizer(provider: provider)
+        self.eventSilenceInterval = eventSilenceInterval
+        self.progressSynchronizationInterval = progressSynchronizationInterval
         let events = launcher.events
         self.eventTask = Task { @MainActor [weak self] in
             for await event in events {
@@ -140,11 +159,14 @@ final class PlaybackCoordinator {
         playbackSessionID = descriptor.id
         playbackSeriesID = seriesID
         lastEndedPlaybackID = nil
+        Self.logger.info(
+            "Opening playback session=\(descriptor.id.uuidString, privacy: .public) continuation=\(seriesID != nil)"
+        )
         do {
             try await launcher.open(descriptor)
         } catch {
             activePlayback = nil
-            clearQueueState()
+            clearContinuationState()
             throw error
         }
         if item.kind == .episode, let seriesID {
@@ -165,14 +187,13 @@ final class PlaybackCoordinator {
 
     func stop() async {
         queueDiscoveryTask?.cancel()
-        queueFillTask?.cancel()
         if let sessionID = playbackSessionID {
             try? await launcher.send(.stop, sessionID: sessionID)
         }
-        finalizeActivePlayback()
+        await finalizeActivePlayback()
         await terminalReportTask?.value
         terminalReportTask = nil
-        clearQueueState()
+        clearContinuationState()
     }
 
     private func handle(_ event: PlaybackEvent) async {
@@ -182,7 +203,7 @@ final class PlaybackCoordinator {
             activePlayback?.positionSeconds = max(positionSeconds, 0)
             activePlayback?.durationSeconds = max(durationSeconds, 0)
             resetEventWatchdog(for: playbackID)
-            scheduleProgressReport()
+            scheduleProgressReport(for: playbackID)
         case .stateChanged(let playbackID, let snapshot):
             guard activePlayback?.playbackID == playbackID else { return }
             if snapshot.durationSeconds > 0 {
@@ -193,30 +214,46 @@ final class PlaybackCoordinator {
             // emitting end-file. Keep the playback active so the terminal event can
             // distinguish natural EOF from an explicit stop.
         case .ended(let playbackID, let reason):
-            guard activePlayback?.playbackID == playbackID else { return }
+            guard activePlayback?.playbackID == playbackID else {
+                Self.logger.notice(
+                    "Ignored terminal event for stale playback=\(playbackID.uuidString, privacy: .public) reason=\(reason, privacy: .public)"
+                )
+                return
+            }
+            Self.logger.info(
+                "Received terminal event playback=\(playbackID.uuidString, privacy: .public) reason=\(reason, privacy: .public) pendingEpisodes=\(self.pendingEpisodes.count)"
+            )
             lastEndedPlaybackID = playbackID
-            finalizeActivePlayback(completed: reason == "eof")
-            if reason != "eof" {
-                clearQueueState()
+            await finalizeActivePlayback(completed: reason == "eof")
+            if reason == "eof" {
+                Self.logger.info("Natural EOF confirmed; resolving replacement episode")
+                await replaceWithNextEpisode(afterSessionID: playbackID)
+            } else {
+                Self.logger.notice(
+                    "Playback ended without natural EOF; clearing sequential continuation"
+                )
+                clearContinuationState()
             }
         case .closed(let playbackID, _):
             guard activePlayback?.playbackID == playbackID
-                    || lastEndedPlaybackID == playbackID
-                    || queuedPlaybacks[playbackID] != nil else { return }
+                    || lastEndedPlaybackID == playbackID else { return }
             if activePlayback?.playbackID == playbackID {
-                finalizeActivePlayback()
+                await finalizeActivePlayback()
             }
-            clearQueueState()
-        case .fileLoaded(let playbackID, _):
-            if activePlayback?.playbackID != playbackID {
-                guard let queuedPlayback = queuedPlaybacks.removeValue(forKey: playbackID) else {
-                    return
-                }
-                activePlayback = queuedPlayback
-                lastEndedPlaybackID = nil
+            clearContinuationState()
+        case .fileLoaded(let playbackID, let resumedAtSeconds):
+            guard activePlayback?.playbackID == playbackID else {
+                Self.logger.notice(
+                    "Ignored file-loaded event for stale playback=\(playbackID.uuidString, privacy: .public)"
+                )
+                return
             }
+            Self.logger.info(
+                "Playback file loaded session=\(playbackID.uuidString, privacy: .public)"
+            )
+            activePlayback?.positionSeconds = max(resumedAtSeconds, 0)
             resetEventWatchdog(for: playbackID)
-            scheduleQueueFill()
+            await uploadProgress(for: playbackID)
         case .bridgeReady,
              .tracksChanged,
              .bridgeError:
@@ -226,8 +263,9 @@ final class PlaybackCoordinator {
 
     private func resetEventWatchdog(for playbackID: UUID) {
         eventWatchdogTask?.cancel()
+        let eventSilenceInterval = eventSilenceInterval
         eventWatchdogTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(4))
+            try? await Task.sleep(for: eventSilenceInterval)
             guard !Task.isCancelled,
                   let self,
                   activePlayback?.playbackID == playbackID,
@@ -237,76 +275,85 @@ final class PlaybackCoordinator {
             } catch {
                 Self.logger.notice("IINA event stream probe failed")
             }
-            try? await Task.sleep(for: .seconds(4))
+            try? await Task.sleep(for: eventSilenceInterval)
             guard !Task.isCancelled,
                   activePlayback?.playbackID == playbackID else { return }
-            Self.logger.notice("IINA event stream stopped; finalizing the last sampled position")
-            finalizeActivePlayback()
-            clearQueueState()
+            Self.logger.notice("IINA telemetry remains silent; preserving the active playback session")
         }
     }
 
-    private func scheduleProgressReport() {
+    private func scheduleProgressReport(for playbackID: UUID) {
         guard progressTask == nil else { return }
+        let interval = progressSynchronizationInterval
         progressTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(10))
+            try? await Task.sleep(for: interval)
             guard !Task.isCancelled else { return }
-            await self?.flushProgress()
+            await self?.flushProgress(for: playbackID)
         }
     }
 
-    private func flushProgress() async {
+    private func flushProgress(for playbackID: UUID) async {
+        guard let activePlayback, activePlayback.playbackID == playbackID else {
+            Self.logger.notice(
+                "Ignored periodic progress flush for stale playback=\(playbackID.uuidString, privacy: .public)"
+            )
+            return
+        }
         progressTask = nil
-        guard let activePlayback else { return }
-        let update = PlaybackUpdate(
-            item: activePlayback.item,
-            assetID: activePlayback.assetID,
-            positionSeconds: activePlayback.positionSeconds,
-            seriesID: activePlayback.seriesID
-        )
-        await progressReporter.reportProgress(update)
+        await enqueueProgress(activePlayback.synchronizationSnapshot())
+    }
+
+    private func uploadProgress(for playbackID: UUID) async {
+        guard let activePlayback, activePlayback.playbackID == playbackID else { return }
+        await enqueueProgress(activePlayback.synchronizationSnapshot())
+    }
+
+    private func enqueueProgress(_ snapshot: PlaybackSynchronizationSnapshot) async {
+        await progressSynchronizer.enqueueProgress(snapshot)
     }
 
     @discardableResult
-    private func finalizeActivePlayback(completed: Bool = false) -> ActivePlayback? {
+    private func finalizeActivePlayback(completed: Bool = false) async -> ActivePlayback? {
         progressTask?.cancel()
         progressTask = nil
         eventWatchdogTask?.cancel()
         eventWatchdogTask = nil
-        guard let activePlayback else { return nil }
-        self.activePlayback = nil
+        guard var playback = activePlayback else { return nil }
+        if completed, playback.durationSeconds > 0 {
+            playback.positionSeconds = playback.durationSeconds
+        }
+        activePlayback = nil
         recentPlayback = RecentPlayback(
-            item: activePlayback.item,
-            seriesID: activePlayback.seriesID,
-            title: activePlayback.title,
-            positionSeconds: activePlayback.positionSeconds,
-            durationSeconds: activePlayback.durationSeconds,
+            item: playback.item,
+            seriesID: playback.seriesID,
+            title: playback.title,
+            positionSeconds: playback.positionSeconds,
+            durationSeconds: playback.durationSeconds,
             played: completed,
             updatedAt: Date()
+        )
+        let receipt = await progressSynchronizer.enqueueStopped(
+            playback.synchronizationSnapshot()
         )
         let previous = terminalReportTask
         terminalReportTask = Task { @MainActor [weak self] in
             await previous?.value
-            await self?.reportStopped(activePlayback)
+            guard await receipt.value(), let self else { return }
+            playbackStateRevision &+= 1
+            Self.logger.info(
+                "Applying synchronized playback state playback=\(playback.playbackID.uuidString, privacy: .public) revision=\(self.playbackStateRevision)"
+            )
+            let previousRefresh = appRefreshTask
+            appRefreshTask = Task { @MainActor [weak self] in
+                await previousRefresh?.value
+                guard let self else { return }
+                await onStoppedReported?()
+                Self.logger.info(
+                    "Finished App playback refresh playback=\(playback.playbackID.uuidString, privacy: .public) revision=\(self.playbackStateRevision)"
+                )
+            }
         }
-        return activePlayback
-    }
-
-    private func reportStopped(_ playback: ActivePlayback) async {
-        let update = PlaybackUpdate(
-            item: playback.item,
-            assetID: playback.assetID,
-            positionSeconds: playback.positionSeconds,
-            seriesID: playback.seriesID
-        )
-        do {
-            try await progressReporter.reportStopped(update)
-            Self.logger.info("Stopped playback state reported successfully")
-        } catch {
-            Self.logger.error("Stopped playback state report failed")
-        }
-        playbackStateRevision &+= 1
-        onStoppedReported?()
+        return playback
     }
 
     private func discoverEpisodeQueue(
@@ -324,8 +371,7 @@ final class PlaybackCoordinator {
                 )
                 guard !Task.isCancelled, playbackSessionID == sessionID else { return }
                 pendingEpisodes = episodes
-                Self.logger.info("Prepared logical episode queue with \(episodes.count) remaining items")
-                scheduleQueueFill()
+                Self.logger.info("Prepared sequential continuation with \(episodes.count) remaining items")
             } catch is CancellationError {
                 return
             } catch {
@@ -380,104 +426,222 @@ final class PlaybackCoordinator {
         }
     }
 
-    private func scheduleQueueFill() {
-        guard queueFillTask == nil,
-              let sessionID = playbackSessionID,
-              queuedPlaybacks.count < Self.futureQueueDepth,
-              !pendingEpisodes.isEmpty else { return }
-        queueFillTask = Task { @MainActor [weak self] in
-            await self?.fillQueue()
-            guard self?.playbackSessionID == sessionID else { return }
-            self?.queueFillTask = nil
+    private func replaceWithNextEpisode(afterSessionID sessionID: UUID) async {
+        Self.logger.info(
+            "Waiting for continuation metadata after session=\(sessionID.uuidString, privacy: .public)"
+        )
+        await queueDiscoveryTask?.value
+        guard playbackSessionID == sessionID else {
+            Self.logger.notice("Cancelled replacement because the playback session changed")
+            return
         }
-    }
-
-    private func fillQueue() async {
-        guard let sessionID = playbackSessionID else { return }
-        while queuedPlaybacks.count < Self.futureQueueDepth,
-              let candidate = pendingEpisodes.first {
-            do {
-                guard let asset = try await provider.assets(for: candidate.item).first else {
-                    throw ProviderError.notFound
-                }
-                let url = try await provider.playbackURL(for: asset)
-                guard !Task.isCancelled, playbackSessionID == sessionID else { return }
-                let descriptor = PlaybackDescriptor(
-                    url: url,
-                    title: candidate.title,
-                    startPositionSeconds: candidate.startPositionSeconds
-                )
-                try await launcher.enqueue(descriptor, sessionID: sessionID)
-                guard !Task.isCancelled, playbackSessionID == sessionID else { return }
-                pendingEpisodes.removeFirst()
-                queuedPlaybacks[descriptor.id] = ActivePlayback(
-                    playbackID: descriptor.id,
-                    item: candidate.item,
-                    assetID: asset.id,
-                    seriesID: playbackSeriesID,
-                    title: candidate.title,
-                    positionSeconds: descriptor.startPositionSeconds,
-                    durationSeconds: asset.durationSeconds ?? candidate.durationSeconds
-                )
-                Self.logger.info(
-                    "Enqueued future episode; \(self.queuedPlaybacks.count) items ready"
-                )
-            } catch is CancellationError {
-                return
-            } catch {
-                Self.logger.error(
-                    "Episode queue refill failed with \(String(reflecting: type(of: error)), privacy: .public)"
-                )
-                return
+        guard activePlayback == nil else {
+            Self.logger.notice("Cancelled replacement because another playback became active")
+            return
+        }
+        guard let candidate = pendingEpisodes.first else {
+            Self.logger.info("No remaining episode is available for automatic replacement")
+            if playbackSessionID == sessionID {
+                clearContinuationState()
             }
+            return
+        }
+        do {
+            Self.logger.info(
+                "Resolving next episode asset; remainingCandidates=\(self.pendingEpisodes.count)"
+            )
+            guard let asset = try await provider.assets(for: candidate.item).first else {
+                throw ProviderError.notFound
+            }
+            let url = try await provider.playbackURL(for: asset)
+            guard !Task.isCancelled,
+                  playbackSessionID == sessionID,
+                  activePlayback == nil else { return }
+            do {
+                // Match a second manual in-app play exactly: stop the outgoing
+                // session before posting player.play to the same managed IINA player.
+                try await launcher.send(.stop, sessionID: sessionID)
+                Self.logger.info(
+                    "Stopped outgoing session before automatic replacement"
+                )
+            } catch {
+                Self.logger.notice(
+                    "Outgoing session stop was unavailable; attempting same-player replacement"
+                )
+            }
+            guard !Task.isCancelled,
+                  playbackSessionID == sessionID,
+                  activePlayback == nil else { return }
+            let descriptor = PlaybackDescriptor(
+                url: url,
+                title: candidate.title,
+                startPositionSeconds: candidate.startPositionSeconds
+            )
+            activePlayback = ActivePlayback(
+                playbackID: descriptor.id,
+                item: candidate.item,
+                assetID: asset.id,
+                seriesID: playbackSeriesID,
+                title: candidate.title,
+                positionSeconds: descriptor.startPositionSeconds,
+                durationSeconds: asset.durationSeconds ?? candidate.durationSeconds
+            )
+            playbackSessionID = descriptor.id
+            lastEndedPlaybackID = nil
+            do {
+                // Match manual episode selection: the global plugin reuses the
+                // managed IINA window and player.play replaces content via core.open.
+                try await launcher.open(descriptor)
+            } catch {
+                activePlayback = nil
+                clearContinuationState()
+                throw error
+            }
+            pendingEpisodes.removeFirst()
+            Self.logger.info(
+                "Replaced player content session=\(descriptor.id.uuidString, privacy: .public) remainingCandidates=\(self.pendingEpisodes.count)"
+            )
+        } catch is CancellationError {
+            return
+        } catch {
+            Self.logger.error(
+                "Sequential episode replacement failed with \(String(reflecting: type(of: error)), privacy: .public)"
+            )
         }
     }
 
-    private func clearQueueState() {
+    private func clearContinuationState() {
         queueDiscoveryTask?.cancel()
         queueDiscoveryTask = nil
-        queueFillTask?.cancel()
-        queueFillTask = nil
         playbackSessionID = nil
         playbackSeriesID = nil
-        queuedPlaybacks = [:]
         pendingEpisodes = []
         lastEndedPlaybackID = nil
     }
 }
 
-private actor PlaybackProgressReporter {
+private struct PlaybackSynchronizationSnapshot: Sendable {
+    let playbackID: UUID
+    let update: PlaybackUpdate
+}
+
+private actor PlaybackSynchronizationReceipt {
+    private var result: Bool?
+    private var waiters: [CheckedContinuation<Bool, Never>] = []
+
+    func value() async -> Bool {
+        if let result { return result }
+        return await withCheckedContinuation { continuation in
+            waiters.append(continuation)
+        }
+    }
+
+    func resolve(_ result: Bool) {
+        guard self.result == nil else { return }
+        self.result = result
+        let pendingWaiters = waiters
+        waiters = []
+        for waiter in pendingWaiters {
+            waiter.resume(returning: result)
+        }
+    }
+}
+
+private actor PlaybackProgressSynchronizer {
+    private enum Operation {
+        case progress(PlaybackSynchronizationSnapshot)
+        case stopped(
+            PlaybackSynchronizationSnapshot,
+            PlaybackSynchronizationReceipt
+        )
+    }
+
+    private static let logger = Logger(
+        subsystem: "com.samsonlab.cinelark",
+        category: "PlaybackSync"
+    )
     private let provider: any MediaLibraryProvider
-    private var tail: Task<Void, Never>?
+    private var operations: [Operation] = []
+    private var workerTask: Task<Void, Never>?
 
     init(provider: any MediaLibraryProvider) {
         self.provider = provider
     }
 
-    func reportProgress(_ update: PlaybackUpdate) {
-        enqueueProgress(update)
+    func enqueueProgress(_ snapshot: PlaybackSynchronizationSnapshot) {
+        if case .progress(let queued)? = operations.last,
+           queued.playbackID == snapshot.playbackID {
+            operations[operations.count - 1] = .progress(snapshot)
+            Self.logger.debug(
+                "Coalesced pending progress playback=\(snapshot.playbackID.uuidString, privacy: .public)"
+            )
+        } else {
+            operations.append(.progress(snapshot))
+        }
+        startWorkerIfNeeded()
     }
 
-    func reportStopped(_ update: PlaybackUpdate) async throws {
-        let previous = tail
-        let provider = provider
-        let reportingTask = Task {
-            await previous?.value
-            return try await provider.reportStopped(update)
-        }
-        tail = Task {
-            _ = try? await reportingTask.value
-        }
-        _ = try await reportingTask.value
+    func enqueueStopped(
+        _ snapshot: PlaybackSynchronizationSnapshot
+    ) -> PlaybackSynchronizationReceipt {
+        let receipt = PlaybackSynchronizationReceipt()
+        operations.append(.stopped(snapshot, receipt))
+        Self.logger.info(
+            "Reserved stopped synchronization playback=\(snapshot.playbackID.uuidString, privacy: .public) queuedOperations=\(self.operations.count)"
+        )
+        startWorkerIfNeeded()
+        return receipt
     }
 
-    private func enqueueProgress(_ update: PlaybackUpdate) {
-        let previous = tail
-        let provider = provider
-        let task = Task {
-            await previous?.value
-            _ = try? await provider.reportProgress(update)
+    private func startWorkerIfNeeded() {
+        guard workerTask == nil else { return }
+        workerTask = Task { [weak self] in
+            await self?.drainOperations()
         }
-        tail = task
+    }
+
+    private func drainOperations() async {
+        while !operations.isEmpty {
+            let operation = operations.removeFirst()
+            switch operation {
+            case .progress(let snapshot):
+                await uploadProgress(snapshot)
+            case .stopped(let snapshot, let receipt):
+                let didUpload = await uploadStopped(snapshot)
+                await receipt.resolve(didUpload)
+            }
+        }
+        workerTask = nil
+        if !operations.isEmpty {
+            startWorkerIfNeeded()
+        }
+    }
+
+    private func uploadProgress(_ snapshot: PlaybackSynchronizationSnapshot) async {
+        do {
+            _ = try await provider.reportProgress(snapshot.update)
+            Self.logger.info(
+                "Playback progress uploaded playback=\(snapshot.playbackID.uuidString, privacy: .public) position=\(snapshot.update.positionSeconds)"
+            )
+        } catch {
+            Self.logger.error(
+                "Playback progress upload failed playback=\(snapshot.playbackID.uuidString, privacy: .public)"
+            )
+        }
+    }
+
+    private func uploadStopped(_ snapshot: PlaybackSynchronizationSnapshot) async -> Bool {
+        do {
+            _ = try await provider.reportStopped(snapshot.update)
+            Self.logger.info(
+                "Stopped playback state uploaded playback=\(snapshot.playbackID.uuidString, privacy: .public) position=\(snapshot.update.positionSeconds)"
+            )
+            return true
+        } catch {
+            Self.logger.error(
+                "Stopped playback state upload failed playback=\(snapshot.playbackID.uuidString, privacy: .public)"
+            )
+            return false
+        }
     }
 }

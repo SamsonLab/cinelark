@@ -15,6 +15,7 @@ function makeHarness() {
   const emitted = [];
   const calls = [];
   let interval;
+  let intervalMilliseconds;
   const timeouts = [];
   const playlistItems = [];
 
@@ -25,6 +26,7 @@ function makeHarness() {
       position: 12.5,
       duration: 120,
       speed: 1,
+      eofReached: false,
     },
     audio: {
       volume: 75,
@@ -42,6 +44,7 @@ function makeHarness() {
     window: { loaded: true, fullscreen: false },
     open: (url) => {
       calls.push(['open', url]);
+      core.status.idle = false;
       playlistItems.splice(0, playlistItems.length, { filename: url, isPlaying: true });
     },
     pause: () => calls.push(['pause']),
@@ -60,7 +63,10 @@ function makeHarness() {
       core,
       event: { on: (name, callback) => eventHandlers.set(name, callback) },
       mpv: {
+        getFlag: (name) => name === 'eof-reached' && core.status.eofReached,
+        getString: (name) => name === 'keep-open' ? 'yes' : '',
         set: (name, value) => {
+          if (name === 'keep-open') calls.push(['mpv.set', name, value]);
           if (name === 'fullscreen') core.window.fullscreen = Boolean(value);
         },
       },
@@ -81,12 +87,13 @@ function makeHarness() {
         postMessage: (name, data) => emitted.push([name, data]),
       },
     },
-    setInterval: (callback) => {
+    setInterval: (callback, milliseconds) => {
       interval = callback;
+      intervalMilliseconds = milliseconds;
       return 1;
     },
-    setTimeout: (callback) => {
-      timeouts.push(callback);
+    setTimeout: (callback, milliseconds = 0) => {
+      timeouts.push({ callback, milliseconds });
       return timeouts.length;
     },
     Date,
@@ -101,6 +108,7 @@ function makeHarness() {
     core,
     emitted,
     eventHandlers,
+    intervalMilliseconds,
     messageHandlers,
     playPlaylistItem: (index) => {
       playlistItems.forEach((item, itemIndex) => {
@@ -108,8 +116,15 @@ function makeHarness() {
       });
     },
     runInterval: () => interval(),
-    runTimeouts: () => {
-      while (timeouts.length > 0) timeouts.shift()();
+    runTimeouts: (maximumDelay = Number.POSITIVE_INFINITY) => {
+      while (true) {
+        const timeoutIndex = timeouts.findIndex(
+          ({ milliseconds }) => milliseconds <= maximumDelay
+        );
+        if (timeoutIndex < 0) return;
+        const [{ callback }] = timeouts.splice(timeoutIndex, 1);
+        callback();
+      }
     },
   };
 }
@@ -138,11 +153,15 @@ test('player opens the opaque URL and applies resume only after file-loaded', ()
   harness.messageHandlers.get('cinelark.command')(playCommand());
   assert.deepEqual(harness.calls, []);
   harness.runTimeouts();
-  assert.deepEqual(harness.calls, [['open', currentEpisode.asset.playbackURL]]);
+  assert.deepEqual(harness.calls, [
+    ['mpv.set', 'keep-open', 'yes'],
+    ['open', currentEpisode.asset.playbackURL],
+  ]);
 
   harness.eventHandlers.get('iina.file-loaded')();
-  assert.deepEqual(harness.calls[1], ['seekTo', 42.5]);
-  assert.deepEqual(harness.calls[2], ['resume']);
+  assert.deepEqual(harness.calls[2], ['seekTo', 42.5]);
+  assert.deepEqual(harness.calls[3], ['resume']);
+  assert.deepEqual(harness.calls[4], ['mpv.set', 'keep-open', 'yes']);
   assert.equal(harness.core.window.fullscreen, true);
 
   const events = harness.emitted.map(([, value]) => value);
@@ -169,6 +188,42 @@ test('managed player accepts a replacement playback session', () => {
   );
   harness.runTimeouts();
 
+  assert.deepEqual(
+    harness.calls.filter(([name]) => name === 'open'),
+    [
+      ['open', currentEpisode.asset.playbackURL],
+      ['open', nextEpisode.asset.playbackURL],
+    ]
+  );
+});
+
+test('natural EOF keeps the player available for a replacement play command', () => {
+  const harness = makeHarness();
+  const send = harness.messageHandlers.get('cinelark.command');
+  send(playCommand({ startPositionSeconds: 0 }));
+  harness.runTimeouts(0);
+  harness.eventHandlers.get('iina.file-loaded')();
+
+  harness.core.status.position = 0;
+  harness.core.status.duration = 0;
+  harness.core.status.idle = true;
+  harness.core.status.eofReached = true;
+  harness.eventHandlers.get('mpv.eof-reached.changed')();
+  harness.eventHandlers.get('mpv.end-file')();
+
+  const nextSessionID = '823daa90-8016-44de-88f2-78048f167d22';
+  send(
+    playCommand({
+      sessionID: nextSessionID,
+      url: nextEpisode.asset.playbackURL,
+      startPositionSeconds: 0,
+    })
+  );
+  harness.runTimeouts(0);
+  harness.runTimeouts();
+
+  const events = harness.emitted.map(([, value]) => value);
+  assert.equal(events.some((value) => value.type === 'player.closed'), false);
   assert.deepEqual(
     harness.calls.filter(([name]) => name === 'open'),
     [
@@ -209,7 +264,7 @@ test('managed player appends and identifies the next native playlist item', () =
   );
 
   harness.eventHandlers.get('iina.file-loaded')();
-  harness.eventHandlers.get('mpv.end-file')({ reason: 'eof' });
+  harness.eventHandlers.get('mpv.end-file')();
   harness.playPlaylistItem(1);
   harness.core.status.idle = false;
   harness.eventHandlers.get('iina.file-loaded')();
@@ -232,7 +287,9 @@ test('natural EOF reports completion after mpv enters its stopped state', () => 
   harness.core.status.idle = true;
   harness.core.status.paused = true;
   harness.eventHandlers.get('mpv.pause.changed')();
-  harness.eventHandlers.get('mpv.end-file')({ reason: 'eof' });
+  harness.core.status.eofReached = true;
+  harness.eventHandlers.get('mpv.eof-reached.changed')();
+  harness.eventHandlers.get('mpv.end-file')();
 
   const terminalEvents = harness.emitted
     .map(([, value]) => value)
@@ -245,6 +302,136 @@ test('natural EOF reports completion after mpv enters its stopped state', () => 
   );
   assert.equal(terminalEvents[1].type, 'player.ended');
   assert.equal(terminalEvents[1].payload.reason, 'eof');
+});
+
+test('pause at 100 percent is classified as EOF and ordinary pause is not', () => {
+  const harness = makeHarness();
+  harness.messageHandlers.get('cinelark.command')(playCommand({ startPositionSeconds: 0 }));
+  harness.runTimeouts();
+  harness.eventHandlers.get('iina.file-loaded')();
+
+  harness.core.status.paused = true;
+  harness.core.status.position = 60;
+  harness.eventHandlers.get('mpv.pause.changed')();
+  assert.equal(
+    harness.emitted.some(([, value]) => value.type === 'player.ended'),
+    false
+  );
+
+  harness.core.status.position = 120;
+  harness.eventHandlers.get('mpv.pause.changed')();
+  const ended = harness.emitted
+    .map(([, value]) => value)
+    .find((value) => value.type === 'player.ended');
+  assert.equal(ended.payload.reason, 'eof');
+});
+
+test('completion polling reports EOF at the final frame and isolates replacement events', () => {
+  const harness = makeHarness();
+  const send = harness.messageHandlers.get('cinelark.command');
+  send(playCommand({ startPositionSeconds: 0 }));
+  harness.runTimeouts();
+  harness.eventHandlers.get('iina.file-loaded')();
+
+  assert.equal(harness.intervalMilliseconds, 500);
+  harness.core.status.duration = 1501.24;
+  harness.core.status.position = 1501.238;
+  harness.runInterval();
+  assert.equal(
+    harness.emitted.some(([, value]) => value.type === 'player.ended'),
+    false
+  );
+
+  // This is the terminal position observed in the live IINA trace. It is
+  // fractionally below duration because mpv reports the last decoded frame.
+  harness.core.status.position = 1501.239868;
+  harness.runInterval();
+  const ended = harness.emitted
+    .map(([, value]) => value)
+    .find((value) => value.type === 'player.ended');
+  assert.equal(ended.payload.reason, 'eof');
+  assert.equal(harness.calls.some(([name]) => name === 'pause'), true);
+
+  const nextSessionID = '823daa90-8016-44de-88f2-78048f167d22';
+  send(
+    playCommand({
+      sessionID: nextSessionID,
+      url: nextEpisode.asset.playbackURL,
+      startPositionSeconds: 0,
+    })
+  );
+  harness.runTimeouts(0);
+
+  // IINA can deliver these callbacks for the outgoing file after core.open.
+  // They must not end the replacement before its own file-loaded event.
+  harness.core.status.paused = true;
+  harness.core.status.eofReached = true;
+  harness.eventHandlers.get('mpv.pause.changed')();
+  harness.eventHandlers.get('mpv.eof-reached.changed')();
+  harness.eventHandlers.get('mpv.end-file')();
+  assert.equal(
+    harness.emitted.filter(([, value]) => value.type === 'player.ended').length,
+    1
+  );
+
+  harness.core.status.paused = false;
+  harness.core.status.eofReached = false;
+  harness.core.status.position = 0;
+  harness.eventHandlers.get('iina.file-loaded')();
+  harness.core.status.position = 1501.239868;
+  harness.runInterval();
+  const endedPlaybackIDs = harness.emitted
+    .map(([, value]) => value)
+    .filter((value) => value.type === 'player.ended')
+    .map((value) => value.payload.playbackID);
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(endedPlaybackIDs)),
+    [playCommand().sessionID, nextSessionID]
+  );
+});
+
+test('end-file falls back to the sampled position when IINA supplies no event details', () => {
+  const harness = makeHarness();
+  harness.messageHandlers.get('cinelark.command')(playCommand({ startPositionSeconds: 0 }));
+  harness.runTimeouts();
+  harness.eventHandlers.get('iina.file-loaded')();
+
+  harness.core.status.position = 119.5;
+  harness.runInterval();
+  harness.core.status.position = 0;
+  harness.core.status.duration = 0;
+  harness.core.status.idle = true;
+  harness.eventHandlers.get('mpv.end-file')();
+
+  const ended = harness.emitted
+    .map(([, value]) => value)
+    .find((value) => value.type === 'player.ended');
+  assert.equal(ended.payload.reason, 'eof');
+});
+
+test('terminal-position window closure reports EOF before the player closes', () => {
+  const harness = makeHarness();
+  harness.messageHandlers.get('cinelark.command')(playCommand({ startPositionSeconds: 0 }));
+  harness.runTimeouts();
+  harness.eventHandlers.get('iina.file-loaded')();
+
+  harness.core.status.position = 119.5;
+  harness.runInterval();
+  harness.core.status.position = 0;
+  harness.core.status.duration = 0;
+  harness.core.status.idle = true;
+  harness.eventHandlers.get('iina.window-will-close')();
+
+  const lifecycle = harness.emitted
+    .map(([, value]) => value)
+    .filter((value) => value.type === 'player.ended' || value.type === 'player.closed');
+  assert.deepEqual(
+    lifecycle.map((value) => [value.type, value.payload.reason]),
+    [
+      ['player.ended', 'eof'],
+      ['player.closed', 'window_closed'],
+    ]
+  );
 });
 
 test('idle fallback reports short playback when IINA closes the player window', () => {

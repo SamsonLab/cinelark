@@ -129,13 +129,24 @@ the required semantic operation.
 ### Playlist
 
 The main entry exposes `playlist.list()`, `playlist.add(url, at)`,
-`playlist.play`, and next/previous controls. CineLark uses
-`playlist.add(url, -1)` for a rolling episode window and lets mpv perform its
-normal automatic advancement. The `-1` must be explicit: JavaScriptCore maps an
-omitted integer argument to `0` despite the Swift implementation's default,
-which inserts the item before the playing entry. The plugin maps the currently
-playing playlist URL back to an in-memory playback descriptor; URLs are never
-included in events or logs.
+`playlist.play`, and next/previous controls. `player.enqueue` retains
+`playlist.add(url, -1)` for protocol compatibility. The `-1` must be explicit:
+JavaScriptCore maps an omitted integer argument to `0` despite the Swift
+implementation's default, which inserts the item before the playing entry.
+
+The current coordinator does not enqueue future episodes. After natural EOF it
+sends `player.stop` for the outgoing session followed by a new `player.play`,
+matching a second manual in-app play action. The global plugin sends both to the
+same managed player ID, and the existing player calls `core.open` to replace its
+content. The incoming session cannot emit terminal events before its own
+`file-loaded`; remaining callbacks from the outgoing media are ignored. A
+replacement acknowledgement timeout reports a bridge error and never creates a
+second player window.
+
+The player sets mpv `keep-open=yes` before opening and confirms it again after
+`file-loaded`, keeping IINA's normal close-at-end policy from destroying the
+window before the next command arrives. URLs are never included in events or
+logs.
 
 ## 5. Events
 
@@ -159,6 +170,7 @@ iina.file-started
 iina.window-loaded
 iina.window-will-close
 mpv.end-file
+mpv.eof-reached.changed
 mpv.pause.changed
 ```
 
@@ -166,6 +178,16 @@ Arbitrary mpv property change listeners are registered lazily when using the
 `mpv.{property}.changed` form. The bridge can observe position by sampling
 `core.status.position`; existing plugin evidence notes that relying only on a
 `time-pos` change event is not sufficient in all cases.
+
+Generic `mpv.*` callbacks do not expose mpv's event detail object through the
+public JavaScript plugin API. The bridge observes `mpv.eof-reached.changed` and
+reads `mpv.getFlag("eof-reached")`, but also polls `core.status.position` and
+`core.status.duration` every 500 ms because stock IINA can close without
+delivering that callback. A sample within 1 ms of duration is treated as the
+final decoded frame and emits natural completion immediately, without a second
+timer or delay. `mpv.end-file`, pause-at-completion, and terminal-position
+window closure remain idempotent fallback paths; an earlier pause remains
+non-terminal.
 
 ## 6. Storage and credentials
 
@@ -292,6 +314,18 @@ nil, causing a process-level trap in `JavascriptAPIHttp.request`. CineLark must
 therefore treat plugin installation or update as a restart boundary: fully quit
 and reopen IINA before attempting playback. This limitation is independent of
 the managed-player playlist and does not apply to a cleanly launched instance.
+
+### Runtime diagnostics
+
+The player and global entries log only lifecycle event names, redacted ID
+prefixes, reasons, and routing decisions. Provider URLs, pairing material,
+authentication headers, and media metadata are excluded. Swift logs the broker,
+launcher, and coordinator boundaries under the `com.samsonlab.cinelark`
+subsystem. Stream the combined path while reproducing a problem with:
+
+```sh
+scripts/observe_playback_logs.sh
+```
 
 ## 10. Capability assessment
 

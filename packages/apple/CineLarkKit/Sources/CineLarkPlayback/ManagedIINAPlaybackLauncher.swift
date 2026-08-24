@@ -1,12 +1,17 @@
 import AppKit
 import Foundation
+import OSLog
 import CineLarkDomain
 
 @MainActor
 public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
     public let events: AsyncStream<PlaybackEvent>
 
-    private static let minimumPluginVersion = "0.1.9"
+    private static let minimumPluginVersion = "0.1.15"
+    private static let logger = Logger(
+        subsystem: "com.samsonlab.cinelark",
+        category: "PlaybackBridge"
+    )
 
     private let bundle: Bundle
     private let workspace: NSWorkspace
@@ -50,6 +55,9 @@ public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
     }
 
     public func open(_ descriptor: PlaybackDescriptor) async throws {
+        Self.logger.info(
+            "Preparing player.play session=\(descriptor.id.uuidString, privacy: .public)"
+        )
         guard let iinaURL = workspace.urlForApplication(
             withBundleIdentifier: "com.colliderli.iina"
         ) else {
@@ -76,6 +84,9 @@ public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
             secret: secret
         )
         try await client.send(envelope)
+        Self.logger.info(
+            "Queued player.play session=\(descriptor.id.uuidString, privacy: .public)"
+        )
         lifecycle.begin(playbackID: descriptor.id)
     }
 
@@ -116,6 +127,7 @@ public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
 
     private func ensureBridgeStarted(secret: Data) async throws {
         if eventTask == nil {
+            Self.logger.info("Starting playback bridge event listener")
             let stream = await client.eventStream()
             eventTask = Task { @MainActor [weak self] in
                 for await envelope in stream {
@@ -128,6 +140,9 @@ public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
 
     private func receive(_ envelope: BridgeEnvelope) {
         guard let secret, envelope.isAuthenticated(with: secret) else {
+            Self.logger.error(
+                "Rejected unauthenticated bridge event type=\(envelope.type, privacy: .public)"
+            )
             eventContinuation.yield(
                 .bridgeError(
                     code: "authentication_failed",
@@ -148,8 +163,12 @@ public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
         switch envelope.type {
         case "bridge.ready":
             isBridgeReady = true
+            Self.logger.info("IINA bridge is ready")
             eventContinuation.yield(.bridgeReady)
         case "bridge.error":
+            Self.logger.error(
+                "IINA bridge error code=\(envelope.payload["code"]?.stringValue ?? "bridge_error", privacy: .public)"
+            )
             eventContinuation.yield(
                 .bridgeError(
                     code: envelope.payload["code"]?.stringValue ?? "bridge_error",
@@ -157,7 +176,13 @@ public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
                 )
             )
         case "player.fileLoaded":
-            guard let playbackID else { return }
+            guard let playbackID else {
+                Self.logger.error("Dropped player.fileLoaded without a playback ID")
+                return
+            }
+            Self.logger.info(
+                "IINA loaded playback=\(playbackID.uuidString, privacy: .public)"
+            )
             lifecycle.begin(playbackID: playbackID)
             eventContinuation.yield(
                 .fileLoaded(
@@ -203,21 +228,35 @@ public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
                 )
             )
         case "player.ended":
-            guard let playbackID else { return }
+            guard let playbackID else {
+                Self.logger.error("Dropped player.ended without a playback ID")
+                return
+            }
+            let reason = envelope.payload["reason"]?.stringValue ?? "unknown"
+            Self.logger.info(
+                "IINA ended playback=\(playbackID.uuidString, privacy: .public) reason=\(reason, privacy: .public)"
+            )
             lifecycle.finish(playbackID: playbackID)
             eventContinuation.yield(
                 .ended(
                     playbackID: playbackID,
-                    reason: envelope.payload["reason"]?.stringValue ?? "unknown"
+                    reason: reason
                 )
             )
         case "player.closed":
-            guard let playbackID else { return }
+            guard let playbackID else {
+                Self.logger.error("Dropped player.closed without a playback ID")
+                return
+            }
+            let reason = envelope.payload["reason"]?.stringValue ?? "unknown"
+            Self.logger.info(
+                "IINA closed playback=\(playbackID.uuidString, privacy: .public) reason=\(reason, privacy: .public)"
+            )
             lifecycle.finish(playbackID: playbackID)
             eventContinuation.yield(
                 .closed(
                     playbackID: playbackID,
-                    reason: envelope.payload["reason"]?.stringValue ?? "unknown"
+                    reason: reason
                 )
             )
         default:

@@ -21,7 +21,7 @@ The maintained API and security contract remains
 | --- | --- | --- | --- |
 | Natural EOF stopped instead of advancing | `playlist.add(url)` inserted at index `0`; the playing item became the last entry | The Node mock treated an omitted index as append | Pass `playlist.add(url, -1)` explicitly and model JavaScriptCore conversion in tests |
 | Installed plugin crashed several seconds after update | A timer from the replaced global plugin called an IINA API after its weak native owner was released | The crash happened after the new plugin appeared installed | Treat install/update as a full IINA restart boundary |
-| Queue disappeared before future URLs were ready | Four seconds of telemetry silence was treated as definitive player termination | IINA was still visibly playing | Probe with `player.requestState`, then apply a second timeout before finalization |
+| Queue disappeared before future URLs were ready | Telemetry silence was treated as definitive player termination | IINA was still visibly playing | Probe with `player.requestState`, but preserve the session until an explicit terminal event |
 | Tokenless VOD URL did not load with saved HTTP credentials | UHDNow still required its provider-issued capability token | IINA exposes an HTTP Authentication UI | Keep provider capability URL generation in CineLark; HTTP auth is not a substitute |
 | HTTP credential appeared in diagnostics | IINA injected credentials into URL userinfo and copied the failed URL back into the visible field | The password field itself remained masked | Never automate the Open URL authentication UI with production credentials |
 | A correct source change seemed ineffective | The smoke test launched an older `/Applications` build | The installed plugin itself was already 0.1.9 | Verify both app binary and plugin versions before runtime diagnosis |
@@ -97,10 +97,10 @@ The coordinator previously finalized playback after four seconds without a
 position or state event. That could cancel queue discovery while media was
 still playing.
 
-The watchdog now sends `player.requestState` after the first silence interval.
-Only a second interval without a response finalizes the sampled state and
-clears the queue. Explicit EOF, window-close, stop, and IINA termination remain
-the authoritative terminal signals.
+The watchdog sends `player.requestState` after the first silence interval. A
+missing response is logged but never finalizes the sampled state or clears the
+queue. Explicit EOF, window-close, stop, session replacement, and IINA
+termination are the authoritative terminal signals.
 
 ### 7. Open URL credentials and plugin playback are different paths
 
@@ -173,6 +173,10 @@ five-second natural-EOF continuation in stock IINA 1.4.4.
 ## Current state
 
 Plugin 0.1.9 explicitly appends native playlist entries. CineLark maintains a
-two-item rolling future queue, probes silent telemetry before finalization, and
-keeps provider capability URL generation outside IINA. The remaining live gap
-is a season-boundary EOF transition.
+two-item rolling future queue, probes silent telemetry without treating it as a
+terminal event, and keeps provider capability URL generation outside IINA.
+Every activated item uploads progress immediately and retains item-scoped
+terminal reporting. The playlist continuation design was superseded by
+[006 — Sequential episode replacement](../006-sequential-episode-replacement/000-plan.md);
+the JavaScriptCore, lifecycle, security, identity, and testing rules above
+remain historical constraints for the compatibility enqueue path.

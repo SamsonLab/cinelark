@@ -1,12 +1,18 @@
 import AppKit
 import Foundation
 import Observation
+import OSLog
 import CineLarkDomain
 import CineLarkPlayback
 
 @Observable
 @MainActor
 final class AppModel {
+    private static let logger = Logger(
+        subsystem: "com.samsonlab.cinelark",
+        category: "AppPlaybackSync"
+    )
+
     enum ErrorRecovery: Equatable {
         case installIINA
     }
@@ -56,9 +62,7 @@ final class AppModel {
             guard let self,
                   self.phase == .signedIn,
                   !self.suppressesPlaybackRefresh else { return }
-            Task { @MainActor [weak self] in
-                await self?.refreshContinueWatching()
-            }
+            await self.refreshContinueWatching()
         }
     }
 
@@ -148,13 +152,19 @@ final class AppModel {
 
     func refreshContinueWatching() async {
         guard phase == .signedIn, !suppressesPlaybackRefresh else { return }
+        Self.logger.info("Refreshing Continue Watching after playback synchronization")
         do {
             let shelf = try await provider.playbackShelf(limit: 16)
             guard phase == .signedIn, !suppressesPlaybackRefresh else { return }
             continueWatching = shelf.resume
+            Self.logger.info(
+                "Continue Watching refresh completed items=\(self.continueWatching.count)"
+            )
         } catch is CancellationError {
+            Self.logger.notice("Continue Watching refresh was cancelled")
             return
         } catch {
+            Self.logger.error("Continue Watching refresh failed")
             handleAuthenticated(error)
         }
     }

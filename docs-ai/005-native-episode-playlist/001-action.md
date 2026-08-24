@@ -10,8 +10,14 @@
 | 2026-08-24 | Bumped the required IINA plugin version to 0.1.8 and updated current-state docs | Working tree |
 | 2026-08-24 | Corrected JSExport playlist insertion, added a telemetry recovery probe, and validated a real five-second EOF transition with plugin 0.1.9 | Working tree |
 | 2026-08-24 | Consolidated reusable IINA plugin engineering lessons and the real-EOF smoke-test runbook | [004](004-iina-plugin-engineering-lessons.md) |
+| 2026-08-25 | Made telemetry silence non-terminal and restored rolling refill plus immediate per-item provider synchronization | [005](005-telemetry-liveness-and-item-sync.md) |
+| 2026-08-25 | Superseded playlist continuation with single-content sequential replacement | [006](../006-sequential-episode-replacement/000-plan.md) |
 
-## Outcome & current state (as of 2026-08-24)
+## Outcome before supersession (as of 2026-08-25)
+
+This section describes the final native-playlist implementation. It was
+superseded later that day by
+[006 — Sequential episode replacement](../006-sequential-episode-replacement/000-plan.md).
 
 Series playback now starts the selected episode immediately and discovers the
 remaining cross-season episode order in the background. The coordinator resolves
@@ -27,6 +33,13 @@ the existing serialized reporter path. It does not await provider state before
 mpv advances. Loading a queued item consumes its prepared state and triggers the
 next rolling refill. Movies and episode playback without a series ID continue to
 use a single-item session.
+
+Telemetry silence now triggers a state probe but never finalizes playback or
+clears the logical queue. Each activated item uploads its initial progress
+immediately, and a previous item remains addressable by playback ID until its
+own terminal event is reported. The two-future-URL window therefore refills
+across all remaining discovered episodes instead of becoming a fixed two-item
+tail after a transient telemetry gap.
 
 The contributor-facing contract is updated in:
 
@@ -48,6 +61,9 @@ The contributor-facing contract is updated in:
   -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO
   build` completed with `BUILD SUCCEEDED`.
 - `git diff --check` and Rust formatting validation completed without errors.
+- The macOS `CineLarkTests` target passed its five-episode rolling-queue
+  regression, including an unanswered telemetry probe, two refills, reversed
+  `fileLoaded`/EOF ordering, immediate progress uploads, and stopped reports.
 
 ## Deviations from plan
 

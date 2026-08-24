@@ -66,9 +66,9 @@ test('all broker, Keychain, and player IINA APIs execute on the main run loop', 
   });
   const nextPlaybackID = '823daa90-8016-44de-88f2-78048f167d22';
   const nextCommand = protocol.createEnvelope({
-    type: 'player.enqueue',
+    type: 'player.play',
     sequence: 2,
-    sessionID,
+    sessionID: nextPlaybackID,
     secret,
     payload: {
       playbackID: nextPlaybackID,
@@ -153,6 +153,16 @@ test('all broker, Keychain, and player IINA APIs execute on the main run loop', 
   assert.equal(messageCalls.length, 2);
   assert.deepEqual(messageCalls[0].slice(0, 3), ['postMessage', 17, 'cinelark.command']);
   assert.deepEqual(messageCalls[1].slice(0, 3), ['postMessage', 17, 'cinelark.command']);
+
+  const timeoutIndex = harness.timers.findIndex((timer) => timer.milliseconds === 500);
+  assert.notEqual(timeoutIndex, -1);
+  const [replacementTimeout] = harness.timers.splice(timeoutIndex, 1);
+  await harness.run(replacementTimeout);
+  assert.equal(
+    calls.filter(([name]) => name === 'createPlayerInstance').length,
+    1,
+    'replacement timeout must not create a second player window'
+  );
 });
 
 test('broker discovery does not touch Keychain while CineLark is absent', async () => {

@@ -48,9 +48,10 @@ was the last playlist item and mpv correctly stopped at EOF.
 - Observed IINA 1.4.4 copy a failed HTTP-authenticated URL, including userinfo,
   back into its visible URL field. The exposed credential must be rotated; this
   UI flow is no longer an acceptable automated smoke-test path.
-- Replaced the four-second telemetry-silence finalization with a request-state
-  probe followed by a second four-second timeout. Slow queue discovery can no
-  longer be cancelled before IINA gets one recovery opportunity.
+- Replaced the original four-second telemetry-silence finalization with an
+  interim request-state probe and second timeout. The later correction in
+  [005](005-telemetry-liveness-and-item-sync.md) removed timeout-driven
+  finalization entirely.
 - Executed the live smoke test with real E2/E3/E4 API data and capability URLs.
   CineLark discovered nine future episodes and enqueued two within one second.
   E2 was moved to five seconds before EOF and the user confirmed the automatic
@@ -61,4 +62,7 @@ was the last playlist item and mpv correctly stopped at EOF.
 Plugin 0.1.9 appends future episodes with an explicit `-1` index. Unit mocks use
 the actual IINA insertion contract and realistic sanitized UHDNow series data.
 The installed plugin is 0.1.9. Installation or update still requires a full IINA
-restart before live playback.
+restart before live playback. Telemetry silence is non-terminal as of
+[005](005-telemetry-liveness-and-item-sync.md). Application continuation no
+longer uses playlist enqueueing as of
+[006](../006-sequential-episode-replacement/000-plan.md).

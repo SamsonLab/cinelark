@@ -113,3 +113,16 @@ targets:
         ENABLE_PREVIEWS: true
     scheme:
       gatherCoverageData: true
+      testTargets:
+        - CineLarkTests
+  CineLarkTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Tests
+    dependencies:
+      - target: CineLark
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.samsonlab.cinelark.tests
+        GENERATE_INFOPLIST_FILE: true

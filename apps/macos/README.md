@@ -13,7 +13,7 @@ Native Swift 6 / SwiftUI client for the observed UHDNow API.
 - release/name/rating/update/asset-update/popularity sorting in both directions
 - movie/series details, cast and crew pages, seasons, and episodes
 - detail-level last-watched context, one-action resume, and episode progress states
-- rolling native IINA playlists for automatic cross-season episode continuation
+- single-content IINA episode replacement for automatic cross-season continuation
 - movie/episode version chooser with expandable codec, color, track, and size metadata
 - explicit copy-playback-link, copy-download-link, and browser-download actions
 - runtime English/Simplified Chinese interface switching
@@ -24,7 +24,7 @@ Native Swift 6 / SwiftUI client for the observed UHDNow API.
 - Kingfisher artwork pipeline with bounded memory/disk caches and downsampling
 - tokenized playback URL construction through the bundled Rust/IINA bridge
 - guided IINA plugin installation and Keychain-provisioned bridge pairing
-- post-load resume, transport/state/track telemetry, coalesced progress, and terminal stopped reporting
+- post-load resume, transport/state/track telemetry, immediate item activation sync, coalesced progress, and terminal stopped reporting
 
 The direct IINA launcher remains available only as a degraded adapter. The
 composition root uses the managed bridge path by default.

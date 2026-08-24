@@ -111,6 +111,13 @@ CineLark $VERSION for macOS 26 or later.
 - Fixed series-detail episode focus across expansion, collapse, and manual
   scrolling so Up and Down continue from the visible episode boundary instead
   of stale offscreen controls.
+- Replaced playlist-based episode continuation with the same single-window
+  content replacement used by manual next-episode playback, while preserving
+  per-episode progress and completion synchronization. Natural EOF detection
+  now follows IINA's property API, keeps the managed window alive at EOF, and
+  includes privacy-safe end-to-end logs. A 500 ms completion-progress poll now
+  holds the final frame, then uses the same stop-then-play replacement as a
+  second manual play action without allowing a fallback player window.
 
 ## Install
 

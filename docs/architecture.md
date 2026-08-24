@@ -181,11 +181,21 @@ Resume is applied after a matching `file-loaded` event, not merely after sending
 `open`, to avoid races with mpv initialization.
 
 For series episodes, CineLark discovers the ordered remainder of the series in
-the background and maintains two future entries in IINA's native playlist. Each
-entry has an independent playback ID. At natural EOF, mpv advances immediately;
-provider stopped reporting and queue replenishment run without gating the next
-file load. Only metadata is built for the full logical queue because UHDNow
-capability URLs are short-lived.
+the background but keeps no future URL in IINA's playlist. At natural EOF it
+reports the completed item, resolves the next episode's asset and capability
+URL, sends `player.stop` for the completed session, and then sends the new
+`player.play` command. This matches a second manual in-app play action. The
+global plugin posts both commands to the same managed player ID while the player
+plugin calls `core.open` to replace its single content item. The incoming
+session does not become terminal-eligible before its own `file-loaded`, and a
+replacement timeout never creates another player window. The managed player
+sets mpv `keep-open=yes` so IINA cannot close the window before replacement.
+Natural EOF is observed from mpv's
+`eof-reached` property because IINA's generic JavaScript event callbacks do not
+expose `end-file` details. A
+telemetry gap may request a fresh state snapshot but does not
+clear the continuation metadata. Capability URLs are generated only when their
+episode is about to open.
 
 ### 4.3 Progress
 
@@ -197,8 +207,14 @@ positionTicks = round(positionSeconds × 10,000,000)
 positionSeconds = positionTicks ÷ 10,000,000
 ```
 
-The coordinator periodically coalesces position changes and sends a terminal
-stopped event for lifecycle boundaries. Exact cadence and retry policy are Open.
+The coordinator uploads one immutable snapshot when an item becomes active and
+periodically coalesces later position changes. Timers are playback-ID scoped,
+and the serial synchronization worker retains only the latest pending progress
+snapshot for a slow provider. A terminal stopped snapshot forms an ordering
+barrier before a replacement item's first progress write. Successful terminal
+writes drive cache invalidation, observable playback revision, and serialized
+App refresh; failed writes do not advance local synchronization state. Exact
+retry policy is Open.
 
 ## 5. State and concurrency
 
@@ -209,8 +225,9 @@ stopped event for lifecycle boundaries. Exact cadence and retry policy are Open.
 - Provider and bridge operations support cancellation.
 - Each playback session has a unique opaque ID; late events from superseded
   sessions are ignored.
-- Progress writes for one item are serialized and monotonic unless the user
-  explicitly seeks backward.
+- Progress writes are immutable, playback-ID scoped, serialized across item
+  replacement, and monotonic within an item unless the user explicitly seeks
+  backward. Pending non-terminal writes for one playback may be coalesced.
 - Provider token refresh/login changes invalidate derived playback URLs.
 
 ## 6. Failure boundaries

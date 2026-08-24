@@ -9,8 +9,9 @@ const {
 } = require('./lib/protocol.js');
 
 const { global, http, menu, utils } = iina;
+const pluginConsole = iina.console;
 
-const PLUGIN_VERSION = '0.1.9';
+const PLUGIN_VERSION = '0.1.15';
 const KEYCHAIN_SERVICE = 'bridge';
 const KEYCHAIN_ACCOUNT = 'pairing-key';
 const PORT_START = 43191;
@@ -25,6 +26,15 @@ let pendingPlayerReuse = null;
 let baseURL = null;
 let secret = null;
 let eventQueue = Promise.resolve();
+
+function shortID(value) {
+  return typeof value === 'string' ? value.slice(0, 8) : 'none';
+}
+
+function log(message, fields = {}) {
+  if (!pluginConsole || typeof pluginConsole.log !== 'function') return;
+  pluginConsole.log(`[CineLark/global] ${message} ${JSON.stringify(fields)}`);
+}
 
 function delay(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -101,9 +111,17 @@ function emit(type, payload = {}, sessionID = null, replyTo = null) {
   eventQueue = eventQueue
     .then(() => {
       if (generation !== connectionGeneration || !baseURL) return null;
+      if (type === 'player.fileLoaded' || type === 'player.ended' || type === 'player.closed') {
+        log('forwarding lifecycle event to broker', {
+          type,
+          session: shortID(sessionID),
+          reason: payload.reason || null,
+        });
+      }
       return post('/v1/plugin/events', envelope);
     })
     .catch(() => {
+      log('broker event delivery failed; reconnecting', { type });
       if (generation === connectionGeneration) baseURL = null;
     });
 }
@@ -116,6 +134,10 @@ function createManagedPlayer(command) {
     enablePlugins: false,
   });
   currentPlayer = { id: playerID, sessionID: command.sessionID };
+  log('created managed player', {
+    playerID,
+    session: shortID(command.sessionID),
+  });
   global.postMessage(playerID, 'cinelark.command', command);
 }
 
@@ -127,18 +149,37 @@ function handleCommand(command) {
 
   if (command.type === 'player.play') {
     if (!currentPlayer) {
+      log('dispatching play command to a new player', {
+        command: shortID(command.id),
+        session: shortID(command.sessionID),
+      });
       createManagedPlayer(command);
       return;
     }
 
+    log('dispatching replacement play command', {
+      command: shortID(command.id),
+      session: shortID(command.sessionID),
+      playerID: currentPlayer.id,
+    });
     currentPlayer.sessionID = command.sessionID;
     pendingPlayerReuse = { commandID: command.id, command };
     global.postMessage(currentPlayer.id, 'cinelark.command', command);
     setTimeout(() => {
       if (!pendingPlayerReuse || pendingPlayerReuse.commandID !== command.id) return;
+      log('replacement acknowledgement timed out; preserving the same-player invariant', {
+        command: shortID(command.id),
+      });
       pendingPlayerReuse = null;
-      currentPlayer = null;
-      createManagedPlayer(command);
+      emit(
+        'bridge.error',
+        {
+          code: 'replacement_timeout',
+          message: 'The managed player did not acknowledge content replacement.',
+        },
+        command.sessionID,
+        command.id
+      );
     }, 500);
     return;
   }
@@ -178,6 +219,7 @@ async function hello() {
     pluginVersion: PLUGIN_VERSION,
     protocolVersion: PROTOCOL_VERSION,
   });
+  log('connected to CineLark broker', { pluginVersion: PLUGIN_VERSION });
 }
 
 async function poll(generation) {
@@ -237,11 +279,19 @@ async function connect() {
 
 global.onMessage('cinelark.player-ack', (ack) => {
   if (!ack || !pendingPlayerReuse || ack.commandID !== pendingPlayerReuse.commandID) return;
+  log('managed player acknowledged replacement', { command: shortID(ack.commandID) });
   pendingPlayerReuse = null;
 });
 
 global.onMessage('cinelark.event', (event) => {
   if (!event || typeof event.type !== 'string') return;
+  if (event.type === 'player.fileLoaded' || event.type === 'player.ended' || event.type === 'player.closed') {
+    log('received lifecycle event from managed player', {
+      type: event.type,
+      session: shortID(event.sessionID),
+      reason: event.payload && event.payload.reason ? event.payload.reason : null,
+    });
+  }
   emit(event.type, event.payload || {}, event.sessionID || null, event.replyTo || null);
   const endedWithoutReuse =
     event.type === 'player.ended' && event.payload && event.payload.reason !== 'eof';

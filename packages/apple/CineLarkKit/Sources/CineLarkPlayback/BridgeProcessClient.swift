@@ -1,7 +1,12 @@
 import Foundation
+import OSLog
 
 actor BridgeProcessClient {
     private static let maximumFrameBytes = 1_048_576
+    private static let logger = Logger(
+        subsystem: "com.samsonlab.cinelark",
+        category: "PlaybackBridgeProcess"
+    )
 
     private let executableURL: URL
     private var process: Process?
@@ -32,6 +37,7 @@ actor BridgeProcessClient {
 
     func start(secret: Data) async throws {
         if process?.isRunning == true, port != nil {
+            Self.logger.debug("Reusing the running playback broker")
             return
         }
         guard FileManager.default.isExecutableFile(atPath: executableURL.path) else {
@@ -51,7 +57,9 @@ actor BridgeProcessClient {
 
         do {
             try process.run()
+            Self.logger.info("Started the playback broker process")
         } catch {
+            Self.logger.error("Failed to start the playback broker process")
             throw PlaybackLaunchError.helperUnavailable
         }
 
@@ -80,8 +88,14 @@ actor BridgeProcessClient {
 
     func send(_ envelope: BridgeEnvelope) throws {
         guard process?.isRunning == true, port != nil else {
+            Self.logger.error(
+                "Rejected outgoing command type=\(envelope.type, privacy: .public): broker unavailable"
+            )
             throw PlaybackLaunchError.bridgeUnavailable
         }
+        Self.logger.info(
+            "Sending command type=\(envelope.type, privacy: .public) sequence=\(envelope.sequence) session=\(envelope.sessionID ?? "none", privacy: .public)"
+        )
         try writeFrame(BridgeCommandFrame(envelope: envelope))
     }
 
@@ -118,16 +132,28 @@ actor BridgeProcessClient {
                 return
             }
             self.port = port
+            Self.logger.info("Playback broker ready on loopback port \(port)")
             startupTimeoutTask?.cancel()
             startupTimeoutTask = nil
             readyContinuation?.resume()
             readyContinuation = nil
         case "event":
             guard let envelope = frame.envelope else { return }
+            if envelope.type == "player.fileLoaded"
+                || envelope.type == "player.ended"
+                || envelope.type == "player.closed"
+                || envelope.type == "bridge.error" {
+                Self.logger.info(
+                    "Received broker event type=\(envelope.type, privacy: .public) sequence=\(envelope.sequence) session=\(envelope.sessionID ?? "none", privacy: .public)"
+                )
+            }
             for continuation in subscribers.values {
                 continuation.yield(envelope)
             }
         case "error":
+            Self.logger.error(
+                "Playback broker reported error code=\(frame.code ?? "unknown", privacy: .public)"
+            )
             if readyContinuation != nil {
                 readyContinuation?.resume(throwing: PlaybackLaunchError.bridgeUnavailable)
                 readyContinuation = nil
@@ -138,6 +164,7 @@ actor BridgeProcessClient {
     }
 
     private func startupTimedOut() {
+        Self.logger.error("Playback broker startup timed out")
         readyContinuation?.resume(throwing: PlaybackLaunchError.helperUnavailable)
         readyContinuation = nil
         process?.terminate()
@@ -145,6 +172,13 @@ actor BridgeProcessClient {
     }
 
     private func readerDidEnd(error: Error?) {
+        if let error {
+            Self.logger.error(
+                "Playback broker output ended with \(String(reflecting: type(of: error)), privacy: .public)"
+            )
+        } else {
+            Self.logger.notice("Playback broker output ended")
+        }
         if readyContinuation != nil {
             readyContinuation?.resume(throwing: PlaybackLaunchError.helperUnavailable)
             readyContinuation = nil
@@ -153,6 +187,7 @@ actor BridgeProcessClient {
     }
 
     private func processDidTerminate(status: Int32) {
+        Self.logger.notice("Playback broker terminated with status \(status)")
         if readyContinuation != nil {
             readyContinuation?.resume(throwing: PlaybackLaunchError.helperUnavailable)
             readyContinuation = nil

@@ -2,7 +2,7 @@
 
 | | |
 | --- | --- |
-| **Status** | Implemented |
+| **Status** | Superseded by [006 — Sequential episode replacement](../006-sequential-episode-replacement/000-plan.md) |
 | **Anchor date** | 2026-08-24 |
 | **Primary refs** | Pending |
 | **Related** | [`docs/interfaces/playback-bridge.md`](../../docs/interfaces/playback-bridge.md), [`docs/architecture.md`](../../docs/architecture.md), [`docs/integrations/uhdnow-api.md`](../../docs/integrations/uhdnow-api.md) |
@@ -104,3 +104,11 @@ blocking IINA's transition.
 - Updated 2026-08-24: consolidated the IINA/JavaScriptCore lifecycle, security,
   queue-identity, watchdog, and real-EOF testing lessons — see
   [004-iina-plugin-engineering-lessons.md](004-iina-plugin-engineering-lessons.md).
+- Updated 2026-08-25: telemetry silence must preserve the rolling queue, and
+  every activated playlist item must upload progress immediately and retain
+  item-scoped terminal reporting — see
+  [005-telemetry-liveness-and-item-sync.md](005-telemetry-liveness-and-item-sync.md).
+- Superseded 2026-08-25: native playlist enqueueing does not match the intended
+  product behavior; continuation now replaces the current player content one
+  episode at a time — see
+  [006 — Sequential episode replacement](../006-sequential-episode-replacement/000-plan.md).
