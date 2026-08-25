@@ -68,6 +68,7 @@ function makeHarness() {
         set: (name, value) => {
           if (name === 'keep-open') calls.push(['mpv.set', name, value]);
           if (name === 'fullscreen') core.window.fullscreen = Boolean(value);
+          if (name === 'sid') calls.push(['mpv.set', name, value]);
         },
       },
       playlist: {
@@ -480,6 +481,16 @@ test('transport commands map to the public IINA core APIs', () => {
     sessionID: playCommand().sessionID,
     payload: { id: 7 },
   });
+  send({
+    type: 'player.setFullscreen',
+    sessionID: playCommand().sessionID,
+    payload: { fullscreen: true },
+  });
+  send({
+    type: 'player.disableSubtitles',
+    sessionID: playCommand().sessionID,
+    payload: {},
+  });
   assert.equal(harness.calls.length, 0);
   harness.runTimeouts();
 
@@ -487,6 +498,11 @@ test('transport commands map to the public IINA core APIs', () => {
   assert.equal(harness.calls.some((call) => JSON.stringify(call) === '["seek",15,true]'), true);
   assert.equal(harness.core.audio.volume, 55);
   assert.equal(harness.core.subtitle.id, 7);
+  assert.equal(harness.core.window.fullscreen, true);
+  assert.equal(
+    harness.calls.some((call) => JSON.stringify(call) === '["mpv.set","sid","no"]'),
+    true
+  );
 });
 
 test('position sampling emits sanitized state without the source URL', () => {

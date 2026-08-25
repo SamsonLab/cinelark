@@ -7,6 +7,8 @@ struct RootView: View {
     @Bindable var model: AppModel
     let updater: SPUUpdater
     @ObservedObject var updateMonitor: SparkleUpdateMonitor
+    @Bindable var remote: RemoteCoordinator
+    @State private var showsRemote = false
 
     var body: some View {
         Group {
@@ -59,6 +61,19 @@ struct RootView: View {
             .padding(.horizontal, 24)
             .padding(.bottom, 24)
             .animation(.easeOut(duration: 0.18), value: updateMonitor.availableVersion)
+        }
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    showsRemote = true
+                } label: {
+                    Label("Remote", systemImage: "iphone.and.arrow.forward")
+                }
+                .help("Set up and manage CineLark Remote")
+            }
+        }
+        .sheet(isPresented: $showsRemote) {
+            RemoteSettingsView(remote: remote)
         }
         .preferredColorScheme(.dark)
     }

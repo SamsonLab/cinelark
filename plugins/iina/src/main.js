@@ -456,18 +456,35 @@ function handleCommand(command) {
       break;
     case 'player.setSpeed':
       core.setSpeed(Math.max(0.1, finiteNumber(payload.speed, 1)));
+      emitState(command.id);
       break;
     case 'player.setVolume':
       core.audio.volume = Math.max(0, finiteNumber(payload.volume));
+      emitState(command.id);
       break;
     case 'player.setMuted':
       core.audio.muted = Boolean(payload.muted);
+      emitState(command.id);
+      break;
+    case 'player.setFullscreen':
+      mpv.set('fullscreen', Boolean(payload.fullscreen));
+      emitState(command.id);
       break;
     case 'player.selectAudioTrack':
-      if (Number.isInteger(payload.id)) core.audio.id = payload.id;
+      if (Number.isInteger(payload.id)) {
+        core.audio.id = payload.id;
+        emitTracks();
+      }
       break;
     case 'player.selectSubtitleTrack':
-      if (Number.isInteger(payload.id)) core.subtitle.id = payload.id;
+      if (Number.isInteger(payload.id)) {
+        core.subtitle.id = payload.id;
+        emitTracks();
+      }
+      break;
+    case 'player.disableSubtitles':
+      mpv.set('sid', 'no');
+      emitTracks();
       break;
     case 'player.requestState':
       emitState(command.id);

@@ -122,6 +122,31 @@ struct LibraryView: View {
                 selectedSection.wrappedValue = .search
                 return true
             }
+            shortcuts.setSectionAction(.home) {
+                path.wrappedValue = NavigationPath()
+                selectedSection.wrappedValue = .home
+                return true
+            }
+            shortcuts.setSectionAction(.movies) {
+                path.wrappedValue = NavigationPath()
+                selectedSection.wrappedValue = .movies
+                return true
+            }
+            shortcuts.setSectionAction(.series) {
+                path.wrappedValue = NavigationPath()
+                selectedSection.wrappedValue = .series
+                return true
+            }
+            shortcuts.setSectionAction(.favorites) {
+                path.wrappedValue = NavigationPath()
+                selectedSection.wrappedValue = .favorites
+                return true
+            }
+            shortcuts.setSectionAction(.search) {
+                path.wrappedValue = NavigationPath()
+                selectedSection.wrappedValue = .search
+                return true
+            }
             shortcuts.setFixedAction(.refresh) {
                 guard !model.isLoadingHome else { return false }
                 Task { await model.refreshHome() }
@@ -136,10 +161,20 @@ struct LibraryView: View {
             for number in 1...5 {
                 shortcuts.setFixedAction(.navigation(number), action: nil)
             }
+            for section in CineLarkSection.allCases {
+                shortcuts.setSectionAction(section, action: nil)
+            }
             shortcuts.setFixedAction(.refresh, action: nil)
         }
         .onChange(of: selection) {
             navigationPath = NavigationPath()
+            switch selection ?? .home {
+            case .home: shortcuts.reportSection(.home)
+            case .movies: shortcuts.reportSection(.movies)
+            case .series: shortcuts.reportSection(.series)
+            case .favorites: shortcuts.reportSection(.favorites)
+            case .search: shortcuts.reportSection(.search)
+            }
         }
         .onExitCommand {
             shortcuts.navigateBack()

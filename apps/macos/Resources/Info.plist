@@ -26,6 +26,12 @@
 	<string>Copyright © 2026 SamsonLab</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>CineLark uses your local network to connect to your paired phone remote.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_cinelark._tcp</string>
+	</array>
 	<key>SUFeedURL</key>
 	<string>https://github.com/SamsonLab/cinelark/releases/latest/download/appcast.xml</string>
 	<key>SUPublicEDKey</key>

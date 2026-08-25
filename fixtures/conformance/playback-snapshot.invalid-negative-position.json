@@ -6,6 +6,9 @@
   "speed": 1.0,
   "volume": 75.0,
   "muted": false,
+  "fullscreen": false,
+  "canPlayPrevious": false,
+  "canPlayNext": false,
   "audioTracks": [],
   "subtitleTracks": []
 }

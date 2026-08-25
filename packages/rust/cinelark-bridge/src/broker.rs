@@ -346,8 +346,10 @@ fn is_command_type(value: &str) -> bool {
             | "player.setSpeed"
             | "player.setVolume"
             | "player.setMuted"
+            | "player.setFullscreen"
             | "player.selectAudioTrack"
             | "player.selectSubtitleTrack"
+            | "player.disableSubtitles"
             | "player.requestState"
     )
 }

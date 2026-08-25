@@ -13,7 +13,27 @@ final class PlaybackCoordinator {
     )
 
     var onStoppedReported: (@MainActor @Sendable () async -> Void)?
+    var onRemoteStateChanged: (@MainActor @Sendable () -> Void)?
     private(set) var playbackStateRevision = 0
+    private(set) var remotePlaybackRevision: UInt64 = 0
+
+    struct RemoteSnapshot: Equatable {
+        let playbackID: UUID
+        let state: PlaybackSnapshot.State
+        let title: String
+        let positionSeconds: Double
+        let durationSeconds: Double
+        let speed: Double
+        let volume: Double
+        let muted: Bool
+        let fullscreen: Bool
+        let canPlayPrevious: Bool
+        let canPlayNext: Bool
+        let audioTracks: [BridgeTrack]
+        let subtitleTracks: [BridgeTrack]
+    }
+
+    private(set) var remoteSnapshot: RemoteSnapshot?
 
     struct RecentPlayback: Equatable {
         let item: PlayableItem
@@ -73,6 +93,7 @@ final class PlaybackCoordinator {
     @ObservationIgnored private var activePlayback: ActivePlayback?
     @ObservationIgnored private var playbackSessionID: UUID?
     @ObservationIgnored private var playbackSeriesID: String?
+    @ObservationIgnored private var previousEpisodes: [EpisodeQueueCandidate] = []
     @ObservationIgnored private var pendingEpisodes: [EpisodeQueueCandidate] = []
     @ObservationIgnored private var lastEndedPlaybackID: UUID?
     @ObservationIgnored private var eventTask: Task<Void, Never>?
@@ -138,6 +159,7 @@ final class PlaybackCoordinator {
         startPositionSeconds: Double = 0,
         seriesID: String? = nil
     ) async throws {
+        try await launcher.prepare()
         if playbackSessionID != nil || activePlayback != nil {
             await stop()
         }
@@ -158,7 +180,25 @@ final class PlaybackCoordinator {
         )
         playbackSessionID = descriptor.id
         playbackSeriesID = seriesID
+        previousEpisodes = []
+        pendingEpisodes = []
         lastEndedPlaybackID = nil
+        remoteSnapshot = RemoteSnapshot(
+            playbackID: descriptor.id,
+            state: .paused,
+            title: title,
+            positionSeconds: descriptor.startPositionSeconds,
+            durationSeconds: asset.durationSeconds ?? 0,
+            speed: 1,
+            volume: 0,
+            muted: false,
+            fullscreen: descriptor.startsInFullscreen,
+            canPlayPrevious: false,
+            canPlayNext: false,
+            audioTracks: [],
+            subtitleTracks: []
+        )
+        publishRemoteState()
         Self.logger.info(
             "Opening playback session=\(descriptor.id.uuidString, privacy: .public) continuation=\(seriesID != nil)"
         )
@@ -166,6 +206,8 @@ final class PlaybackCoordinator {
             try await launcher.open(descriptor)
         } catch {
             activePlayback = nil
+            remoteSnapshot = nil
+            publishRemoteState()
             clearContinuationState()
             throw error
         }
@@ -185,6 +227,33 @@ final class PlaybackCoordinator {
         try await launcher.send(command, sessionID: sessionID)
     }
 
+    func playNextEpisode() async throws {
+        await queueDiscoveryTask?.value
+        guard let sessionID = playbackSessionID,
+              let activePlayback,
+              pendingEpisodes.first != nil else {
+            throw ProviderError.notFound
+        }
+        previousEpisodes.append(candidate(from: activePlayback))
+        await finalizeActivePlayback()
+        await replaceWithNextEpisode(afterSessionID: sessionID)
+    }
+
+    func playPreviousEpisode() async throws {
+        await queueDiscoveryTask?.value
+        guard let sessionID = playbackSessionID,
+              let activePlayback,
+              let candidate = previousEpisodes.popLast() else {
+            throw ProviderError.notFound
+        }
+        pendingEpisodes.insert(self.candidate(from: activePlayback), at: 0)
+        await finalizeActivePlayback()
+        guard await replaceEpisode(candidate, afterSessionID: sessionID) else {
+            throw PlaybackLaunchError.launchFailed
+        }
+        updateRemoteEpisodeAvailability()
+    }
+
     func stop() async {
         queueDiscoveryTask?.cancel()
         if let sessionID = playbackSessionID {
@@ -202,12 +271,46 @@ final class PlaybackCoordinator {
             guard activePlayback?.playbackID == playbackID else { return }
             activePlayback?.positionSeconds = max(positionSeconds, 0)
             activePlayback?.durationSeconds = max(durationSeconds, 0)
+            updateRemoteSnapshot(playbackID: playbackID) { snapshot in
+                snapshot = RemoteSnapshot(
+                    playbackID: snapshot.playbackID,
+                    state: snapshot.state,
+                    title: snapshot.title,
+                    positionSeconds: max(positionSeconds, 0),
+                    durationSeconds: max(durationSeconds, 0),
+                    speed: snapshot.speed,
+                    volume: snapshot.volume,
+                    muted: snapshot.muted,
+                    fullscreen: snapshot.fullscreen,
+                    canPlayPrevious: snapshot.canPlayPrevious,
+                    canPlayNext: snapshot.canPlayNext,
+                    audioTracks: snapshot.audioTracks,
+                    subtitleTracks: snapshot.subtitleTracks
+                )
+            }
             resetEventWatchdog(for: playbackID)
             scheduleProgressReport(for: playbackID)
         case .stateChanged(let playbackID, let snapshot):
             guard activePlayback?.playbackID == playbackID else { return }
             if snapshot.durationSeconds > 0 {
                 activePlayback?.durationSeconds = snapshot.durationSeconds
+            }
+            updateRemoteSnapshot(playbackID: playbackID) { current in
+                current = RemoteSnapshot(
+                    playbackID: current.playbackID,
+                    state: snapshot.state,
+                    title: current.title,
+                    positionSeconds: snapshot.positionSeconds,
+                    durationSeconds: snapshot.durationSeconds,
+                    speed: snapshot.speed,
+                    volume: snapshot.volume,
+                    muted: snapshot.muted,
+                    fullscreen: snapshot.fullscreen,
+                    canPlayPrevious: current.canPlayPrevious,
+                    canPlayNext: current.canPlayNext,
+                    audioTracks: current.audioTracks,
+                    subtitleTracks: current.subtitleTracks
+                )
             }
             resetEventWatchdog(for: playbackID)
             // mpv transitions through an idle/stopped snapshot immediately before
@@ -223,9 +326,13 @@ final class PlaybackCoordinator {
             Self.logger.info(
                 "Received terminal event playback=\(playbackID.uuidString, privacy: .public) reason=\(reason, privacy: .public) pendingEpisodes=\(self.pendingEpisodes.count)"
             )
+            let completedEpisode = activePlayback.map(candidate(from:))
             lastEndedPlaybackID = playbackID
             await finalizeActivePlayback(completed: reason == "eof")
             if reason == "eof" {
+                if let completedEpisode, playbackSeriesID != nil {
+                    previousEpisodes.append(completedEpisode)
+                }
                 Self.logger.info("Natural EOF confirmed; resolving replacement episode")
                 await replaceWithNextEpisode(afterSessionID: playbackID)
             } else {
@@ -252,10 +359,44 @@ final class PlaybackCoordinator {
                 "Playback file loaded session=\(playbackID.uuidString, privacy: .public)"
             )
             activePlayback?.positionSeconds = max(resumedAtSeconds, 0)
+            updateRemoteSnapshot(playbackID: playbackID) { snapshot in
+                snapshot = RemoteSnapshot(
+                    playbackID: snapshot.playbackID,
+                    state: .playing,
+                    title: snapshot.title,
+                    positionSeconds: max(resumedAtSeconds, 0),
+                    durationSeconds: snapshot.durationSeconds,
+                    speed: snapshot.speed,
+                    volume: snapshot.volume,
+                    muted: snapshot.muted,
+                    fullscreen: snapshot.fullscreen,
+                    canPlayPrevious: snapshot.canPlayPrevious,
+                    canPlayNext: snapshot.canPlayNext,
+                    audioTracks: snapshot.audioTracks,
+                    subtitleTracks: snapshot.subtitleTracks
+                )
+            }
             resetEventWatchdog(for: playbackID)
             await uploadProgress(for: playbackID)
+        case .tracksChanged(let playbackID, let audio, let subtitles, _):
+            updateRemoteSnapshot(playbackID: playbackID) { snapshot in
+                snapshot = RemoteSnapshot(
+                    playbackID: snapshot.playbackID,
+                    state: snapshot.state,
+                    title: snapshot.title,
+                    positionSeconds: snapshot.positionSeconds,
+                    durationSeconds: snapshot.durationSeconds,
+                    speed: snapshot.speed,
+                    volume: snapshot.volume,
+                    muted: snapshot.muted,
+                    fullscreen: snapshot.fullscreen,
+                    canPlayPrevious: snapshot.canPlayPrevious,
+                    canPlayNext: snapshot.canPlayNext,
+                    audioTracks: audio,
+                    subtitleTracks: subtitles
+                )
+            }
         case .bridgeReady,
-             .tracksChanged,
              .bridgeError:
             break
         }
@@ -323,6 +464,8 @@ final class PlaybackCoordinator {
             playback.positionSeconds = playback.durationSeconds
         }
         activePlayback = nil
+        remoteSnapshot = nil
+        publishRemoteState()
         recentPlayback = RecentPlayback(
             item: playback.item,
             seriesID: playback.seriesID,
@@ -365,13 +508,20 @@ final class PlaybackCoordinator {
         queueDiscoveryTask = Task { @MainActor [weak self] in
             guard let self else { return }
             do {
-                let episodes = try await remainingEpisodes(
-                    seriesID: seriesID,
-                    afterEpisodeID: afterEpisodeID
-                )
+                let episodes = try await episodeSequence(seriesID: seriesID)
                 guard !Task.isCancelled, playbackSessionID == sessionID else { return }
-                pendingEpisodes = episodes
-                Self.logger.info("Prepared sequential continuation with \(episodes.count) remaining items")
+                guard let currentIndex = episodes.firstIndex(where: {
+                    $0.item.id == afterEpisodeID
+                }) else {
+                    previousEpisodes = []
+                    pendingEpisodes = []
+                    updateRemoteEpisodeAvailability()
+                    return
+                }
+                previousEpisodes = Array(episodes[..<currentIndex])
+                pendingEpisodes = Array(episodes.dropFirst(currentIndex + 1))
+                updateRemoteEpisodeAvailability()
+                Self.logger.info("Prepared sequential continuation with \(self.pendingEpisodes.count) remaining items")
             } catch is CancellationError {
                 return
             } catch {
@@ -382,10 +532,7 @@ final class PlaybackCoordinator {
         }
     }
 
-    private func remainingEpisodes(
-        seriesID: String,
-        afterEpisodeID: String
-    ) async throws -> [EpisodeQueueCandidate] {
+    private func episodeSequence(seriesID: String) async throws -> [EpisodeQueueCandidate] {
         let seasons = try await provider.seasons(seriesID: seriesID)
             .sorted { lhs, rhs in
                 if lhs.number != rhs.number { return lhs.number < rhs.number }
@@ -411,10 +558,7 @@ final class PlaybackCoordinator {
                 pageNumber += 1
             }
         }
-        guard let currentIndex = episodes.firstIndex(where: { $0.id == afterEpisodeID }) else {
-            return []
-        }
-        return episodes.suffix(from: episodes.index(after: currentIndex)).map { episode in
+        return episodes.map { episode in
             EpisodeQueueCandidate(
                 item: PlayableItem(id: episode.id, kind: .episode),
                 title: episode.title,
@@ -446,32 +590,36 @@ final class PlaybackCoordinator {
             }
             return
         }
-        do {
+        if await replaceEpisode(candidate, afterSessionID: sessionID) {
+            pendingEpisodes.removeFirst()
+            updateRemoteEpisodeAvailability()
             Self.logger.info(
-                "Resolving next episode asset; remainingCandidates=\(self.pendingEpisodes.count)"
+                "Advanced sequential playback; remainingCandidates=\(self.pendingEpisodes.count)"
             )
+        }
+    }
+
+    private func replaceEpisode(
+        _ candidate: EpisodeQueueCandidate,
+        afterSessionID sessionID: UUID
+    ) async -> Bool {
+        do {
+            Self.logger.info("Resolving replacement episode asset")
             guard let asset = try await provider.assets(for: candidate.item).first else {
                 throw ProviderError.notFound
             }
             let url = try await provider.playbackURL(for: asset)
             guard !Task.isCancelled,
                   playbackSessionID == sessionID,
-                  activePlayback == nil else { return }
+                  activePlayback == nil else { return false }
             do {
-                // Match a second manual in-app play exactly: stop the outgoing
-                // session before posting player.play to the same managed IINA player.
                 try await launcher.send(.stop, sessionID: sessionID)
-                Self.logger.info(
-                    "Stopped outgoing session before automatic replacement"
-                )
             } catch {
-                Self.logger.notice(
-                    "Outgoing session stop was unavailable; attempting same-player replacement"
-                )
+                Self.logger.notice("Outgoing session stop was unavailable before replacement")
             }
             guard !Task.isCancelled,
                   playbackSessionID == sessionID,
-                  activePlayback == nil else { return }
+                  activePlayback == nil else { return false }
             let descriptor = PlaybackDescriptor(
                 url: url,
                 title: candidate.title,
@@ -488,25 +636,39 @@ final class PlaybackCoordinator {
             )
             playbackSessionID = descriptor.id
             lastEndedPlaybackID = nil
+            remoteSnapshot = RemoteSnapshot(
+                playbackID: descriptor.id,
+                state: .paused,
+                title: candidate.title,
+                positionSeconds: descriptor.startPositionSeconds,
+                durationSeconds: asset.durationSeconds ?? candidate.durationSeconds,
+                speed: 1,
+                volume: 0,
+                muted: false,
+                fullscreen: descriptor.startsInFullscreen,
+                canPlayPrevious: !previousEpisodes.isEmpty,
+                canPlayNext: !pendingEpisodes.isEmpty,
+                audioTracks: [],
+                subtitleTracks: []
+            )
+            publishRemoteState()
             do {
-                // Match manual episode selection: the global plugin reuses the
-                // managed IINA window and player.play replaces content via core.open.
                 try await launcher.open(descriptor)
             } catch {
                 activePlayback = nil
+                remoteSnapshot = nil
+                publishRemoteState()
                 clearContinuationState()
                 throw error
             }
-            pendingEpisodes.removeFirst()
-            Self.logger.info(
-                "Replaced player content session=\(descriptor.id.uuidString, privacy: .public) remainingCandidates=\(self.pendingEpisodes.count)"
-            )
+            return true
         } catch is CancellationError {
-            return
+            return false
         } catch {
             Self.logger.error(
-                "Sequential episode replacement failed with \(String(reflecting: type(of: error)), privacy: .public)"
+                "Episode replacement failed with \(String(reflecting: type(of: error)), privacy: .public)"
             )
+            return false
         }
     }
 
@@ -515,8 +677,55 @@ final class PlaybackCoordinator {
         queueDiscoveryTask = nil
         playbackSessionID = nil
         playbackSeriesID = nil
+        previousEpisodes = []
         pendingEpisodes = []
         lastEndedPlaybackID = nil
+    }
+
+    private func updateRemoteSnapshot(
+        playbackID: UUID,
+        _ update: (inout RemoteSnapshot) -> Void
+    ) {
+        guard var snapshot = remoteSnapshot,
+              snapshot.playbackID == playbackID else { return }
+        update(&snapshot)
+        remoteSnapshot = snapshot
+        publishRemoteState()
+    }
+
+    private func publishRemoteState() {
+        remotePlaybackRevision &+= 1
+        onRemoteStateChanged?()
+    }
+
+    private func candidate(from playback: ActivePlayback) -> EpisodeQueueCandidate {
+        EpisodeQueueCandidate(
+            item: playback.item,
+            title: playback.title,
+            startPositionSeconds: playback.positionSeconds,
+            durationSeconds: playback.durationSeconds
+        )
+    }
+
+    private func updateRemoteEpisodeAvailability() {
+        guard let playbackID = activePlayback?.playbackID else { return }
+        updateRemoteSnapshot(playbackID: playbackID) { snapshot in
+            snapshot = RemoteSnapshot(
+                playbackID: snapshot.playbackID,
+                state: snapshot.state,
+                title: snapshot.title,
+                positionSeconds: snapshot.positionSeconds,
+                durationSeconds: snapshot.durationSeconds,
+                speed: snapshot.speed,
+                volume: snapshot.volume,
+                muted: snapshot.muted,
+                fullscreen: snapshot.fullscreen,
+                canPlayPrevious: !previousEpisodes.isEmpty,
+                canPlayNext: !pendingEpisodes.isEmpty,
+                audioTracks: snapshot.audioTracks,
+                subtitleTracks: snapshot.subtitleTracks
+            )
+        }
     }
 }
 

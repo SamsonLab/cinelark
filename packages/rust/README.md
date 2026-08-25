@@ -1,5 +1,12 @@
 # Rust Packages
 
+- `cinelark-bridge/` is the loopback-only IINA command/event broker.
+- `cinelark-remote-gateway/` is the LAN TLS/WebSocket transport supervised by
+  the Mac Remote coordinator.
+
+The helpers are separate executables, secrets, ports, and failure domains. Both
+use private framed stdio with the Mac and contain no provider authority.
+
 ## `cinelark-bridge`
 
 A self-contained broker bundled and signed inside CineLark.app. It:

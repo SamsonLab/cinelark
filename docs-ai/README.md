@@ -44,3 +44,5 @@ writing, amendment, and verification rules.
 | 004 | [Sparkle updates](004-sparkle-updates/000-plan.md) | 2026-08-24 | Signed native updates with a conditional sidebar availability prompt |
 | 005 | [Native episode playlist](005-native-episode-playlist/000-plan.md) | 2026-08-24 | Superseded rolling IINA/mpv playlist design and implementation lessons |
 | 006 | [Sequential episode replacement](006-sequential-episode-replacement/000-plan.md) | 2026-08-25 | Single-content player that replaces the current episode at natural EOF |
+| 007 | [Couch Remote](007-couch-remote/000-plan.md) | 2026-08-25 | Secure Flutter Remote, Mac semantic control surfaces, and Rust transport integration |
+| 008 | [Safe IINA plugin lifecycle](008-safe-iina-plugin-lifecycle/000-plan.md) | 2026-08-25 | Restart-safe first installation, update, and repair of the managed IINA plugin |

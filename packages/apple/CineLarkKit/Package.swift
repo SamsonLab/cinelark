@@ -11,7 +11,8 @@ let package = Package(
         .library(name: "CineLarkDomain", targets: ["CineLarkDomain"]),
         .library(name: "CineLarkUHDNow", targets: ["CineLarkUHDNow"]),
         .library(name: "CineLarkPersistence", targets: ["CineLarkPersistence"]),
-        .library(name: "CineLarkPlayback", targets: ["CineLarkPlayback"])
+        .library(name: "CineLarkPlayback", targets: ["CineLarkPlayback"]),
+        .library(name: "CineLarkRemote", targets: ["CineLarkRemote"])
     ],
     targets: [
         .target(name: "CineLarkDomain"),
@@ -27,6 +28,7 @@ let package = Package(
             name: "CineLarkPlayback",
             dependencies: ["CineLarkDomain"]
         ),
+        .target(name: "CineLarkRemote"),
         .testTarget(
             name: "CineLarkUHDNowTests",
             dependencies: ["CineLarkDomain", "CineLarkUHDNow"]
@@ -38,6 +40,10 @@ let package = Package(
         .testTarget(
             name: "CineLarkPlaybackTests",
             dependencies: ["CineLarkDomain", "CineLarkPlayback"]
+        ),
+        .testTarget(
+            name: "CineLarkRemoteTests",
+            dependencies: ["CineLarkRemote"]
         )
     ]
 )

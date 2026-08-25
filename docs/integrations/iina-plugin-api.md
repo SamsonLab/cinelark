@@ -310,10 +310,14 @@ main run loop through its `setTimeout`/`Timer` polyfill.
 Stock IINA 1.4.4 does not safely invalidate that polyfill's pending timers when
 it hot-reloads a global plugin instance. A callback retained by the replaced
 JavaScript context can later call an API whose weak `pluginInstance` is already
-nil, causing a process-level trap in `JavascriptAPIHttp.request`. CineLark must
-therefore treat plugin installation or update as a restart boundary: fully quit
-and reopen IINA before attempting playback. This limitation is independent of
-the managed-player playlist and does not apply to a cleanly launched instance.
+nil, causing a process-level trap in `JavascriptAPIHttp.request`. CineLark never
+updates or repairs its plugin while IINA is running. First installation still
+uses IINA's permission-consent UI and the original playback waits for the new
+plugin to connect. Later updates and repairs atomically replace a validated
+plugin directory only while IINA is stopped, then launch a clean process. If
+IINA is already running, CineLark asks the user to quit it and retry without
+mutating the installation. This limitation is independent of the managed-player
+playlist and does not apply to a cleanly launched instance.
 
 ### Runtime diagnostics
 

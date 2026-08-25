@@ -27,6 +27,7 @@ Documents use the following status labels:
 | [ADR-0005](decisions/0005-homebrew-distribution.md) | Accepted, signing superseded | Project Homebrew tap and quarantine-aware distribution |
 | [ADR-0006](decisions/0006-sparkle-updates.md) | Accepted | Signed Sparkle feeds and native in-app updates |
 | [ADR-0007](decisions/0007-local-automatic-release-signing.md) | Accepted | Local Xcode Automatic Signing, export verification, and publication boundary |
+| [ADR-0008](decisions/0008-rust-remote-transport.md) | Accepted | Rust Remote TLS/WebSocket transport with Mac-owned authorization |
 
 ## Interfaces
 
@@ -35,10 +36,10 @@ Documents use the following status labels:
 | [Media library provider](interfaces/media-library-provider.md) | Draft | Provider-neutral domain boundary |
 | [Metadata cache](interfaces/metadata-cache.md) | Accepted implementation | Durable metadata and artwork-cache boundaries |
 | [Playback bridge](interfaces/playback-bridge.md) | Draft, Phase 0 implemented | Mac app ↔ IINA protocol |
-| [Remote protocol](interfaces/remote-protocol.md) | Draft | Flutter Remote ↔ Mac app protocol |
+| [Remote protocol](interfaces/remote-protocol.md) | Implemented v1 | Flutter Remote ↔ Rust gateway ↔ Mac protocol |
 | [`specs/common/playback.schema.json`](../specs/common/playback.schema.json) | Draft | Cross-language playback state types |
 | [`specs/bridge/envelope.schema.json`](../specs/bridge/envelope.schema.json) | Draft | Bridge message envelope schema |
-| [`specs/remote/envelope.schema.json`](../specs/remote/envelope.schema.json) | Draft | Remote message envelope schema |
+| [`specs/remote/envelope.schema.json`](../specs/remote/envelope.schema.json) | Version 1 | Remote message envelope schema |
 
 ## Integrations
 

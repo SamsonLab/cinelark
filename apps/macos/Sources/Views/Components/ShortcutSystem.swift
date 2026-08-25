@@ -56,6 +56,14 @@ enum CineLarkFocusDirection: Equatable {
     case down
 }
 
+enum CineLarkSection: String, CaseIterable {
+    case home
+    case movies
+    case series
+    case favorites
+    case search
+}
+
 enum CineLarkInputModality: Equatable {
     case pointer
     case keyboard
@@ -66,6 +74,8 @@ enum CineLarkInputModality: Equatable {
 final class ShortcutCoordinator {
     private(set) var showsHints = false
     private(set) var inputModality: CineLarkInputModality = .pointer
+    private(set) var currentSection: CineLarkSection = .home
+    var onSectionChanged: (@MainActor @Sendable () -> Void)?
 
     var usesKeyboardNavigation: Bool {
         inputModality == .keyboard
@@ -88,6 +98,7 @@ final class ShortcutCoordinator {
     @ObservationIgnored private var nextRegistrationOrder: UInt64 = 0
     @ObservationIgnored private var backAction: (() -> Bool)?
     @ObservationIgnored private var fixedActions: [UInt16: () -> Bool] = [:]
+    @ObservationIgnored private var sectionActions: [CineLarkSection: () -> Bool] = [:]
     @ObservationIgnored private var openMediaAction: ((MediaSummary) -> Bool)?
     @ObservationIgnored private var openCollectionAction: ((MediaCollection) -> Bool)?
     @ObservationIgnored private var openPersonAction: ((PersonCredit) -> Bool)?
@@ -175,6 +186,10 @@ final class ShortcutCoordinator {
         )
     }
 
+    func setSectionAction(_ section: CineLarkSection, action: (() -> Bool)?) {
+        sectionActions[section] = action
+    }
+
     func removeNavigationSurface(owner: UUID) {
         navigationSurfaces.removeValue(forKey: owner)
     }
@@ -209,6 +224,55 @@ final class ShortcutCoordinator {
     @discardableResult
     func navigateBack() -> Bool {
         backAction?() == true
+    }
+
+    @discardableResult
+    func moveFocus(_ direction: CineLarkFocusDirection) -> Bool {
+        guard !isEditingText else { return false }
+        let surface = activeNavigationSurface
+        if hasPresentedModal, surface?.handlesPresentedModal != true { return false }
+        handoffSelectionIfNeeded(to: surface)
+        guard surface?.move(direction) == true else { return false }
+        setInputModality(.keyboard)
+        return true
+    }
+
+    @discardableResult
+    func activateFocusedItem() -> Bool {
+        guard !isEditingText else { return false }
+        let surface = activeNavigationSurface
+        if hasPresentedModal, surface?.handlesPresentedModal != true { return false }
+        handoffSelectionIfNeeded(to: surface)
+        guard surface?.activate() == true else { return false }
+        setInputModality(.keyboard)
+        return true
+    }
+
+    @discardableResult
+    func navigateBackSemantically() -> Bool {
+        guard !isEditingText else { return false }
+        let surface = activeNavigationSurface
+        if surface?.navigateBack?() == true {
+            setInputModality(.keyboard)
+            return true
+        }
+        guard !hasPresentedModal, navigateBack() else { return false }
+        setInputModality(.keyboard)
+        return true
+    }
+
+    @discardableResult
+    func openSection(_ section: CineLarkSection) -> Bool {
+        guard !hasPresentedModal, sectionActions[section]?() == true else { return false }
+        reportSection(section)
+        setInputModality(.keyboard)
+        return true
+    }
+
+    func reportSection(_ section: CineLarkSection) {
+        guard currentSection != section else { return }
+        currentSection = section
+        onSectionChanged?()
     }
 
     private func activatePointerInput() {
@@ -246,32 +310,17 @@ final class ShortcutCoordinator {
                 return false
             }
             if let direction = focusDirection(for: keyCode) {
-                handoffSelectionIfNeeded(to: navigationSurface)
-                if navigationSurface?.move(direction) == true {
-                    setInputModality(.keyboard)
-                    return true
-                }
+                return moveFocus(direction)
             }
             if isConfirmationKey(keyCode: keyCode, characters: characters) {
-                handoffSelectionIfNeeded(to: navigationSurface)
-                if navigationSurface?.activate() == true {
-                    setInputModality(.keyboard)
-                    return true
-                }
+                return activateFocusedItem()
             }
             if isBackKey(
                 keyCode: keyCode,
                 characters: characters,
                 commandPressed: commandPressed
             ) {
-                if navigationSurface?.navigateBack?() == true {
-                    setInputModality(.keyboard)
-                    return true
-                }
-                guard !hasPresentedModal else { return false }
-                guard navigateBack() else { return false }
-                setInputModality(.keyboard)
-                return true
+                return navigateBackSemantically()
             }
             return false
         case .swipe:

@@ -9,8 +9,8 @@ an optional thin bridge plugin.
 ## Product family
 
 - **CineLark** — a native Swift/SwiftUI macOS client and system coordinator.
-- **CineLark Remote** — a future Flutter companion for iOS and Android; the Mac
-  app remains fully usable without it.
+- **CineLark Remote** — a focused Flutter couch controller for iOS and Android;
+  the Mac app remains fully usable without it.
 - **CineLark IINA Bridge** — a provider-neutral IINA plugin for playback control
   and telemetry.
 
@@ -21,7 +21,10 @@ atomically.
 
 ```text
 Flutter Remote (iOS / Android)
-             │ paired TLS protocol
+             │ pinned WSS on LAN
+             ▼
+    Rust Remote Gateway
+             │ private child stdio
              ▼
       CineLark for Mac ◀──▶ Media Provider (UHDNow first)
    Swift · SwiftUI · AppKit
@@ -41,9 +44,9 @@ The bridge never receives provider account credentials.
 
 ```text
 apps/macos/       native Swift/SwiftUI macOS app
-apps/remote/      future Flutter app for iOS and Android
+apps/remote/      Flutter couch Remote for iOS and Android
 packages/apple/   local Swift package and provider/bridge targets
-packages/rust/    bundled, runtime-free bridge helper
+packages/rust/    bundled, runtime-free bridge and Remote helpers
 plugins/iina/     thin IINA JavaScript adapter
 specs/            cross-language contracts and external API observations
 shared/           generated-code policy, design tokens, and brand assets
@@ -76,6 +79,7 @@ installation. The IINA plugin is installed explicitly on first playback.
 ```sh
 open apps/macos/CineLark.xcodeproj
 swift test --package-path packages/apple/CineLarkKit
+cd apps/remote && flutter test
 ```
 
 See [`apps/macos/README.md`](apps/macos/README.md) for implemented capabilities

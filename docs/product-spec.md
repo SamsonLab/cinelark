@@ -17,8 +17,8 @@ predictable directional navigation and provider-neutral domain boundaries.
    series, seasons, episodes, people, favorites, and continue-watching state.
 3. Start or resume the selected media version in IINA with minimal friction.
 4. Keep playback progress synchronized with the active provider.
-5. Preserve a clean path to additional providers and a cross-platform mobile
-   Remote.
+5. Provide a focused cross-platform mobile Remote that can operate the full
+   couch workflow without duplicating provider or playback ownership.
 6. Work fully without CineLark Remote; the companion is an enhancement, not
    an activation or control dependency.
 
@@ -61,10 +61,13 @@ It must not authenticate to UHDNow or know provider-specific item models.
 
 ### 4.3 CineLark Remote
 
-A future Flutter companion for iOS and Android that talks to the Mac app, never
-directly to a media provider or IINA plugin. Initial capabilities are
-navigation, play/pause, seek, volume, and now-playing state. The mobile client
-consumes versioned shared contracts rather than Swift implementation modules.
+A Flutter companion for iOS and Android that talks to the Mac app through a
+pinned local-network session, never directly to a media provider or IINA plugin.
+Its focused scope covers QR pairing, secure remote login, sidebar/directional
+navigation, search text entry, and contextual IINA controls including transport,
+seek, rate, fullscreen, episode navigation, volume, and audio/subtitle tracks.
+The mobile client consumes versioned shared contracts rather than Swift
+implementation modules.
 
 ## 5. Experience principles
 
@@ -118,7 +121,7 @@ follow without changing the architecture.
 | Sync | Periodic progress and terminal stopped reporting | P0 |
 | Favorites | Read, add, and remove movie/TV favorites | P1 |
 | People | Person detail, credits, and person favorites | P1 |
-| Remote | Flutter-based iOS/Android navigation and transport controls | P1 |
+| Remote | QR pairing, remote login, navigation, search text entry, and complete contextual IINA controls on iOS/Android | P1 |
 
 ## 7. Reliability and performance requirements
 
@@ -157,7 +160,9 @@ A build is MVP-complete when a fresh install can:
 8. Recover gracefully when the provider, IINA, or bridge is unavailable.
 9. Pass a repository secret scan with only synthetic fixtures present.
 
-The cross-platform Remote is explicitly not part of MVP completion.
+The cross-platform Remote is explicitly not part of the Mac MVP completion, but
+is the next focused product milestone. A standalone mobile library client, local
+mobile playback, and casting remain outside this Remote milestone.
 
 ## 10. Open product decisions
 
@@ -165,4 +170,4 @@ The cross-platform Remote is explicitly not part of MVP completion.
 - Resume-start and watched-completion thresholds
 - Default asset selection policy when multiple versions exist
 - Distribution/signing strategy for app and plugin
-- Exact Remote scope and discovery mechanism
+- Bonjour-based endpoint recovery and lock-screen Remote controls

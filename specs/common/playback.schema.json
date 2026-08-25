@@ -12,6 +12,9 @@
     "speed",
     "volume",
     "muted",
+    "fullscreen",
+    "canPlayPrevious",
+    "canPlayNext",
     "audioTracks",
     "subtitleTracks"
   ],
@@ -49,6 +52,15 @@
       "minimum": 0
     },
     "muted": {
+      "type": "boolean"
+    },
+    "fullscreen": {
+      "type": "boolean"
+    },
+    "canPlayPrevious": {
+      "type": "boolean"
+    },
+    "canPlayNext": {
       "type": "boolean"
     },
     "audioTracks": {

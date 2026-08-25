@@ -19,6 +19,18 @@
       "valid": true
     },
     {
+      "name": "valid Remote client message",
+      "schema": "specs/remote/client-message.schema.json",
+      "fixture": "fixtures/conformance/remote-client-message.valid.json",
+      "valid": true
+    },
+    {
+      "name": "playback command without playback scope",
+      "schema": "specs/remote/client-message.schema.json",
+      "fixture": "fixtures/conformance/remote-client-message.invalid-unscoped-playback.json",
+      "valid": false
+    },
+    {
       "name": "valid IINA bridge envelope",
       "schema": "specs/bridge/envelope.schema.json",
       "fixture": "fixtures/conformance/bridge-envelope.valid.json",

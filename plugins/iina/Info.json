@@ -1,7 +1,7 @@
 {
   "name": "CineLark Bridge",
   "identifier": "com.samsonlab.cinelark.iina",
-  "version": "0.1.15",
+  "version": "0.1.16",
   "description": "Provider-neutral playback bridge between CineLark and IINA.",
   "author": {
     "name": "SamsonLab",

@@ -7,7 +7,9 @@ The initial Apple implementation uses one local Swift package at
 - `CineLarkApplication` — use cases and coordination state machines.
 - `CineLarkUHDNow` — UHDNow API adapter and DTOs.
 - `CineLarkBridgeClient` — child-process client for the Rust bridge helper.
-- `CineLarkRemoteGateway` — native Remote server and pairing coordinator.
+- `CineLarkRemote` — typed child-process protocol, Keychain-backed Remote
+  identity/device records, and Remote gateway supervision primitives. The Mac
+  app owns semantic command dispatch and sanitized snapshots.
 - `CineLarkPersistence` — Keychain and non-secret cache abstractions.
 - `CineLarkDesignSystem` — reusable native presentation primitives.
 - `CineLarkTestSupport` — synthetic factories and shared test utilities.
@@ -16,6 +18,6 @@ Dependencies point inward: adapters depend on domain contracts; domain code does
 not import provider, UI, Flutter, or IINA types. Cross-language sharing belongs
 under `specs/` and `shared/`, not this directory.
 
-The bundled Rust broker will live at `rust/cinelark-bridge/`. It is compiled
-into a self-contained universal helper inside the Mac app; users do not install
-a Rust toolchain or runtime.
+Bundled Rust helpers live at `rust/cinelark-bridge/` and
+`rust/cinelark-remote-gateway/`. They are compiled into self-contained universal
+executables inside the Mac app; users do not install a Rust toolchain or runtime.

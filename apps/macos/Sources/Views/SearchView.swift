@@ -4,6 +4,7 @@ import CineLarkDomain
 struct SearchView: View {
     @Environment(\.appLanguage) private var language
     @Environment(ShortcutCoordinator.self) private var shortcuts
+    @Environment(RemoteTextInputCoordinator.self) private var remoteTextInput
     @Bindable var model: AppModel
     @State private var query = ""
     @State private var keyboardOwner = UUID()
@@ -71,6 +72,10 @@ struct SearchView: View {
         .onDisappear {
             shortcuts.removeNavigationSurface(owner: keyboardOwner)
             shortcuts.setFixedAction(.focusSearch, action: nil)
+            remoteTextInput.close(owner: keyboardOwner)
+        }
+        .onChange(of: query) {
+            remoteTextInput.localTextChanged(query, owner: keyboardOwner)
         }
         .task(id: query) {
             do {
@@ -106,6 +111,7 @@ struct SearchView: View {
 
     private func registerKeyboardNavigation() {
         let searchFocus = $isSearchFocused
+        let searchQuery = $query
         shortcuts.setFixedAction(.focusSearch) {
             searchFocus.wrappedValue = true
             return true
@@ -119,6 +125,23 @@ struct SearchView: View {
             activate: {
                 searchFocus.wrappedValue = true
                 return true
+            }
+        )
+        remoteTextInput.open(
+            owner: keyboardOwner,
+            kind: "search",
+            text: query,
+            update: { text in
+                searchQuery.wrappedValue = text
+                searchFocus.wrappedValue = true
+            },
+            commit: {
+                searchFocus.wrappedValue = false
+                Task { await model.search(searchQuery.wrappedValue) }
+            },
+            cancel: {
+                searchQuery.wrappedValue = ""
+                searchFocus.wrappedValue = false
             }
         )
     }

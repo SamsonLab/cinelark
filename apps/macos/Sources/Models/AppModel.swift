@@ -38,6 +38,7 @@ final class AppModel {
     }
 
     private(set) var phase: Phase = .launching
+    var onRemoteStateChanged: (@MainActor @Sendable () -> Void)?
     private(set) var hotItems: [MediaSummary] = []
     private(set) var continueWatching: [ContinueWatchingItem] = []
     private(set) var collections: [MediaCollection] = []
@@ -75,9 +76,11 @@ final class AppModel {
                 phase = .signedIn
                 await refreshHome()
             }
+            onRemoteStateChanged?()
         } catch {
             phase = .signedOut
             present(error)
+            onRemoteStateChanged?()
         }
     }
 
@@ -97,6 +100,7 @@ final class AppModel {
             phase = .signedOut
             present(error)
         }
+        onRemoteStateChanged?()
     }
 
     func signOut() async {
@@ -112,6 +116,7 @@ final class AppModel {
         errorMessage = nil
         phase = .signedOut
         suppressesPlaybackRefresh = false
+        onRemoteStateChanged?()
     }
 
     func refreshHome() async {

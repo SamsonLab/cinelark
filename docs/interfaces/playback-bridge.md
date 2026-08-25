@@ -146,8 +146,10 @@ longer sends this command for episode continuation; it sends a replacement
 | `player.setSpeed` | `{ "speed": number }` |
 | `player.setVolume` | `{ "volume": number }` |
 | `player.setMuted` | `{ "muted": boolean }` |
+| `player.setFullscreen` | `{ "fullscreen": boolean }` |
 | `player.selectAudioTrack` | `{ "id": integer }` |
 | `player.selectSubtitleTrack` | `{ "id": integer }` |
+| `player.disableSubtitles` | `{}` |
 | `player.requestState` | `{}` |
 
 Commands with a stale `sessionID` must be rejected rather than applied to the
@@ -212,8 +214,9 @@ play command. A failed stopped request does none of those UI-success actions.
 | Compatibility enqueue | `playlist.add(url, -1)`; not used by current continuation |
 | Pause/resume/stop | `core.pause/resume/stop()` |
 | Seek | `core.seek` / `core.seekTo` |
+| Fullscreen | `mpv.set("fullscreen", boolean)` |
 | State | `core.status.*` and mpv properties |
-| Tracks | `core.audio/subtitle/video` |
+| Tracks | `core.audio/subtitle/video`; subtitle `id = 0` disables subtitles |
 | Lifecycle | `event.on("iina.*")`, `event.on("mpv.*")` |
 | Natural EOF | 500 ms position/duration polling, plus `mpv.eof-reached.changed` + `mpv.getFlag("eof-reached")` fallbacks |
 | Helper connection | outbound `http.*` to loopback helper |

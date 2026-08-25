@@ -6,6 +6,56 @@ import CineLarkPlayback
 
 @MainActor
 final class PlaybackCoordinatorTests: XCTestCase {
+    func testPreparationFailureDoesNotMintAPlaybackURL() async throws {
+        let provider = PlaybackProviderStub(episodeCount: 1)
+        let launcher = PlaybackLauncherSpy()
+        launcher.preparationError = PlaybackLaunchError.pluginSetupRequiresIINAQuit
+        let coordinator = PlaybackCoordinator(provider: provider, launcher: launcher)
+
+        do {
+            try await coordinator.playFirst(
+                item: PlayableItem(id: "episode-1", kind: .episode),
+                title: "Episode 1"
+            )
+            XCTFail("Expected player preparation to fail")
+        } catch PlaybackLaunchError.pluginSetupRequiresIINAQuit {
+            // Expected.
+        }
+
+        XCTAssertEqual(launcher.preparationCount, 1)
+        let playbackURLRequestCount = await provider.playbackURLRequestCount()
+        XCTAssertEqual(playbackURLRequestCount, 0)
+    }
+
+    func testRemoteCanMoveToNextAndPreviousEpisodes() async throws {
+        let provider = PlaybackProviderStub(episodeCount: 3)
+        let launcher = PlaybackLauncherSpy()
+        let coordinator = PlaybackCoordinator(provider: provider, launcher: launcher)
+
+        try await coordinator.playFirst(
+            item: PlayableItem(id: "episode-1", kind: .episode),
+            title: "Episode 1",
+            seriesID: "series-1"
+        )
+        let queueReady = await eventually {
+            coordinator.remoteSnapshot?.canPlayNext == true
+        }
+        XCTAssertTrue(queueReady)
+
+        try await coordinator.playNextEpisode()
+        XCTAssertEqual(launcher.opened.map(\.title), ["Episode 1", "Episode 2"])
+        XCTAssertEqual(coordinator.remoteSnapshot?.canPlayPrevious, true)
+        XCTAssertEqual(coordinator.remoteSnapshot?.canPlayNext, true)
+
+        try await coordinator.playPreviousEpisode()
+        XCTAssertEqual(
+            launcher.opened.map(\.title),
+            ["Episode 1", "Episode 2", "Episode 1"]
+        )
+        XCTAssertEqual(coordinator.remoteSnapshot?.canPlayPrevious, false)
+        XCTAssertEqual(coordinator.remoteSnapshot?.canPlayNext, true)
+    }
+
     func testNaturalEOFFullyReplacesContentWithoutEnqueueingFutureEpisodes() async throws {
         let provider = PlaybackProviderStub(episodeCount: 5)
         let launcher = PlaybackLauncherSpy()
@@ -310,11 +360,18 @@ private final class PlaybackLauncherSpy: PlaybackLaunching {
     private(set) var opened: [PlaybackDescriptor] = []
     private(set) var enqueued: [EnqueuedItem] = []
     private(set) var commands: [SentCommand] = []
+    private(set) var preparationCount = 0
+    var preparationError: Error?
 
     init() {
         let pair = AsyncStream<PlaybackEvent>.makeStream()
         events = pair.stream
         continuation = pair.continuation
+    }
+
+    func prepare() async throws {
+        preparationCount += 1
+        if let preparationError { throw preparationError }
     }
 
     func open(_ descriptor: PlaybackDescriptor) async throws {
@@ -358,6 +415,7 @@ private actor PlaybackProviderStub: MediaLibraryProvider {
     private var stoppedAttempts = 0
     private var shouldFailNextStoppedReport = false
     private var playbackShelfRequests = 0
+    private var playbackURLRequests = 0
 
     init(
         episodeCount: Int,
@@ -450,10 +508,15 @@ private actor PlaybackProviderStub: MediaLibraryProvider {
     }
 
     func playbackURL(for asset: MediaAsset) async throws -> URL {
+        playbackURLRequests += 1
         guard let url = URL(string: "https://media.invalid/\(asset.id)") else {
             throw ProviderError.invalidRequest
         }
         return url
+    }
+
+    func playbackURLRequestCount() -> Int {
+        playbackURLRequests
     }
 
     func reportProgress(_ update: PlaybackUpdate) async throws -> UserPlaybackState {

@@ -1,0 +1,8 @@
+{
+  "description": "Synthetic deterministic Remote authentication proof. Not a production device credential.",
+  "serviceID": "ad54e7ba-9409-4f54-8c7c-65e781978cf9",
+  "connectionID": "8dc63877-bf80-4d63-afc0-bec50d1ecb60",
+  "nonce": "c3ludGhldGljLW5vbmNl",
+  "credentialBase64URL": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+  "proofBase64URL": "mzD1FDUxeqTJFptKfi3MmsuroE65jf6dhK-f3Ar05MU"
+}

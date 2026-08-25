@@ -1,0 +1,250 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/SamsonLab/cinelark/specs/remote/client-message.schema.json",
+  "title": "CineLark Remote Client Message",
+  "description": "Version 1 commands accepted from a CineLark Remote.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["protocolVersion", "id", "type", "sentAt", "sequence", "payload"],
+  "properties": {
+    "protocolVersion": { "const": 1 },
+    "id": { "type": "string", "format": "uuid" },
+    "type": { "type": "string" },
+    "sentAt": { "type": "string", "format": "date-time" },
+    "replyTo": { "type": "string", "format": "uuid" },
+    "sequence": { "type": "integer", "minimum": 0 },
+    "revision": { "type": "integer", "minimum": 0 },
+    "payload": { "type": "object" }
+  },
+  "allOf": [
+    {
+      "oneOf": [
+        { "$ref": "#/$defs/pairingRequest" },
+        { "$ref": "#/$defs/authenticate" },
+        { "$ref": "#/$defs/emptyCommand" },
+        { "$ref": "#/$defs/submitCredentials" },
+        { "$ref": "#/$defs/navigationMove" },
+        { "$ref": "#/$defs/openSection" },
+        { "$ref": "#/$defs/textUpdate" },
+        { "$ref": "#/$defs/textTerminal" },
+        { "$ref": "#/$defs/playbackScopedEmpty" },
+        { "$ref": "#/$defs/seekRelative" },
+        { "$ref": "#/$defs/seekAbsolute" },
+        { "$ref": "#/$defs/setRate" },
+        { "$ref": "#/$defs/setFullscreen" },
+        { "$ref": "#/$defs/playEpisode" },
+        { "$ref": "#/$defs/selectTrack" },
+        { "$ref": "#/$defs/selectSubtitle" },
+        { "$ref": "#/$defs/setVolume" },
+        { "$ref": "#/$defs/adjustVolume" },
+        { "$ref": "#/$defs/setMuted" }
+      ]
+    }
+  ],
+  "$defs": {
+    "uuid": { "type": "string", "format": "uuid" },
+    "playbackID": { "type": "string", "format": "uuid" },
+    "emptyPayload": { "type": "object", "additionalProperties": false, "maxProperties": 0 },
+    "pairingRequest": {
+      "properties": {
+        "type": { "const": "pairing.request" },
+        "payload": {
+          "type": "object", "additionalProperties": false,
+          "required": ["secret", "deviceID", "deviceName"],
+          "properties": {
+            "secret": { "type": "string", "pattern": "^[A-Za-z0-9_-]{43}$" },
+            "deviceID": { "$ref": "#/$defs/uuid" },
+            "deviceName": { "type": "string", "minLength": 1, "maxLength": 80 }
+          }
+        }
+      }
+    },
+    "authenticate": {
+      "properties": {
+        "type": { "const": "session.authenticate" },
+        "payload": {
+          "type": "object", "additionalProperties": false,
+          "required": ["deviceID", "proof"],
+          "properties": {
+            "deviceID": { "$ref": "#/$defs/uuid" },
+            "proof": { "type": "string", "pattern": "^[A-Za-z0-9_-]{43}$" }
+          }
+        }
+      }
+    },
+    "emptyCommand": {
+      "properties": {
+        "type": {
+          "enum": ["app.requestSnapshot", "app.activate", "navigation.select", "navigation.back", "playback.requestSnapshot"]
+        },
+        "payload": { "$ref": "#/$defs/emptyPayload" }
+      }
+    },
+    "submitCredentials": {
+      "properties": {
+        "type": { "const": "auth.submitCredentials" },
+        "payload": {
+          "type": "object", "additionalProperties": false,
+          "required": ["username", "password"],
+          "properties": {
+            "username": { "type": "string", "minLength": 1, "maxLength": 320 },
+            "password": { "type": "string", "minLength": 1, "maxLength": 1024 },
+            "totpCode": { "type": "string", "minLength": 1, "maxLength": 32 }
+          }
+        }
+      }
+    },
+    "navigationMove": {
+      "properties": {
+        "type": { "const": "navigation.move" },
+        "payload": {
+          "type": "object", "additionalProperties": false, "required": ["direction"],
+          "properties": { "direction": { "enum": ["up", "down", "left", "right"] } }
+        }
+      }
+    },
+    "openSection": {
+      "properties": {
+        "type": { "const": "navigation.openSection" },
+        "payload": {
+          "type": "object", "additionalProperties": false, "required": ["section"],
+          "properties": { "section": { "enum": ["home", "movies", "series", "favorites", "search"] } }
+        }
+      }
+    },
+    "textUpdate": {
+      "properties": {
+        "type": { "const": "textInput.update" },
+        "payload": {
+          "type": "object", "additionalProperties": false,
+          "required": ["sessionID", "revision", "text"],
+          "properties": {
+            "sessionID": { "$ref": "#/$defs/uuid" },
+            "revision": { "type": "integer", "minimum": 0 },
+            "text": { "type": "string", "maxLength": 512 }
+          }
+        }
+      }
+    },
+    "textTerminal": {
+      "properties": {
+        "type": { "enum": ["textInput.commit", "textInput.cancel"] },
+        "payload": {
+          "type": "object", "additionalProperties": false,
+          "required": ["sessionID", "revision"],
+          "properties": {
+            "sessionID": { "$ref": "#/$defs/uuid" },
+            "revision": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "playbackScopedEmpty": {
+      "properties": {
+        "type": { "enum": ["playback.togglePause", "playback.pause", "playback.resume", "playback.stop", "playback.closeAndActivateApp"] },
+        "payload": {
+          "type": "object", "additionalProperties": false, "required": ["playbackID"],
+          "properties": { "playbackID": { "$ref": "#/$defs/playbackID" } }
+        }
+      }
+    },
+    "seekRelative": {
+      "properties": {
+        "type": { "const": "playback.seekRelative" },
+        "payload": {
+          "type": "object", "additionalProperties": false, "required": ["playbackID", "seconds"],
+          "properties": {
+            "playbackID": { "$ref": "#/$defs/playbackID" },
+            "seconds": { "type": "number", "minimum": -3600, "maximum": 3600 },
+            "exact": { "type": "boolean" }
+          }
+        }
+      }
+    },
+    "seekAbsolute": {
+      "properties": {
+        "type": { "const": "playback.seekAbsolute" },
+        "payload": {
+          "type": "object", "additionalProperties": false, "required": ["playbackID", "seconds"],
+          "properties": { "playbackID": { "$ref": "#/$defs/playbackID" }, "seconds": { "type": "number", "minimum": 0 } }
+        }
+      }
+    },
+    "setRate": {
+      "properties": {
+        "type": { "const": "playback.setRate" },
+        "payload": {
+          "type": "object", "additionalProperties": false, "required": ["playbackID", "rate"],
+          "properties": { "playbackID": { "$ref": "#/$defs/playbackID" }, "rate": { "type": "number", "minimum": 0.25, "maximum": 4 } }
+        }
+      }
+    },
+    "setFullscreen": {
+      "properties": {
+        "type": { "const": "playback.setFullscreen" },
+        "payload": {
+          "type": "object", "additionalProperties": false, "required": ["playbackID", "fullscreen"],
+          "properties": { "playbackID": { "$ref": "#/$defs/playbackID" }, "fullscreen": { "type": "boolean" } }
+        }
+      }
+    },
+    "playEpisode": {
+      "properties": {
+        "type": { "enum": ["playback.playPrevious", "playback.playNext"] },
+        "payload": {
+          "type": "object", "additionalProperties": false, "required": ["playbackID", "revision"],
+          "properties": { "playbackID": { "$ref": "#/$defs/playbackID" }, "revision": { "type": "integer", "minimum": 0 } }
+        }
+      }
+    },
+    "selectTrack": {
+      "properties": {
+        "type": { "const": "playback.selectAudioTrack" },
+        "payload": {
+          "type": "object", "additionalProperties": false, "required": ["playbackID", "trackID", "revision"],
+          "properties": {
+            "playbackID": { "$ref": "#/$defs/playbackID" }, "trackID": { "type": "integer" }, "revision": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "selectSubtitle": {
+      "properties": {
+        "type": { "const": "playback.selectSubtitleTrack" },
+        "payload": {
+          "type": "object", "additionalProperties": false, "required": ["playbackID", "trackID", "revision"],
+          "properties": {
+            "playbackID": { "$ref": "#/$defs/playbackID" }, "trackID": { "type": ["integer", "null"] }, "revision": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "setVolume": {
+      "properties": {
+        "type": { "const": "audio.setVolume" },
+        "payload": {
+          "type": "object", "additionalProperties": false, "required": ["playbackID", "volume"],
+          "properties": { "playbackID": { "$ref": "#/$defs/playbackID" }, "volume": { "type": "number", "minimum": 0, "maximum": 100 } }
+        }
+      }
+    },
+    "adjustVolume": {
+      "properties": {
+        "type": { "const": "audio.adjustVolume" },
+        "payload": {
+          "type": "object", "additionalProperties": false, "required": ["playbackID", "delta"],
+          "properties": { "playbackID": { "$ref": "#/$defs/playbackID" }, "delta": { "type": "number", "minimum": -100, "maximum": 100 } }
+        }
+      }
+    },
+    "setMuted": {
+      "properties": {
+        "type": { "const": "audio.setMuted" },
+        "payload": {
+          "type": "object", "additionalProperties": false, "required": ["playbackID", "muted"],
+          "properties": { "playbackID": { "$ref": "#/$defs/playbackID" }, "muted": { "type": "boolean" } }
+        }
+      }
+    }
+  }
+}

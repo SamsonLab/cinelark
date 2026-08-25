@@ -7,7 +7,7 @@ import CineLarkDomain
 public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
     public let events: AsyncStream<PlaybackEvent>
 
-    private static let minimumPluginVersion = "0.1.15"
+    private static let minimumPluginVersion = "0.1.16"
     private static let logger = Logger(
         subsystem: "com.samsonlab.cinelark",
         category: "PlaybackBridge"
@@ -22,6 +22,7 @@ public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
     private var secret: Data?
     private var sequence: UInt64 = 1
     private var isBridgeReady = false
+    private var preparationTask: Task<Void, Error>?
     private var lifecycle = IINAApplicationTerminationTracker()
     private var eventRouter = IINAPlaybackEventRouter()
     private var terminationObserver: NSObjectProtocol?
@@ -54,10 +55,24 @@ public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
         }
     }
 
+    public func prepare() async throws {
+        if let preparationTask {
+            try await preparationTask.value
+            return
+        }
+        let task = Task { @MainActor in
+            try await preparePluginInstallation()
+        }
+        preparationTask = task
+        defer { preparationTask = nil }
+        try await task.value
+    }
+
     public func open(_ descriptor: PlaybackDescriptor) async throws {
         Self.logger.info(
             "Preparing player.play session=\(descriptor.id.uuidString, privacy: .public)"
         )
+        try await prepare()
         guard let iinaURL = workspace.urlForApplication(
             withBundleIdentifier: "com.colliderli.iina"
         ) else {
@@ -66,10 +81,6 @@ public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
 
         let secret = try pairingStore.loadOrCreateSecret()
         self.secret = secret
-        guard !pluginRequiresInstallation else {
-            try await openPluginInstaller(with: iinaURL)
-            throw PlaybackLaunchError.pluginInstallationRequired
-        }
 
         if await client.isReady() == false {
             isBridgeReady = false
@@ -162,8 +173,21 @@ public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
         )
         switch envelope.type {
         case "bridge.ready":
+            let pluginVersion = envelope.payload["pluginVersion"]?.stringValue
+            guard let pluginVersion,
+                  IINAPluginInstallation.isVersion(
+                    pluginVersion,
+                    atLeast: Self.minimumPluginVersion
+                  ) else {
+                Self.logger.error(
+                    "Rejected outdated IINA bridge ready event version=\(pluginVersion ?? "missing", privacy: .public)"
+                )
+                return
+            }
             isBridgeReady = true
-            Self.logger.info("IINA bridge is ready")
+            Self.logger.info(
+                "IINA bridge is ready pluginVersion=\(pluginVersion, privacy: .public)"
+            )
             eventContinuation.yield(.bridgeReady)
         case "bridge.error":
             Self.logger.error(
@@ -292,8 +316,8 @@ public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
         } ?? []
     }
 
-    private func waitForPlugin() async throws {
-        for _ in 0..<60 {
+    private func waitForPlugin(attempts: Int = 60) async throws {
+        for _ in 0..<attempts {
             if isBridgeReady { return }
             try await Task.sleep(for: .milliseconds(200))
         }
@@ -326,12 +350,72 @@ public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
         )
     }
 
-    private var pluginRequiresInstallation: Bool {
+    private func preparePluginInstallation() async throws {
+        guard let iinaURL = workspace.urlForApplication(
+            withBundleIdentifier: "com.colliderli.iina"
+        ) else {
+            throw PlaybackLaunchError.iinaNotInstalled
+        }
+
+        guard let installation = installedPlugin else {
+            throw PlaybackLaunchError.pluginInstallationFailed
+        }
+        switch installation.state(requiring: Self.minimumPluginVersion) {
+        case .current:
+            return
+        case .missing:
+            guard !isIINARunning else {
+                throw PlaybackLaunchError.pluginSetupRequiresIINAQuit
+            }
+            let secret = try pairingStore.loadOrCreateSecret()
+            self.secret = secret
+            isBridgeReady = false
+            try await ensureBridgeStarted(secret: secret)
+            Self.logger.info("Opening IINA Bridge first-install consent flow")
+            try await openPluginInstaller(with: iinaURL)
+            do {
+                try await waitForPlugin(attempts: 450)
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                if case .current = installation.state(
+                    requiring: Self.minimumPluginVersion
+                ) {
+                    throw PlaybackLaunchError.pluginUnavailable
+                }
+                throw PlaybackLaunchError.pluginInstallationRequired
+            }
+        case .invalid, .outdated:
+            guard !isIINARunning else {
+                throw PlaybackLaunchError.pluginSetupRequiresIINAQuit
+            }
+            guard let bundledPluginURL = bundle.url(
+                forResource: "CineLark",
+                withExtension: "iinaplugin"
+            ) else {
+                throw PlaybackLaunchError.pluginInstallationFailed
+            }
+            do {
+                try installation.replace(
+                    with: bundledPluginURL,
+                    requiring: Self.minimumPluginVersion
+                )
+                Self.logger.info("Safely replaced the stopped IINA Bridge installation")
+            } catch {
+                Self.logger.error(
+                    "Failed to replace the stopped IINA Bridge installation error=\(String(describing: error), privacy: .public)"
+                )
+                throw PlaybackLaunchError.pluginInstallationFailed
+            }
+        }
+    }
+
+    private var installedPlugin: IINAPluginInstallation? {
         guard let applicationSupport = FileManager.default.urls(
             for: .applicationSupportDirectory,
             in: .userDomainMask
         ).first else {
-            return true
+            return nil
         }
         let pluginURL = applicationSupport
             .appendingPathComponent("com.colliderli.iina/plugins", isDirectory: true)
@@ -340,7 +424,12 @@ public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
                 isDirectory: true
             )
         return IINAPluginInstallation(directoryURL: pluginURL)
-            .requiresVersion(Self.minimumPluginVersion)
+    }
+
+    private var isIINARunning: Bool {
+        workspace.runningApplications.contains {
+            $0.bundleIdentifier == "com.colliderli.iina" && !$0.isTerminated
+        }
     }
 
     private func openPluginInstaller(with iinaURL: URL) async throws {
@@ -438,9 +527,30 @@ struct IINAApplicationTerminationTracker {
 }
 
 struct IINAPluginInstallation {
+    enum State: Equatable {
+        case missing
+        case invalid
+        case outdated(version: String)
+        case current(version: String)
+    }
+
+    enum InstallationError: Error {
+        case invalidBundledPlugin
+        case invalidInstalledPlugin
+    }
+
     let directoryURL: URL
 
-    func requiresVersion(_ minimumVersion: String) -> Bool {
+    func state(requiring minimumVersion: String) -> State {
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(
+            atPath: directoryURL.path,
+            isDirectory: &isDirectory
+        ) else {
+            return .missing
+        }
+        guard isDirectory.boolValue else { return .invalid }
+
         let manifestURL = directoryURL.appendingPathComponent("Info.json", isDirectory: false)
         let playerEntryURL = directoryURL.appendingPathComponent("src/main.js", isDirectory: false)
         let globalEntryURL = directoryURL.appendingPathComponent("src/global.js", isDirectory: false)
@@ -448,10 +558,78 @@ struct IINAPluginInstallation {
               FileManager.default.fileExists(atPath: globalEntryURL.path),
               let data = try? Data(contentsOf: manifestURL),
               let manifest = try? JSONDecoder().decode(Manifest.self, from: data),
-              manifest.identifier == BridgePairingStore.pluginIdentifier else {
-            return true
+              manifest.identifier == BridgePairingStore.pluginIdentifier,
+              Self.versionComponents(manifest.version) != nil else {
+            return .invalid
         }
-        return manifest.version.compare(minimumVersion, options: .numeric) == .orderedAscending
+        return Self.isVersion(manifest.version, atLeast: minimumVersion)
+            ? .current(version: manifest.version)
+            : .outdated(version: manifest.version)
+    }
+
+    func replace(with bundledDirectoryURL: URL, requiring minimumVersion: String) throws {
+        guard case .current = IINAPluginInstallation(
+            directoryURL: bundledDirectoryURL
+        ).state(requiring: minimumVersion) else {
+            throw InstallationError.invalidBundledPlugin
+        }
+
+        let fileManager = FileManager.default
+        let parentURL = directoryURL.deletingLastPathComponent()
+        try fileManager.createDirectory(
+            at: parentURL,
+            withIntermediateDirectories: true
+        )
+        let stagingURL = parentURL.appendingPathComponent(
+            ".cinelark-plugin-staging-\(UUID().uuidString)",
+            isDirectory: true
+        )
+        defer { try? fileManager.removeItem(at: stagingURL) }
+
+        try fileManager.copyItem(at: bundledDirectoryURL, to: stagingURL)
+        guard case .current = IINAPluginInstallation(
+            directoryURL: stagingURL
+        ).state(requiring: minimumVersion) else {
+            throw InstallationError.invalidBundledPlugin
+        }
+
+        if fileManager.fileExists(atPath: directoryURL.path) {
+            _ = try fileManager.replaceItemAt(
+                directoryURL,
+                withItemAt: stagingURL,
+                backupItemName: nil,
+                options: .usingNewMetadataOnly
+            )
+        } else {
+            try fileManager.moveItem(at: stagingURL, to: directoryURL)
+        }
+
+        guard case .current = state(requiring: minimumVersion) else {
+            throw InstallationError.invalidInstalledPlugin
+        }
+    }
+
+    static func isVersion(_ version: String, atLeast minimumVersion: String) -> Bool {
+        guard let version = versionComponents(version),
+              let minimumVersion = versionComponents(minimumVersion) else {
+            return false
+        }
+        let componentCount = max(version.count, minimumVersion.count)
+        for index in 0..<componentCount {
+            let component = index < version.count ? version[index] : 0
+            let minimumComponent = index < minimumVersion.count ? minimumVersion[index] : 0
+            if component != minimumComponent {
+                return component > minimumComponent
+            }
+        }
+        return true
+    }
+
+    private static func versionComponents(_ version: String) -> [UInt]? {
+        let components = version.split(separator: ".", omittingEmptySubsequences: false)
+        guard !components.isEmpty else { return nil }
+        let parsed = components.compactMap { UInt(String($0)) }
+        return parsed.count == components.count ? parsed : nil
     }
 
     private struct Manifest: Decodable {
@@ -479,10 +657,14 @@ private extension PlaybackControlCommand {
             ("player.setVolume", ["volume": .number(max(volume, 0))])
         case .setMuted(let muted):
             ("player.setMuted", ["muted": .bool(muted)])
+        case .setFullscreen(let fullscreen):
+            ("player.setFullscreen", ["fullscreen": .bool(fullscreen)])
         case .selectAudioTrack(let id):
             ("player.selectAudioTrack", ["id": .integer(Int64(id))])
         case .selectSubtitleTrack(let id):
             ("player.selectSubtitleTrack", ["id": .integer(Int64(id))])
+        case .disableSubtitles:
+            ("player.disableSubtitles", [:])
         case .requestState:
             ("player.requestState", [:])
         }

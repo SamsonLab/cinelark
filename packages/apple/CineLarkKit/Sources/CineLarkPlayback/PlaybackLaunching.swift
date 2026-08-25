@@ -89,14 +89,17 @@ public enum PlaybackControlCommand: Sendable, Equatable {
     case setSpeed(Double)
     case setVolume(Double)
     case setMuted(Bool)
+    case setFullscreen(Bool)
     case selectAudioTrack(Int)
     case selectSubtitleTrack(Int)
+    case disableSubtitles
     case requestState
 }
 
 @MainActor
 public protocol PlaybackLaunching: AnyObject {
     var events: AsyncStream<PlaybackEvent> { get }
+    func prepare() async throws
     func open(_ descriptor: PlaybackDescriptor) async throws
     func enqueue(_ descriptor: PlaybackDescriptor, sessionID: UUID) async throws
     func send(_ command: PlaybackControlCommand, sessionID: UUID) async throws
@@ -108,6 +111,8 @@ public extension PlaybackLaunching {
             continuation.finish()
         }
     }
+
+    func prepare() async throws {}
 
     func enqueue(_ descriptor: PlaybackDescriptor, sessionID: UUID) async throws {
         throw PlaybackLaunchError.bridgeUnavailable
@@ -121,6 +126,8 @@ public extension PlaybackLaunching {
 public enum PlaybackLaunchError: Error, LocalizedError {
     case iinaNotInstalled
     case pluginInstallationRequired
+    case pluginSetupRequiresIINAQuit
+    case pluginInstallationFailed
     case pluginUnavailable
     case helperUnavailable
     case bridgeAuthenticationFailed
@@ -132,7 +139,11 @@ public enum PlaybackLaunchError: Error, LocalizedError {
         case .iinaNotInstalled:
             "IINA is not installed. Install IINA to play this item."
         case .pluginInstallationRequired:
-            "CineLark opened the IINA Bridge installer. Approve the installation or update, then fully quit and reopen IINA before playing again."
+            "Complete the IINA Bridge installation and enable it, then try again."
+        case .pluginSetupRequiresIINAQuit:
+            "CineLark needs to install or update its IINA Bridge. Fully quit IINA, then play again so CineLark can finish safely."
+        case .pluginInstallationFailed:
+            "CineLark could not safely install the bundled IINA Bridge. Reinstall CineLark, then try again."
         case .pluginUnavailable:
             "The CineLark IINA Bridge is not enabled. Enable it in IINA, then try again."
         case .helperUnavailable:

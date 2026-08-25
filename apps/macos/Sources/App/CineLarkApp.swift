@@ -11,7 +11,9 @@ struct CineLarkApp: App {
     @NSApplicationDelegateAdaptor(CineLarkAppDelegate.self) private var appDelegate
     @AppStorage(AppLanguage.storageKey) private var storedLanguage = AppLanguage.systemDefault.rawValue
     @State private var model: AppModel
-    @State private var shortcuts = ShortcutCoordinator()
+    @State private var shortcuts: ShortcutCoordinator
+    @State private var remoteTextInput: RemoteTextInputCoordinator
+    @State private var remote: RemoteCoordinator
     private let updateMonitor: SparkleUpdateMonitor
     private let updaterController: SPUStandardUpdaterController
 
@@ -34,8 +36,18 @@ struct CineLarkApp: App {
             namespace: "uhdnow-v1"
         )
         let launcher = ManagedIINAPlaybackLauncher()
-        _model = State(
-            initialValue: AppModel(provider: provider, launcher: launcher)
+        let model = AppModel(provider: provider, launcher: launcher)
+        let shortcuts = ShortcutCoordinator()
+        let remoteTextInput = RemoteTextInputCoordinator()
+        _model = State(initialValue: model)
+        _shortcuts = State(initialValue: shortcuts)
+        _remoteTextInput = State(initialValue: remoteTextInput)
+        _remote = State(
+            initialValue: RemoteCoordinator(
+                model: model,
+                shortcuts: shortcuts,
+                textInput: remoteTextInput
+            )
         )
     }
 
@@ -44,18 +56,25 @@ struct CineLarkApp: App {
             RootView(
                 model: model,
                 updater: updaterController.updater,
-                updateMonitor: updateMonitor
+                updateMonitor: updateMonitor,
+                remote: remote
             )
                 .environment(\.appLanguage, language)
                 .environment(\.locale, language.locale)
                 .environment(shortcuts)
+                .environment(remoteTextInput)
                 .frame(minWidth: 960, minHeight: 640)
                 .task {
                     shortcuts.start()
-                    appDelegate.prepareForTermination = { [weak model, weak shortcuts] in
+                    appDelegate.prepareForTermination = { [weak model, weak shortcuts, weak remote] in
                         await model?.prepareForTermination()
+                        await remote?.stop()
                         shortcuts?.stop()
                     }
+                    guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else {
+                        return
+                    }
+                    await remote.start()
                 }
         }
         .windowStyle(.hiddenTitleBar)

@@ -9,6 +9,9 @@
   "speed": 1.0,
   "volume": 75.0,
   "muted": false,
+  "fullscreen": true,
+  "canPlayPrevious": false,
+  "canPlayNext": true,
   "audioTracks": [
     {
       "id": 1,

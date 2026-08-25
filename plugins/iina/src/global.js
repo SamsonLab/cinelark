@@ -11,7 +11,7 @@ const {
 const { global, http, menu, utils } = iina;
 const pluginConsole = iina.console;
 
-const PLUGIN_VERSION = '0.1.15';
+const PLUGIN_VERSION = '0.1.16';
 const KEYCHAIN_SERVICE = 'bridge';
 const KEYCHAIN_ACCOUNT = 'pairing-key';
 const PORT_START = 43191;

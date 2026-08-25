@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/SamsonLab/cinelark/specs/remote/envelope.schema.json",
   "title": "CineLark Remote Protocol Envelope",
-  "description": "Draft version 1 envelope transported over an authenticated TLS session.",
+  "description": "Version 1 envelope transported over an authenticated TLS session.",
   "type": "object",
   "additionalProperties": true,
   "required": [

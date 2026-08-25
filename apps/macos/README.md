@@ -43,7 +43,10 @@ brew install --cask samsonlab/cinelark/cinelark
 The Cask verifies the versioned DMG by SHA-256 and removes quarantine from the
 project-signed app. CineLark uses an existing IINA installation; when IINA is
 missing, the playback alert links to its official download. The IINA plugin
-still requires explicit approval on first playback.
+still requires explicit approval on first playback. CineLark waits for that
+approval and continues the original playback automatically. Existing plugin
+updates and repairs run only while IINA is fully stopped; otherwise CineLark
+asks the user to quit IINA and retry.
 
 ## Open and build
 

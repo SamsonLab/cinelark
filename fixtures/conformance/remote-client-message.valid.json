@@ -1,0 +1,13 @@
+{
+  "protocolVersion": 1,
+  "id": "0b56e8b4-a79e-4939-8c9b-d4f7c753df61",
+  "type": "playback.selectSubtitleTrack",
+  "sentAt": "2026-08-20T03:09:00Z",
+  "sequence": 4,
+  "revision": 8,
+  "payload": {
+    "playbackID": "1f3cc671-b430-4e87-994d-e2a1d4fa5e54",
+    "trackID": null,
+    "revision": 8
+  }
+}

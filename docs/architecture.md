@@ -10,7 +10,12 @@
                        │ CineLark Remote    │
                        │ Flutter mobile app │
                        └─────────┬──────────┘
-                                 │ paired local protocol
+                                 │ pinned WSS on LAN
+                                 ▼
+                       ┌───────────────────────────────┐
+                       │ Rust Remote Gateway Transport │
+                       └─────────┬─────────────────────┘
+                                 │ private child stdio
                                  ▼
 ┌────────────────┐      ┌───────────────────────────────┐
 │ Media Provider │◀────▶│ CineLark for Mac             │
@@ -45,7 +50,8 @@
 | Decode, HDR, tracks, subtitles | IINA/mpv |
 | Player transport and telemetry | Rust Bridge Helper + IINA plugin |
 | Provider progress writes | Mac app |
-| Remote pairing and authorization | Mac app |
+| Remote TLS, framing, proof verification, sequencing, and rate limits | Rust Remote Gateway |
+| Remote pairing approval, device records, capabilities, and semantic authorization | Mac app |
 
 The plugin never calls provider APIs. The Remote never receives provider
 credentials or directly controls the plugin.
@@ -133,19 +139,34 @@ A minimal JavaScript/TypeScript package with no provider dependency. It polls
 the Rust helper for commands, posts sanitized events, and maps the bridge
 protocol to IINA public plugin APIs and mpv properties/events.
 
-### 3.9 `RemoteGateway`
+### 3.9 `RustRemoteGatewayTransport`
 
-A native Mac service that publishes sanitized app/player snapshots and accepts
-capability-checked semantic commands. It owns Bonjour discovery, secure pairing,
-device revocation, protocol negotiation, and the TLS endpoint. It never exposes
-provider DTOs, credentials, or playback URLs.
+A separate bundled Rust child process owns the LAN TLS/WebSocket endpoint,
+certificate fingerprinting, frame limits, pairing-secret expiry, device proof
+verification, per-connection sequencing, and rate limits. It forwards only
+authenticated envelopes to the Mac over private length-prefixed JSON stdio. It
+has no provider, navigation, or playback authority and is isolated from the
+loopback-only IINA bridge process.
 
-### 3.10 `CineLarkRemote`
+See [ADR-0008](decisions/0008-rust-remote-transport.md).
 
-A Flutter application for iOS and Android. It mirrors only the state required by
-the companion experience and sends semantic navigation/playback commands to the
-Mac. Discovery, secure storage, notifications, and certificate pinning stay
-behind Flutter infrastructure adapters or narrowly scoped platform channels.
+### 3.10 `RemoteGatewayCoordinator`
+
+A Mac application service owns TLS identity/device-record persistence, pairing
+presentation and approval, Bonjour advertisement, capability calculation,
+snapshot publication, and semantic-command authorization. It dispatches
+navigation through the same command layer as local keyboard input and delegates
+playback operations to `PlaybackCoordinator`. It never exposes provider DTOs,
+credentials, playback URLs, or SwiftUI view identities.
+
+### 3.11 `CineLarkRemote`
+
+A focused Flutter application for iOS and Android. It provides contextual
+pairing, login, navigation, search text-entry, and now-playing control surfaces.
+It does not contact providers or play media locally. QR scanning, certificate
+pinning, secure storage, camera/local-network permissions, and lifecycle
+reconnect stay behind Flutter infrastructure adapters or narrow platform
+channels.
 
 ## 4. Data flow
 
@@ -254,8 +275,10 @@ retry policy is Open.
 - The audited IINA WebSocket server is not loopback-restricted and has no TLS,
   so it is not the default transport. Any fallback requires a separate security
   review.
-- Remote traffic uses authenticated TLS, explicit pairing, certificate pinning,
-  device-scoped credentials, and revocation.
+- Remote traffic terminates in the isolated Rust gateway and uses TLS, explicit
+  pairing, certificate pinning, connection-bound device proofs, device-scoped
+  credentials, exact sequencing, rate limits, and revocation. The Mac remains
+  the only semantic authorization authority.
 - Every diagnostic layer applies structured redaction before formatting values.
 
 ## 8. Repository boundaries
@@ -265,6 +288,7 @@ apps/macos/                         SwiftUI macOS app and Xcode project
 apps/remote/                        Flutter app for iOS and Android
 packages/apple/CineLarkKit/         local Swift package with focused targets
 packages/rust/cinelark-bridge/      bundled, signed native helper
+packages/rust/cinelark-remote-gateway/ bundled, signed Remote TLS/WSS transport
 plugins/iina/                       minimal JavaScript/TypeScript adapter
 specs/common/                       cross-language domain/wire primitives
 specs/bridge/                       Mac app ↔ IINA contracts
@@ -286,8 +310,10 @@ adapters.
 - Provider: contract tests against synthetic redacted fixtures.
 - Bridge: shared schema vectors in Swift, Rust, and JavaScript; helper process,
   loopback binding, long-poll latency, crash, and reconnect integration tests.
-- Remote: shared schema vectors executed by Swift and Dart, plus pairing,
-  reconnect, revocation, and stale-command tests.
+- Remote: shared schema/cryptographic vectors executed by Rust, Swift, and Dart;
+  pinned-WSS pairing/authenticated-forwarding coverage; plus one-time secret,
+  sequencing, rate-limit, stable-error, playback-navigation, and text-revision
+  regressions. Physical-device reconnect and revocation remain release smokes.
 - Playback: integration tests with a local fake bridge before IINA automation.
 - macOS UI: deterministic focus-navigation tests for rows, grids, detail pages,
   and state restoration.

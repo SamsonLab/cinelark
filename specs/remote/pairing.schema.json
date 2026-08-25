@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/SamsonLab/cinelark/specs/remote/pairing.schema.json",
+  "title": "CineLark Remote Pairing QR Payload",
+  "description": "Sensitive, short-lived endpoint and pinning material encoded in a QR code. Production values must never enter diagnostics or fixtures.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocolVersion",
+    "serviceID",
+    "name",
+    "host",
+    "port",
+    "fingerprint",
+    "secret",
+    "expiresAt"
+  ],
+  "properties": {
+    "protocolVersion": {
+      "const": 1
+    },
+    "serviceID": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "host": {
+      "description": "An endpoint hint, not server identity.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255
+    },
+    "port": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535
+    },
+    "fingerprint": {
+      "description": "Base64URL without padding of SHA-256 over the server certificate DER.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{43}$"
+    },
+    "secret": {
+      "description": "Base64URL without padding of a 256-bit single-use pairing secret.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{43}$"
+    },
+    "expiresAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

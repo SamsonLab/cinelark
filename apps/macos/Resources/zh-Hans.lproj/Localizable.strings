@@ -174,7 +174,9 @@
 "error.iina_missing" = "尚未安装 IINA，请安装后再播放。";
 "error.download_iina" = "下载 IINA";
 "error.iina_launch" = "无法在 IINA 中打开此内容，请重试。";
-"error.iina_plugin_install" = "CineLark 已打开 IINA Bridge 安装器，请确认安装或更新，然后完全退出并重新打开 IINA，再次播放。";
+"error.iina_plugin_install" = "请完成并启用 IINA Bridge 安装，然后重试。";
+"error.iina_plugin_setup_quit" = "CineLark 需要安装或更新 IINA Bridge。请完全退出 IINA 后再次播放，CineLark 将安全完成操作。";
+"error.iina_plugin_install_failed" = "CineLark 无法安全安装内置的 IINA Bridge，请重新安装 CineLark 后重试。";
 "error.iina_plugin_unavailable" = "CineLark IINA Bridge 尚未启用，请在 IINA 中启用后重试。";
 "error.bridge_helper" = "CineLark 无法启动内置播放辅助程序，请重新安装 CineLark 后重试。";
 "error.bridge_authentication" = "IINA 无法与 CineLark 完成认证，请重新安装 Bridge 以再次配对。";

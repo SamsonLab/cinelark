@@ -10,7 +10,8 @@
   concrete platform gap.
 - Remote is Flutter/Dart and targets iOS and Android.
 - The IINA bridge uses a bundled Rust helper plus a minimal JavaScript plugin;
-  users never install a Rust runtime or configure a daemon.
+  Remote transport uses a separate bundled Rust TLS/WebSocket gateway. Users
+  never install a Rust runtime or configure a daemon.
 - The Mac app is the authority for provider, navigation, playback, and pairing
   state.
 - Shared contracts are designed before cross-runtime features. Do not attempt
@@ -51,7 +52,7 @@ packages/apple/CineLarkKit
   ├── CineLarkApplication ──▶ CineLarkDomain
   ├── CineLarkUHDNow ───────▶ CineLarkDomain
   ├── CineLarkBridgeClient ──▶ CineLarkDomain
-  ├── CineLarkRemoteGateway ─▶ CineLarkApplication
+  ├── CineLarkRemote ────────────▶ Foundation / Security
   ├── CineLarkPersistence ──▶ CineLarkDomain
   ├── CineLarkDesignSystem
   └── CineLarkTestSupport
@@ -93,7 +94,8 @@ Use explicit actors for mutable I/O state:
 - `ImagePipelineActor` — request deduplication and bounded caches
 - `PlaybackSessionActor` — Rust helper process, bridge connection, and session ordering
 - `ProgressReporterActor` — coalescing, monotonic ordering, and retries
-- `RemoteGatewayActor` — paired devices, sessions, and sanitized broadcasts
+- `RemoteGatewayActor` — paired devices, helper supervision, capabilities,
+  semantic authorization, and sanitized broadcasts
 
 Do not add a database initially. Start with Keychain for secrets and bounded
 file caches for recreatable data. Introduce SQLite/GRDB only when offline state,
@@ -131,7 +133,7 @@ apps/remote/
   lib/
     app/                 composition, routing, theme
     application/         connection and command use cases
-    features/            pairing, remote, now playing, settings
+    features/            pairing, login, navigation, text input, now playing, settings
     protocol/            generated models and mapping adapters
     infrastructure/      discovery, TLS transport, secure storage
   test/
@@ -261,7 +263,7 @@ persistent user-managed daemon.
 | --- | --- | --- |
 | Playback state and track semantics | `specs/common/` | Swift, Rust, Dart, plugin |
 | App ↔ IINA envelope/messages | `specs/bridge/` | Swift, Rust, TypeScript/JavaScript |
-| Remote ↔ Mac envelope/messages | `specs/remote/` | Swift, Dart |
+| Remote ↔ Mac envelope/messages | `specs/remote/` | Rust, Swift, Dart |
 | Provider observation | `specs/uhdnow/` | Swift provider adapter |
 | Compatibility fixtures | `fixtures/conformance/` | all protocol runtimes |
 | Color/type/spacing tokens | `shared/design/` | SwiftUI, Flutter |
@@ -272,7 +274,7 @@ persistent user-managed daemon.
 - SwiftUI/AppKit and Flutter widgets
 - provider DTOs or networking clients
 - Keychain/Keystore implementations
-- Bonjour and TLS platform adapters
+- Bonjour platform adapters and Flutter certificate-pin integration
 - process/window lifecycle code
 - cache/database implementations
 
@@ -306,10 +308,12 @@ The recommended design is documented in
 [`interfaces/remote-protocol.md`](interfaces/remote-protocol.md):
 
 - Bonjour advertises service identity and protocol range, never secrets.
-- Remote transport is WebSocket over TLS.
+- Remote transport is WebSocket over TLS in a separate bundled Rust child.
 - Pairing uses a high-entropy one-time QR payload and certificate pinning.
 - Successful pairing issues a device-scoped revocable credential.
 - Remote snapshots exclude provider tokens, playback URLs, and provider DTOs.
+- The Mac, not the Rust transport, authorizes login, navigation, text, and
+  playback semantics.
 
 This is separate from the IINA Bridge transport and does not inherit its
 no-TLS/all-interface limitations.
@@ -378,9 +382,13 @@ A shared protocol compatibility matrix is published with each release.
 ### Phase 5 — Flutter Remote
 
 - Freeze Remote protocol version 1 after the Phase 0 spike.
-- Implement pairing, discovery, reconnect, now playing, navigation, transport,
-  volume, device management, and revocation.
+- Implement pairing, Mac advertisement, reconnect, remote login, navigation, revisioned
+  search text entry, now playing, transport, seek/rate/fullscreen, episode and
+  track selection, volume, device management, and revocation.
 - Validate iOS and Android lifecycle/background behavior.
+
+The first implemented Flutter client reconnects to the QR endpoint. Bonjour
+endpoint recovery remains a follow-up for port or host changes.
 
 ## 9. Decisions intentionally left open
 
