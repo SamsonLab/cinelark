@@ -307,17 +307,19 @@ managed-player, or `core` APIs—directly from that continuation can trap inside
 JavaScriptCore. Every such call after an async boundary must first hop to IINA's
 main run loop through its `setTimeout`/`Timer` polyfill.
 
-Stock IINA 1.4.4 does not safely invalidate that polyfill's pending timers when
-it hot-reloads a global plugin instance. A callback retained by the replaced
-JavaScript context can later call an API whose weak `pluginInstance` is already
-nil, causing a process-level trap in `JavascriptAPIHttp.request`. CineLark never
-updates or repairs its plugin while IINA is running. First installation still
-uses IINA's permission-consent UI and the original playback waits for the new
-plugin to connect. Later updates and repairs atomically replace a validated
-plugin directory only while IINA is stopped, then launch a clean process. If
-IINA is already running, CineLark asks the user to quit it and retry without
-mutating the installation. This limitation is independent of the managed-player
-playlist and does not apply to a cleanly launched instance.
+Stock IINA 1.4.4 does not safely invalidate every polyfill timer before releasing
+the timer callback's native plugin owner during hot reload or application
+termination. A retained callback can later call an API whose weak
+`pluginInstance` is already nil, causing a process-level trap in
+`JavascriptAPIHttp.request`. CineLark never updates or repairs its plugin while
+IINA is running. Plugin 0.1.17 also registers every player/global timeout and
+interval. A managed player synchronously signals the global entry from
+`iina.window-will-close`; both entries cancel their timers, and callbacks racing
+cancellation become pure no-ops. Only an authenticated play response already in
+the active long poll or the explicit reconnect action may resume transport after
+that boundary. First installation still uses IINA's permission-consent UI, while
+later updates and repairs atomically replace a validated plugin directory only
+while IINA is stopped.
 
 ### Runtime diagnostics
 

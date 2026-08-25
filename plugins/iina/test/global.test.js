@@ -18,13 +18,20 @@ async function settlePromises(iterations = 20) {
 function timerHarness() {
   const timers = [];
   let isMainTurn = true;
+  let nextTimerID = 1;
 
   return {
     timers,
     assertMain: () => assert.equal(isMainTurn, true, 'IINA API called off the main run loop'),
     setTimeout: (callback, milliseconds) => {
-      timers.push({ callback, milliseconds });
-      return timers.length;
+      const id = nextTimerID;
+      nextTimerID += 1;
+      timers.push({ id, callback, milliseconds });
+      return id;
+    },
+    clearTimeout: (id) => {
+      const index = timers.findIndex((timer) => timer.id === id);
+      if (index >= 0) timers.splice(index, 1);
     },
     finishInitialTurn: () => { isMainTurn = false; },
     run: async (timer) => {
@@ -137,6 +144,7 @@ test('all broker, Keychain, and player IINA APIs execute on the main run loop', 
       return protocol;
     },
     setTimeout: harness.setTimeout,
+    clearTimeout: harness.clearTimeout,
     Promise,
     Date,
     Math,
@@ -183,6 +191,7 @@ test('broker discovery does not touch Keychain while CineLark is absent', async 
     },
     require: () => protocol,
     setTimeout: harness.setTimeout,
+    clearTimeout: harness.clearTimeout,
     Promise,
     Date,
     Math,
@@ -234,6 +243,7 @@ test('automatic broker reconnect reuses the in-memory pairing key', async () => 
     },
     require: () => protocol,
     setTimeout: harness.setTimeout,
+    clearTimeout: harness.clearTimeout,
     Promise,
     Date,
     Math,
@@ -249,4 +259,40 @@ test('automatic broker reconnect reuses the in-memory pairing key', async () => 
   await harness.run(reconnectTimer);
   await harness.drainImmediate();
   assert.equal(keychainReads, 1);
+});
+
+test('player teardown quiesces pending global callbacks before IINA releases the plugin', async () => {
+  const harness = timerHarness();
+  const messageHandlers = new Map();
+  let httpGets = 0;
+  const context = {
+    iina: {
+      global: { onMessage: (name, callback) => messageHandlers.set(name, callback) },
+      http: {
+        get: () => {
+          httpGets += 1;
+          return Promise.reject(new Error('IINA API must not run after teardown'));
+        },
+        post: () => Promise.reject(new Error('Unexpected POST')),
+      },
+      menu: { item: (_title, action) => action, addItem: () => {} },
+      utils: { keychainRead: () => false },
+    },
+    require: () => protocol,
+    setTimeout: harness.setTimeout,
+    clearTimeout: harness.clearTimeout,
+    Promise,
+    Date,
+    Math,
+  };
+
+  vm.runInNewContext(globalSource, context, { filename: 'global.js' });
+  harness.finishInitialTurn();
+  const timerRacingWithTeardown = harness.timers[0];
+
+  messageHandlers.get('cinelark.player-will-close')();
+  assert.equal(harness.timers.length, 0);
+
+  await harness.run(timerRacingWithTeardown);
+  assert.equal(httpGets, 0);
 });

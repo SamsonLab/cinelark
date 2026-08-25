@@ -39,7 +39,7 @@ struct IINAPluginInstallationTests {
 
         let installation = IINAPluginInstallation(directoryURL: directory)
         #expect(throws: IINAPluginInstallation.InstallationError.invalidBundledPlugin) {
-            try installation.replace(with: bundled, requiring: "0.1.16")
+            try installation.replace(with: bundled, requiring: "0.1.17")
         }
         #expect(
             try String(
@@ -52,14 +52,14 @@ struct IINAPluginInstallationTests {
     @Test("an existing plugin is replaced from a validated bundled directory")
     func existingPluginIsReplaced() throws {
         let directory = try makePlugin(version: "0.1.14", marker: "installed")
-        let bundled = try makePlugin(version: "0.1.16", marker: "bundled")
+        let bundled = try makePlugin(version: "0.1.17", marker: "bundled")
         defer { try? FileManager.default.removeItem(at: directory) }
         defer { try? FileManager.default.removeItem(at: bundled) }
 
         let installation = IINAPluginInstallation(directoryURL: directory)
-        try installation.replace(with: bundled, requiring: "0.1.16")
+        try installation.replace(with: bundled, requiring: "0.1.17")
 
-        #expect(installation.state(requiring: "0.1.16") == .current(version: "0.1.16"))
+        #expect(installation.state(requiring: "0.1.17") == .current(version: "0.1.17"))
         #expect(
             try String(
                 contentsOf: directory.appendingPathComponent("src/main.js"),

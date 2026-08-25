@@ -20,6 +20,9 @@ let idleFinalizationPending = false;
 let sessionClosed = false;
 let queueEntries = [];
 let pendingReplacement = null;
+let isQuiesced = false;
+const pendingTimers = new Set();
+const pendingIntervals = new Set();
 
 const EOF_REPLACEMENT_GRACE_MS = 30000;
 const COMPLETION_EPSILON_SECONDS = 0.001;
@@ -30,12 +33,50 @@ function shortID(value) {
 }
 
 function log(message, fields = {}) {
+  if (isQuiesced) return;
   if (!pluginConsole || typeof pluginConsole.log !== 'function') return;
   pluginConsole.log(`[CineLark/player] ${message} ${JSON.stringify(fields)}`);
 }
 
+function scheduleTimer(callback, milliseconds = 0) {
+  if (isQuiesced) return null;
+  let timerID = null;
+  timerID = setTimeout(() => {
+    pendingTimers.delete(timerID);
+    if (isQuiesced) return;
+    callback();
+  }, milliseconds);
+  pendingTimers.add(timerID);
+  return timerID;
+}
+
+function scheduleInterval(callback, milliseconds) {
+  if (isQuiesced) return null;
+  const intervalID = setInterval(() => {
+    if (isQuiesced) return;
+    callback();
+  }, milliseconds);
+  pendingIntervals.add(intervalID);
+  return intervalID;
+}
+
+function quiescePlayer() {
+  isQuiesced = true;
+  for (const timerID of pendingTimers) clearTimeout(timerID);
+  pendingTimers.clear();
+  for (const intervalID of pendingIntervals) clearInterval(intervalID);
+  pendingIntervals.clear();
+}
+
+function onEvent(name, callback) {
+  event.on(name, (...args) => {
+    if (isQuiesced) return;
+    callback(...args);
+  });
+}
+
 function emit(type, payload = {}, replyTo = null) {
-  if (!activeSession) return;
+  if (isQuiesced || !activeSession) return;
   if (type === 'player.fileLoaded' || type === 'player.ended' || type === 'player.closed') {
     log('emitting lifecycle event', {
       type,
@@ -183,7 +224,7 @@ function scheduleIdleFinalization() {
     reason: lastEndReason,
     delayMilliseconds,
   });
-  setTimeout(() => {
+  scheduleTimer(() => {
     if (!activeSession || activeSession.playbackID !== finalizingPlaybackID) return;
     idleFinalizationPending = false;
     if (sessionClosed || !core.status.idle) return;
@@ -202,7 +243,7 @@ function scheduleIdleFinalization() {
   }, delayMilliseconds);
 }
 
-event.on('iina.file-loaded', () => {
+onEvent('iina.file-loaded', () => {
   if (!activatePlayingEntry()) return;
   hasLoadedCurrentMedia = true;
   terminalEventSent = false;
@@ -231,11 +272,11 @@ event.on('iina.file-loaded', () => {
   emitPosition();
 });
 
-event.on('iina.window-loaded', () => {
+onEvent('iina.window-loaded', () => {
   applyPendingFullscreen();
 });
 
-event.on('mpv.pause.changed', () => {
+onEvent('mpv.pause.changed', () => {
   if (!activeSession || !hasLoadedCurrentMedia) {
     log('ignored pause transition while replacement is loading', {
       playback: activeSession ? shortID(activeSession.playbackID) : 'none',
@@ -316,7 +357,7 @@ function finishPlayback(reason, source) {
   scheduleIdleFinalization();
 }
 
-event.on('mpv.eof-reached.changed', () => {
+onEvent('mpv.eof-reached.changed', () => {
   if (!activeSession || !hasLoadedCurrentMedia) {
     log('ignored eof-reached transition while replacement is loading', {
       playback: activeSession ? shortID(activeSession.playbackID) : 'none',
@@ -334,7 +375,7 @@ event.on('mpv.eof-reached.changed', () => {
 
 // IINA's generic mpv.* plugin callback does not expose mpv's event detail
 // object. Observe eof-reached above and use sampled position only as a fallback.
-event.on('mpv.end-file', () => {
+onEvent('mpv.end-file', () => {
   if (!activeSession || !hasLoadedCurrentMedia) {
     log('ignored end-file while replacement is loading', {
       playback: activeSession ? shortID(activeSession.playbackID) : 'none',
@@ -346,44 +387,53 @@ event.on('mpv.end-file', () => {
   finishPlayback(naturalEOF ? 'eof' : 'unknown', naturalEOF ? 'end-file-fallback' : 'end-file');
 });
 
-event.on('mpv.idle-active.changed', () => {
+onEvent('mpv.idle-active.changed', () => {
   scheduleIdleFinalization();
 });
 
 event.on('iina.window-will-close', () => {
-  if ((!activeSession && !pendingReplacement) || sessionClosed) return;
-  if (pendingReplacement && !hasLoadedCurrentMedia) {
-    activeSession = pendingReplacement;
+  if (!isCineLarkManagedPlayer || isQuiesced) return;
+  try {
+    if ((!activeSession && !pendingReplacement) || sessionClosed) return;
+    if (pendingReplacement && !hasLoadedCurrentMedia) {
+      activeSession = pendingReplacement;
+      pendingReplacement = null;
+      terminalEventSent = false;
+      lastEndReason = null;
+      lastPositionSeconds = Math.max(0, activeSession.startPositionSeconds);
+      lastDurationSeconds = 0;
+    }
+    const nearEnd = hasLoadedCurrentMedia && playbackIsNearEnd();
+    log('managed window will close', {
+      playback: shortID(activeSession.playbackID),
+      terminalEventSent,
+      nearEnd,
+      positionSeconds: lastPositionSeconds,
+      durationSeconds: lastDurationSeconds,
+    });
+    if (!terminalEventSent && nearEnd) {
+      finishPlayback('eof', 'window-close-fallback');
+    }
+    sessionClosed = true;
+    if (!terminalEventSent) emitPosition();
+    emit('player.closed', {
+      reason: 'window_closed',
+      playbackID: activeSession.playbackID,
+    });
+    activeSession = null;
+    queueEntries = [];
     pendingReplacement = null;
-    terminalEventSent = false;
-    lastEndReason = null;
-    lastPositionSeconds = Math.max(0, activeSession.startPositionSeconds);
-    lastDurationSeconds = 0;
+  } finally {
+    try {
+      global.postMessage('cinelark.player-will-close', {});
+    } finally {
+      quiescePlayer();
+    }
   }
-  const nearEnd = hasLoadedCurrentMedia && playbackIsNearEnd();
-  log('managed window will close', {
-    playback: shortID(activeSession.playbackID),
-    terminalEventSent,
-    nearEnd,
-    positionSeconds: lastPositionSeconds,
-    durationSeconds: lastDurationSeconds,
-  });
-  if (!terminalEventSent && nearEnd) {
-    finishPlayback('eof', 'window-close-fallback');
-  }
-  sessionClosed = true;
-  if (!terminalEventSent) emitPosition();
-  emit('player.closed', {
-    reason: 'window_closed',
-    playbackID: activeSession.playbackID,
-  });
-  activeSession = null;
-  queueEntries = [];
-  pendingReplacement = null;
 });
 
 function handleCommand(command) {
-  if (!isCineLarkManagedPlayer || !command || !command.sessionID) return;
+  if (isQuiesced || !isCineLarkManagedPlayer || !command || !command.sessionID) return;
   global.postMessage('cinelark.player-ack', { commandID: command.id });
 
   if (command.type === 'player.play') {
@@ -500,10 +550,10 @@ function handleCommand(command) {
 // responses arrive on an NSURLSession delegate queue, while player/core APIs
 // must execute on the main run loop. IINA timers provide that queue hop.
 global.onMessage('cinelark.command', (command) => {
-  setTimeout(() => handleCommand(command), 0);
+  scheduleTimer(() => handleCommand(command), 0);
 });
 
-setInterval(() => {
+scheduleInterval(() => {
   if (!activeSession) return;
   pollPlaybackCompletion();
   if (core.status.idle) {

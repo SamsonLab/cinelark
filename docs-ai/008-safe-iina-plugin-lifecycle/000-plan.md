@@ -97,3 +97,8 @@ separate messages.
   alignment operationally fragile.
 
 ## Amendments
+
+- Updated 2026-08-25: Expanded the unsafe boundary from live replacement to
+  application teardown after a stock-IINA crash showed a retained timer calling
+  `http.get` during `NSApplication.terminate` — see
+  [002-iina-termination-timer-boundary.md](002-iina-termination-timer-boundary.md).

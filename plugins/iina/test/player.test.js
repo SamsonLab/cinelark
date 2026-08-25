@@ -9,13 +9,15 @@ const uhdnowSeries = require('./fixtures/uhdnow-series.js');
 
 const [currentEpisode, nextEpisode] = uhdnowSeries.episodes;
 
-function makeHarness() {
+function makeHarness({ label = 'cinelark:6f55936d-5950-44fd-a696-f989d41785cc' } = {}) {
   const eventHandlers = new Map();
   const messageHandlers = new Map();
   const emitted = [];
   const calls = [];
   let interval;
   let intervalMilliseconds;
+  let intervalID = 1;
+  let nextTimeoutID = 2;
   const timeouts = [];
   const playlistItems = [];
 
@@ -83,7 +85,7 @@ function makeHarness() {
         },
       },
       global: {
-        getLabel: () => 'cinelark:6f55936d-5950-44fd-a696-f989d41785cc',
+        getLabel: () => label,
         onMessage: (name, callback) => messageHandlers.set(name, callback),
         postMessage: (name, data) => emitted.push([name, data]),
       },
@@ -91,11 +93,20 @@ function makeHarness() {
     setInterval: (callback, milliseconds) => {
       interval = callback;
       intervalMilliseconds = milliseconds;
-      return 1;
+      return intervalID;
+    },
+    clearInterval: (id) => {
+      if (id === intervalID) interval = null;
     },
     setTimeout: (callback, milliseconds = 0) => {
-      timeouts.push({ callback, milliseconds });
-      return timeouts.length;
+      const id = nextTimeoutID;
+      nextTimeoutID += 1;
+      timeouts.push({ id, callback, milliseconds });
+      return id;
+    },
+    clearTimeout: (id) => {
+      const index = timeouts.findIndex((timeout) => timeout.id === id);
+      if (index >= 0) timeouts.splice(index, 1);
     },
     Date,
     Number,
@@ -110,6 +121,7 @@ function makeHarness() {
     emitted,
     eventHandlers,
     intervalMilliseconds,
+    isIntervalActive: () => interval !== null,
     messageHandlers,
     playPlaylistItem: (index) => {
       playlistItems.forEach((item, itemIndex) => {
@@ -127,6 +139,7 @@ function makeHarness() {
         callback();
       }
     },
+    timeouts,
   };
 }
 
@@ -148,6 +161,32 @@ function playCommand({
     },
   };
 }
+
+test('managed-player teardown cancels timers and quiesces racing callbacks', () => {
+  const harness = makeHarness();
+  harness.messageHandlers.get('cinelark.command')(playCommand());
+  const timerRacingWithTeardown = harness.timeouts[0];
+
+  harness.eventHandlers.get('iina.window-will-close')();
+
+  assert.equal(harness.isIntervalActive(), false);
+  assert.equal(harness.timeouts.length, 0);
+  assert.equal(harness.emitted.length, 1);
+  assert.equal(harness.emitted[0][0], 'cinelark.player-will-close');
+  assert.equal(JSON.stringify(harness.emitted[0][1]), '{}');
+
+  timerRacingWithTeardown.callback();
+  assert.equal(harness.emitted.length, 1);
+});
+
+test('ordinary IINA windows do not quiesce the global CineLark bridge', () => {
+  const harness = makeHarness({ label: 'ordinary-player' });
+
+  harness.eventHandlers.get('iina.window-will-close')();
+
+  assert.equal(harness.isIntervalActive(), true);
+  assert.equal(harness.emitted.length, 0);
+});
 
 test('player opens the opaque URL and applies resume only after file-loaded', () => {
   const harness = makeHarness();

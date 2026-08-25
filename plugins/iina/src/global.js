@@ -11,7 +11,7 @@ const {
 const { global, http, menu, utils } = iina;
 const pluginConsole = iina.console;
 
-const PLUGIN_VERSION = '0.1.16';
+const PLUGIN_VERSION = '0.1.17';
 const KEYCHAIN_SERVICE = 'bridge';
 const KEYCHAIN_ACCOUNT = 'pairing-key';
 const PORT_START = 43191;
@@ -26,23 +26,54 @@ let pendingPlayerReuse = null;
 let baseURL = null;
 let secret = null;
 let eventQueue = Promise.resolve();
+let transportQuiesced = false;
+const pendingTimers = new Set();
 
 function shortID(value) {
   return typeof value === 'string' ? value.slice(0, 8) : 'none';
 }
 
 function log(message, fields = {}) {
+  if (transportQuiesced) return;
   if (!pluginConsole || typeof pluginConsole.log !== 'function') return;
   pluginConsole.log(`[CineLark/global] ${message} ${JSON.stringify(fields)}`);
 }
 
+function scheduleTimer(callback, milliseconds = 0) {
+  if (transportQuiesced) return null;
+  let timerID = null;
+  timerID = setTimeout(() => {
+    pendingTimers.delete(timerID);
+    if (transportQuiesced) return;
+    callback();
+  }, milliseconds);
+  pendingTimers.add(timerID);
+  return timerID;
+}
+
+function cancelPendingTimers() {
+  for (const timerID of pendingTimers) clearTimeout(timerID);
+  pendingTimers.clear();
+}
+
+function quiesceTransport() {
+  transportQuiesced = true;
+  pendingPlayerReuse = null;
+  cancelPendingTimers();
+}
+
+function resumeTransport() {
+  cancelPendingTimers();
+  transportQuiesced = false;
+}
+
 function delay(milliseconds) {
-  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+  return new Promise((resolve) => scheduleTimer(resolve, milliseconds));
 }
 
 function runOnMain(operation) {
   return new Promise((resolve, reject) => {
-    setTimeout(() => {
+    scheduleTimer(() => {
       try {
         const result = operation();
         if (result && typeof result.then === 'function') {
@@ -91,13 +122,14 @@ async function discoverBroker() {
       }
     } catch (_) {
       // Port probing is expected while CineLark is not running.
+      if (transportQuiesced) return null;
     }
   }
   return null;
 }
 
 function emit(type, payload = {}, sessionID = null, replyTo = null) {
-  if (!baseURL || !secret) return;
+  if (transportQuiesced || !baseURL || !secret) return;
   const generation = connectionGeneration;
   const envelope = createEnvelope({
     type,
@@ -110,7 +142,7 @@ function emit(type, payload = {}, sessionID = null, replyTo = null) {
   eventSequence += 1;
   eventQueue = eventQueue
     .then(() => {
-      if (generation !== connectionGeneration || !baseURL) return null;
+      if (transportQuiesced || generation !== connectionGeneration || !baseURL) return null;
       if (type === 'player.fileLoaded' || type === 'player.ended' || type === 'player.closed') {
         log('forwarding lifecycle event to broker', {
           type,
@@ -121,9 +153,36 @@ function emit(type, payload = {}, sessionID = null, replyTo = null) {
       return post('/v1/plugin/events', envelope);
     })
     .catch(() => {
+      if (transportQuiesced) return;
       log('broker event delivery failed; reconnecting', { type });
       if (generation === connectionGeneration) baseURL = null;
     });
+}
+
+function emitBeforeTeardown(type, payload = {}, sessionID = null, replyTo = null) {
+  if (transportQuiesced || !baseURL || !secret) return;
+  const uri = '/v1/plugin/events';
+  const envelope = createEnvelope({
+    type,
+    payload,
+    sequence: eventSequence,
+    sessionID,
+    replyTo,
+    secret,
+  });
+  eventSequence += 1;
+  try {
+    const request = http.post(`${baseURL}${uri}`, {
+      headers: {
+        ...authenticatedHeaders('POST', uri),
+        'Content-Type': 'application/json',
+      },
+      data: envelope,
+    });
+    if (request && typeof request.catch === 'function') request.catch(() => null);
+  } catch (_) {
+    // Teardown is already in progress; no retry may outlive the plugin owner.
+  }
 }
 
 function createManagedPlayer(command) {
@@ -142,6 +201,7 @@ function createManagedPlayer(command) {
 }
 
 function handleCommand(command) {
+  if (transportQuiesced) return;
   if (!verifyEnvelope(command, secret) || command.sequence <= lastCommandSequence) {
     return;
   }
@@ -165,7 +225,7 @@ function handleCommand(command) {
     currentPlayer.sessionID = command.sessionID;
     pendingPlayerReuse = { commandID: command.id, command };
     global.postMessage(currentPlayer.id, 'cinelark.command', command);
-    setTimeout(() => {
+    scheduleTimer(() => {
       if (!pendingPlayerReuse || pendingPlayerReuse.commandID !== command.id) return;
       log('replacement acknowledgement timed out; preserving the same-player invariant', {
         command: shortID(command.id),
@@ -223,20 +283,29 @@ async function hello() {
 }
 
 async function poll(generation) {
-  while (generation === connectionGeneration && baseURL) {
+  while (generation === connectionGeneration && baseURL && !transportQuiesced) {
     const uri = `/v1/plugin/commands?after=${lastCommandSequence}`;
     try {
       const response = await get(uri);
       if (response.statusCode !== 200 || !response.data || !Array.isArray(response.data.commands)) {
         throw new Error('Invalid command response');
       }
+      const commands = response.data.commands;
+      if (transportQuiesced) {
+        const hasAuthenticatedPlayCommand = commands.some(
+          (command) => command.type === 'player.play' && verifyEnvelope(command, secret)
+        );
+        if (!hasAuthenticatedPlayCommand) break;
+        resumeTransport();
+      }
       // HTTP promises resolve on IINA's NSURLSession delegate queue. Managed
       // player APIs are main-run-loop-only, so use IINA's timer polyfill as the
       // documented queue hop before creating a player or posting its command.
-      for (const command of response.data.commands) {
-        setTimeout(() => handleCommand(command), 0);
+      for (const command of commands) {
+        scheduleTimer(() => handleCommand(command), 0);
       }
     } catch (_) {
+      if (transportQuiesced) break;
       baseURL = null;
       break;
     }
@@ -244,18 +313,21 @@ async function poll(generation) {
 }
 
 async function connect() {
+  if (transportQuiesced) return;
   const generation = ++connectionGeneration;
 
   try {
     // Do not touch Keychain while CineLark is absent. This prevents IINA from
     // presenting an authorization dialog on every background retry.
     baseURL = await discoverBroker();
+    if (transportQuiesced) return;
     if (!baseURL) throw new Error('Broker unavailable');
 
     if (!secret) {
       const storedSecret = await runOnMain(
         () => utils.keychainRead(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT)
       );
+      if (transportQuiesced) return;
       if (typeof storedSecret !== 'string') {
         throw new Error('CineLark Bridge is waiting for Keychain pairing.');
       }
@@ -267,23 +339,28 @@ async function connect() {
     eventSequence = 0;
     lastCommandSequence = 0;
     await hello();
+    if (transportQuiesced) return;
     await poll(generation);
   } catch (error) {
+    if (transportQuiesced) return;
     if (error && error.statusCode === 401) secret = null;
     baseURL = null;
   }
 
+  if (transportQuiesced) return;
   await delay(RETRY_DELAY_MS);
-  if (generation === connectionGeneration) connect();
+  if (!transportQuiesced && generation === connectionGeneration) connect();
 }
 
 global.onMessage('cinelark.player-ack', (ack) => {
+  if (transportQuiesced) return;
   if (!ack || !pendingPlayerReuse || ack.commandID !== pendingPlayerReuse.commandID) return;
   log('managed player acknowledged replacement', { command: shortID(ack.commandID) });
   pendingPlayerReuse = null;
 });
 
 global.onMessage('cinelark.event', (event) => {
+  if (transportQuiesced) return;
   if (!event || typeof event.type !== 'string') return;
   if (event.type === 'player.fileLoaded' || event.type === 'player.ended' || event.type === 'player.closed') {
     log('received lifecycle event from managed player', {
@@ -292,7 +369,8 @@ global.onMessage('cinelark.event', (event) => {
       reason: event.payload && event.payload.reason ? event.payload.reason : null,
     });
   }
-  emit(event.type, event.payload || {}, event.sessionID || null, event.replyTo || null);
+  const forward = event.type === 'player.closed' ? emitBeforeTeardown : emit;
+  forward(event.type, event.payload || {}, event.sessionID || null, event.replyTo || null);
   const endedWithoutReuse =
     event.type === 'player.ended' && event.payload && event.payload.reason !== 'eof';
   if (event.type === 'player.closed' || endedWithoutReuse) {
@@ -300,8 +378,14 @@ global.onMessage('cinelark.event', (event) => {
   }
 });
 
+global.onMessage('cinelark.player-will-close', () => {
+  currentPlayer = null;
+  quiesceTransport();
+});
+
 menu.addItem(
   menu.item('Reconnect CineLark Bridge', () => {
+    resumeTransport();
     baseURL = null;
     secret = null;
     connect();

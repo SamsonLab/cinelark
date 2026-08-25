@@ -7,7 +7,7 @@ import CineLarkDomain
 public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
     public let events: AsyncStream<PlaybackEvent>
 
-    private static let minimumPluginVersion = "0.1.16"
+    private static let minimumPluginVersion = "0.1.17"
     private static let logger = Logger(
         subsystem: "com.samsonlab.cinelark",
         category: "PlaybackBridge"

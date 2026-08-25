@@ -9,6 +9,7 @@
 | 2026-08-25 | Preserved IINA consent for first install and continued the pending play after `bridge.ready` | Working tree |
 | 2026-08-25 | Replaced stopped outdated or invalid installations from a validated bundled directory | Working tree |
 | 2026-08-25 | Added actionable setup-boundary and installation-failure messages | Working tree |
+| 2026-08-25 | Quiesced plugin timers before IINA releases their native API owner | [`002-iina-termination-timer-boundary.md`](002-iina-termination-timer-boundary.md) |
 
 ## Outcome & current state (as of 2026-08-25)
 
@@ -34,12 +35,19 @@ malformed, or older plugin versions cannot satisfy launch readiness. Concurrent
 play requests share one preparation task instead of opening duplicate consent
 flows or racing installation mutations.
 
+Plugin 0.1.17 also treats managed-player window teardown as a native API
+boundary. The player synchronously notifies the global entry before returning
+from `iina.window-will-close`; both entries cancel their registered timers, and
+callbacks that already raced past cancellation check a quiesced flag before
+touching IINA. An authenticated play command already waiting in the current
+long poll may reactivate the bridge after an ordinary window close.
+
 ## Validation
 
 - `swift test` passed all 41 CineLarkKit tests.
-- `xcodebuild -project CineLark.xcodeproj -scheme CineLark -destination
+- `xcodebuild -project apps/macos/CineLark.xcodeproj -scheme CineLark -destination
   'platform=macOS' CODE_SIGNING_ALLOWED=NO test` passed all 11 macOS tests.
-- `npm test --prefix plugins/iina` passed all 23 plugin tests.
+- `npm test --prefix plugins/iina` passed all 26 plugin tests.
 - Plugin tests cover missing, malformed, invalid, outdated, current, and newer
   installations; validated replacement; and rejection without overwriting the
   existing installation.
@@ -47,7 +55,7 @@ flows or racing installation mutations.
   provider playback URLs.
 - The built app resolves both `CineLark.iinaplgz` and
   `CineLark.iinaplugin`; the unpacked `Info.json` and `src` tree match the
-  repository plugin at version 0.1.16.
+  repository plugin at version 0.1.17.
 - Both localized `.strings` files pass `plutil -lint`.
 
 ## Deviations from plan
@@ -57,5 +65,7 @@ None.
 ## Open questions
 
 - Exercise the first-install consent-and-auto-continue path with a disposable
-  IINA profile or after the user intentionally removes the working plugin. The
-  current 0.1.16 installation was preserved during implementation.
+  IINA profile or after the user intentionally removes the working plugin.
+- Reproduce a full IINA quit with plugin 0.1.17 installed and playback active;
+  automated tests cover timer cancellation and callbacks racing teardown, but
+  cannot reproduce AppKit's native plugin-deallocation order.
