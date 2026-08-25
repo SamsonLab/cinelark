@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>CineLark Remote</string>
+	<string>CineLark R</string>
 	<key>NSCameraUsageDescription</key>
 	<string>CineLark Remote uses the camera only to scan pairing codes shown by your Mac.</string>
 	<key>NSLocalNetworkUsageDescription</key>

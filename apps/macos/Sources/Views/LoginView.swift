@@ -68,10 +68,7 @@ struct LoginView: View {
 
     private var identity: some View {
         VStack(spacing: 12) {
-            Image(systemName: "bird.fill")
-                .font(.system(size: 52, weight: .semibold))
-                .symbolRenderingMode(.hierarchical)
-                .foregroundStyle(.white)
+            CineLarkBrandMark(size: 88)
             Text("CineLark")
                 .font(.system(size: 44, weight: .bold))
             Text(language.localized("login.tagline"))

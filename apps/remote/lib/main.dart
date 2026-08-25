@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'controller/remote_controller.dart';
 import 'screens/pairing_screen.dart';
 import 'screens/remote_screen.dart';
+import 'widgets/cinelark_mark.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -70,7 +71,7 @@ class _LoadingScreen extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.flutter_dash_rounded, size: 64),
+          CineLarkMark(size: 96),
           SizedBox(height: 20),
           CircularProgressIndicator(),
         ],

@@ -17,9 +17,7 @@ struct RootView: View {
                 ZStack {
                     CineLarkPageBackground()
                     VStack(spacing: 16) {
-                        Image(systemName: "bird.fill")
-                            .font(.system(size: 40, weight: .semibold))
-                            .symbolRenderingMode(.hierarchical)
+                        CineLarkBrandMark(size: 72)
                             .frame(width: 88, height: 88)
                             .glassEffect(.regular, in: Circle())
 

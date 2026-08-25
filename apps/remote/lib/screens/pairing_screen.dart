@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../controller/remote_controller.dart';
+import '../widgets/cinelark_mark.dart';
 import 'pairing_scan_gate.dart';
 
 typedef PairingScannerBuilder =
@@ -131,7 +132,7 @@ class _PairingScreenState extends State<PairingScreen> {
               padding: const EdgeInsets.all(24),
               child: Column(
                 children: [
-                  const Icon(Icons.flutter_dash_rounded, size: 48),
+                  const CineLarkMark(size: 64),
                   const SizedBox(height: 8),
                   Text(
                     'CineLark Remote',

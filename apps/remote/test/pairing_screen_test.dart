@@ -1,5 +1,6 @@
 import 'package:cinelark_remote/controller/remote_controller.dart';
 import 'package:cinelark_remote/screens/pairing_screen.dart';
+import 'package:cinelark_remote/widgets/cinelark_mark.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -30,6 +31,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('CineLark Remote'), findsOneWidget);
+    expect(find.byType(CineLarkMark), findsOneWidget);
     expect(scannerBuildCount, 1);
   });
 }
