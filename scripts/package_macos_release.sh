@@ -31,6 +31,7 @@ fi
 
 APP_EXECUTABLE="$APP_PATH/Contents/MacOS/CineLark"
 BRIDGE_EXECUTABLE="$APP_PATH/Contents/Helpers/CineLarkBridge"
+REMOTE_GATEWAY_EXECUTABLE="$APP_PATH/Contents/Helpers/CineLarkRemoteGateway"
 PLUGIN_ARCHIVE="$APP_PATH/Contents/Resources/CineLark.iinaplgz"
 APP_ICON="$APP_PATH/Contents/Resources/AppIcon.icns"
 ASSET_CATALOG="$APP_PATH/Contents/Resources/Assets.car"
@@ -39,6 +40,7 @@ SPARKLE_VERSION_DIR="$SPARKLE_FRAMEWORK/Versions/B"
 SIGNED_COMPONENTS=(
   "$APP_PATH"
   "$BRIDGE_EXECUTABLE"
+  "$REMOTE_GATEWAY_EXECUTABLE"
   "$SPARKLE_FRAMEWORK"
   "$SPARKLE_VERSION_DIR/Updater.app"
   "$SPARKLE_VERSION_DIR/Autoupdate"
@@ -49,6 +51,7 @@ SIGNED_COMPONENTS=(
 for required_path in \
   "$APP_EXECUTABLE" \
   "$BRIDGE_EXECUTABLE" \
+  "$REMOTE_GATEWAY_EXECUTABLE" \
   "$PLUGIN_ARCHIVE" \
   "$APP_ICON" \
   "$ASSET_CATALOG" \
@@ -86,6 +89,7 @@ signature_value() {
 
 verify_universal "$APP_EXECUTABLE"
 verify_universal "$BRIDGE_EXECUTABLE"
+verify_universal "$REMOTE_GATEWAY_EXECUTABLE"
 /usr/bin/codesign --verify --deep --strict --verbose=2 "$APP_PATH"
 
 HOST_TEAM=$(signature_value "$APP_PATH" TeamIdentifier)

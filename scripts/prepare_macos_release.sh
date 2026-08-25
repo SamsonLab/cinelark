@@ -103,21 +103,9 @@ CineLark $VERSION for macOS 26 or later.
 
 ## Highlights
 
-- Restored the Home preview's stable expanded layout and removed scroll-driven
-  scaling while keeping shelf content on the original opaque black canvas.
-- Rebased Home keyboard navigation on the actually visible shelf, preventing
-  Up from jumping to offscreen preview actions and keeping horizontal focus
-  outlines fully inside the viewport.
-- Fixed series-detail episode focus across expansion, collapse, and manual
-  scrolling so Up and Down continue from the visible episode boundary instead
-  of stale offscreen controls.
-- Replaced playlist-based episode continuation with the same single-window
-  content replacement used by manual next-episode playback, while preserving
-  per-episode progress and completion synchronization. Natural EOF detection
-  now follows IINA's property API, keeps the managed window alive at EOF, and
-  includes privacy-safe end-to-end logs. A 500 ms completion-progress poll now
-  holds the final frame, then uses the same stop-then-play replacement as a
-  second manual play action without allowing a fallback player window.
+- Introduced the new CineLark lark icon and matching in-app brand mark.
+- Fixed secure Remote gateway startup when paired devices already exist,
+  restoring QR-code pairing without clearing saved credentials.
 
 ## Install
 
