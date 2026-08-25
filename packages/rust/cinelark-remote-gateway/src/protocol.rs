@@ -62,6 +62,7 @@ impl RemoteEnvelope {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DeviceConfiguration {
+    #[serde(rename = "deviceID")]
     pub device_id: String,
     pub credential: String,
     #[serde(default)]
@@ -285,5 +286,28 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    #[test]
+    fn configure_frame_accepts_swift_device_id_casing() {
+        let frame = serde_json::from_value::<ParentInput>(json!({
+            "kind": "configure",
+            "serviceID": "ad54e7ba-9409-4f54-8c7c-65e781978cf9",
+            "name": "CineLark",
+            "portStart": 43_201,
+            "portEnd": 43_210,
+            "identity": null,
+            "devices": [{
+                "deviceID": "8dc63877-bf80-4d63-afc0-bec50d1ecb60",
+                "credential": URL_SAFE_NO_PAD.encode([7_u8; DEVICE_SECRET_BYTES]),
+                "capabilities": ["navigation.basic"],
+            }],
+        }))
+        .unwrap();
+
+        let ParentInput::Configure { devices, .. } = frame else {
+            panic!("expected configure frame");
+        };
+        assert_eq!(devices[0].device_id, "8dc63877-bf80-4d63-afc0-bec50d1ecb60");
     }
 }
