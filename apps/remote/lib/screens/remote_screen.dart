@@ -15,54 +15,65 @@ class RemoteScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isConnected = controller.isConnected;
-    return Scaffold(
-      appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('CineLark Remote'),
-            Text(
-              controller.pairedMac?.name ?? 'Mac',
-              style: Theme.of(
-                context,
-              ).textTheme.labelSmall?.copyWith(color: Colors.white60),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) unawaited(controller.showDevices());
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            tooltip: 'Devices',
+            onPressed: () => unawaited(controller.showDevices()),
+            icon: const Icon(Icons.arrow_back_rounded),
+          ),
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('CineLark Remote'),
+              Text(
+                controller.pairedMac?.displayName ?? 'Mac',
+                style: Theme.of(
+                  context,
+                ).textTheme.labelSmall?.copyWith(color: Colors.white60),
+              ),
+            ],
+          ),
+          actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: Icon(
+                Icons.circle,
+                size: 10,
+                color: isConnected ? Colors.greenAccent : Colors.orangeAccent,
+              ),
+            ),
+            PopupMenuButton<String>(
+              onSelected: (value) {
+                if (value == 'activate') controller.activateMac();
+                if (value == 'forget') controller.forget();
+              },
+              itemBuilder: (context) => const [
+                PopupMenuItem(
+                  value: 'activate',
+                  child: Text('Bring Mac Forward'),
+                ),
+                PopupMenuItem(value: 'forget', child: Text('Forget This Mac')),
+              ],
             ),
           ],
         ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 4),
-            child: Icon(
-              Icons.circle,
-              size: 10,
-              color: isConnected ? Colors.greenAccent : Colors.orangeAccent,
-            ),
-          ),
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              if (value == 'activate') controller.activateMac();
-              if (value == 'forget') controller.forget();
-            },
-            itemBuilder: (context) => const [
-              PopupMenuItem(
-                value: 'activate',
-                child: Text('Bring Mac Forward'),
+        body: Column(
+          children: [
+            if (!isConnected) const _ReconnectBanner(),
+            if (controller.errorCode != null && isConnected)
+              _ErrorBanner(
+                code: controller.errorCode!,
+                onDismiss: controller.dismissError,
               ),
-              PopupMenuItem(value: 'forget', child: Text('Forget This Mac')),
-            ],
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          if (!isConnected) const _ReconnectBanner(),
-          if (controller.errorCode != null && isConnected)
-            _ErrorBanner(
-              code: controller.errorCode!,
-              onDismiss: controller.dismissError,
-            ),
-          Expanded(child: _contextualBody(context)),
-        ],
+            Expanded(child: _contextualBody(context)),
+          ],
+        ),
       ),
     );
   }

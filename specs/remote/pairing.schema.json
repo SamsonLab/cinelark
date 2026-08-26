@@ -28,6 +28,11 @@
       "minLength": 1,
       "maxLength": 80
     },
+    "platform": {
+      "description": "Host operating system used only for device presentation.",
+      "type": "string",
+      "enum": ["macos", "windows", "linux", "unknown"]
+    },
     "host": {
       "description": "An endpoint hint, not server identity.",
       "type": "string",

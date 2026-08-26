@@ -6,6 +6,7 @@ import SwiftUI
 struct RemoteSettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Bindable var remote: RemoteCoordinator
+    @State private var presentationID = UUID()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
@@ -21,6 +22,14 @@ struct RemoteSettingsView: View {
             if remote.pairingDisplay == nil {
                 await remote.beginPairing()
             }
+        }
+        .onAppear {
+            remote.registerPanelPresentation(id: presentationID) {
+                dismiss()
+            }
+        }
+        .onDisappear {
+            remote.unregisterPanelPresentation(id: presentationID)
         }
     }
 

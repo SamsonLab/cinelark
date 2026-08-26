@@ -173,6 +173,11 @@ public struct RemoteGatewayConfiguration: Sendable, Equatable {
 public struct RemoteGatewayReady: Sendable, Equatable {
     public let port: UInt16
     public let fingerprint: String
+
+    public init(port: UInt16, fingerprint: String) {
+        self.port = port
+        self.fingerprint = fingerprint
+    }
 }
 
 public struct RemotePairingRequest: Sendable, Equatable, Identifiable {
@@ -181,6 +186,12 @@ public struct RemotePairingRequest: Sendable, Equatable, Identifiable {
     public let deviceName: String
 
     public var id: UUID { connectionID }
+
+    public init(connectionID: UUID, deviceID: UUID, deviceName: String) {
+        self.connectionID = connectionID
+        self.deviceID = deviceID
+        self.deviceName = deviceName
+    }
 }
 
 public enum RemoteGatewayEvent: Sendable, Equatable {

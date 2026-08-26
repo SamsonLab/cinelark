@@ -16,7 +16,7 @@ public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
     private let bundle: Bundle
     private let workspace: NSWorkspace
     private let pairingStore: BridgePairingStore
-    private let client: BridgeProcessClient
+    private let client: any IINABridgeTransport
     private let eventContinuation: AsyncStream<PlaybackEvent>.Continuation
     private var eventTask: Task<Void, Never>?
     private var secret: Data?
@@ -28,15 +28,14 @@ public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
     private var terminationObserver: NSObjectProtocol?
 
     public init(
+        transport: any IINABridgeTransport,
         bundle: Bundle = .main,
         workspace: NSWorkspace = .shared
     ) {
         self.bundle = bundle
         self.workspace = workspace
         self.pairingStore = BridgePairingStore()
-        let executableURL = bundle.bundleURL
-            .appendingPathComponent("Contents/Helpers/CineLarkBridge", isDirectory: false)
-        self.client = BridgeProcessClient(executableURL: executableURL)
+        self.client = transport
         let pair = AsyncStream<PlaybackEvent>.makeStream()
         self.events = pair.stream
         self.eventContinuation = pair.continuation

@@ -6,7 +6,8 @@ Mac. It does not access media providers or play media locally.
 ## Features
 
 - QR pairing over certificate-pinned local WSS with explicit Mac approval
-- device credentials in iOS Keychain or Android Keystore-backed storage
+- named multi-Mac selection with device credentials in iOS Keychain or Android
+  Keystore-backed storage
 - reconnect and revocation recovery
 - remote Mac login with username, password, and optional verification code
 - semantic section, direction, select, and back navigation
@@ -20,10 +21,10 @@ The wire contract lives in
 ## Development
 
 ```sh
-flutter analyze
-flutter test
-flutter build ios --simulator --no-codesign
-flutter build apk --debug
+fvm flutter analyze
+fvm flutter test
+fvm flutter build ios --simulator --no-codesign
+fvm flutter build apk --debug
 ```
 
 The phone and Mac must be on the same local network. Open **Remote** in the Mac
@@ -48,6 +49,6 @@ build before release:
 5. Background and resume the phone, sleep and wake the Mac, and change Wi-Fi;
    verify reconnect or an explicit recoverable disconnected state.
 6. Revoke the connected phone on the Mac and verify that it immediately loses
-   control, clears its credential, and returns to pairing.
+   control, removes only that Mac credential, and returns to device selection.
 7. On Android, enable a device-wide VPN that captures all app UIDs and verify
    that pairing and reconnect still reach the Mac over the Wi-Fi network.

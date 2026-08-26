@@ -11,6 +11,7 @@ import '../services/remote_transport.dart';
 
 enum RemoteConnectionPhase {
   loading,
+  deviceSelection,
   unpaired,
   connecting,
   awaitingApproval,
@@ -20,7 +21,7 @@ enum RemoteConnectionPhase {
 }
 
 class RemoteController extends ChangeNotifier with WidgetsBindingObserver {
-  RemoteController({CredentialStore? store})
+  RemoteController({PairedMacStore? store})
     : _store = store ?? CredentialStore() {
     _transport = RemoteTransport(
       onEnvelope: _receive,
@@ -29,10 +30,11 @@ class RemoteController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   static const _uuid = Uuid();
-  final CredentialStore _store;
+  final PairedMacStore _store;
   late final RemoteTransport _transport;
 
   RemoteConnectionPhase phase = RemoteConnectionPhase.loading;
+  List<PairedMac> pairedMacs = const [];
   PairedMac? pairedMac;
   AppSnapshot? appSnapshot;
   TextInputSnapshot? textInputSnapshot;
@@ -56,14 +58,42 @@ class RemoteController extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> initialize() async {
     WidgetsBinding.instance.addObserver(this);
-    pairedMac = await _store.load();
-    if (pairedMac == null) {
-      debugPrint('[remote] initialized state=unpaired');
-      phase = RemoteConnectionPhase.unpaired;
-      notifyListeners();
+    pairedMacs = await _store.loadAll();
+    pairedMac = null;
+    phase = RemoteConnectionPhase.deviceSelection;
+    debugPrint('[remote] initialized devices=${pairedMacs.length}');
+    notifyListeners();
+  }
+
+  Future<void> selectDevice(PairedMac device) async {
+    if (!pairedMacs.any((paired) => paired.serviceId == device.serviceId)) {
       return;
     }
+    await _leaveCurrentSession(RemoteConnectionPhase.deviceSelection);
+    pairedMac = device;
+    _reconnectAttempt = 0;
     await reconnect();
+  }
+
+  Future<void> showDevices() =>
+      _leaveCurrentSession(RemoteConnectionPhase.deviceSelection);
+
+  Future<void> addDevice() =>
+      _leaveCurrentSession(RemoteConnectionPhase.unpaired);
+
+  Future<void> retryPairing() =>
+      _leaveCurrentSession(RemoteConnectionPhase.unpaired);
+
+  Future<void> removeDevice(PairedMac device) async {
+    if (pairedMac?.serviceId == device.serviceId) {
+      await _leaveCurrentSession(RemoteConnectionPhase.deviceSelection);
+    }
+    final updated = List<PairedMac>.unmodifiable(
+      pairedMacs.where((paired) => paired.serviceId != device.serviceId),
+    );
+    await _store.saveAll(updated);
+    pairedMacs = updated;
+    notifyListeners();
   }
 
   Future<void> pair(String rawPayload) async {
@@ -120,20 +150,13 @@ class RemoteController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> forget() async {
-    debugPrint('[remote] pairing_state_reset');
-    _reconnectTimer?.cancel();
-    await _transport.close();
-    await _store.clear();
-    pairedMac = null;
-    _pairingPayload = null;
-    _pendingDeviceId = null;
-    appSnapshot = null;
-    textInputSnapshot = null;
-    playbackSnapshot = null;
-    capabilities = {};
-    phase = RemoteConnectionPhase.unpaired;
-    errorCode = null;
-    notifyListeners();
+    final selected = pairedMac;
+    if (selected == null) {
+      await retryPairing();
+      return;
+    }
+    debugPrint('[remote] pairing_removed service=${selected.serviceId}');
+    await removeDevice(selected);
   }
 
   void submitCredentials({
@@ -369,13 +392,19 @@ class RemoteController extends ChangeNotifier with WidgetsBindingObserver {
     final paired = PairedMac(
       serviceId: pairing.serviceId,
       name: pairing.name,
+      platform: pairing.platform,
       host: pairing.host,
       port: pairing.port,
       fingerprint: pairing.fingerprint,
       deviceId: deviceId,
       credential: credential,
     );
-    await _store.save(paired);
+    final updated = List<PairedMac>.unmodifiable([
+      paired,
+      ...pairedMacs.where((item) => item.serviceId != paired.serviceId),
+    ]);
+    await _store.saveAll(updated);
+    pairedMacs = updated;
     debugPrint('[remote] pairing_credential_saved');
     pairedMac = paired;
     capabilities = _stringSet(payload['capabilities']);
@@ -480,10 +509,32 @@ class RemoteController extends ChangeNotifier with WidgetsBindingObserver {
     }
     if (pairedMac != null) {
       _scheduleReconnect();
-    } else {
+    } else if (phase != RemoteConnectionPhase.deviceSelection &&
+        phase != RemoteConnectionPhase.unpaired) {
       phase = RemoteConnectionPhase.unpaired;
       notifyListeners();
     }
+  }
+
+  Future<void> _leaveCurrentSession(RemoteConnectionPhase destination) async {
+    debugPrint('[remote] session_left destination=${destination.name}');
+    _reconnectTimer?.cancel();
+    pairedMac = null;
+    _pairingPayload = null;
+    _pendingDeviceId = null;
+    appSnapshot = null;
+    textInputSnapshot = null;
+    playbackSnapshot = null;
+    capabilities = {};
+    errorCode = null;
+    authenticationError = null;
+    isSubmittingLogin = false;
+    _pendingText = null;
+    _textUpdateInFlight = false;
+    _commitTextWhenSynchronized = false;
+    phase = destination;
+    notifyListeners();
+    await _transport.close();
   }
 
   void _scheduleReconnect() {

@@ -3,10 +3,29 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:uuid/uuid.dart';
 
+enum HostPlatform {
+  macOS('macos'),
+  windows('windows'),
+  linux('linux'),
+  unknown('unknown');
+
+  const HostPlatform(this.wireValue);
+
+  factory HostPlatform.parse(Object? value) => switch (value) {
+    'macos' => HostPlatform.macOS,
+    'windows' => HostPlatform.windows,
+    'linux' => HostPlatform.linux,
+    _ => HostPlatform.unknown,
+  };
+
+  final String wireValue;
+}
+
 class PairingPayload {
   const PairingPayload({
     required this.serviceId,
     required this.name,
+    required this.platform,
     required this.host,
     required this.port,
     required this.fingerprint,
@@ -22,6 +41,9 @@ class PairingPayload {
     final payload = PairingPayload(
       serviceId: _requiredString(value, 'serviceID').toLowerCase(),
       name: _requiredString(value, 'name'),
+      platform: value.containsKey('platform')
+          ? HostPlatform.parse(value['platform'])
+          : HostPlatform.macOS,
       host: _requiredString(value, 'host'),
       port: _requiredInt(value, 'port'),
       fingerprint: _requiredString(value, 'fingerprint'),
@@ -45,6 +67,7 @@ class PairingPayload {
 
   final String serviceId;
   final String name;
+  final HostPlatform platform;
   final String host;
   final int port;
   final String fingerprint;
@@ -59,6 +82,7 @@ class PairedMac {
   const PairedMac({
     required this.serviceId,
     required this.name,
+    required this.platform,
     required this.host,
     required this.port,
     required this.fingerprint,
@@ -70,6 +94,9 @@ class PairedMac {
     final paired = PairedMac(
       serviceId: _requiredString(value, 'serviceID'),
       name: _requiredString(value, 'name'),
+      platform: value.containsKey('platform')
+          ? HostPlatform.parse(value['platform'])
+          : HostPlatform.macOS,
       host: _requiredString(value, 'host'),
       port: _requiredInt(value, 'port'),
       fingerprint: _requiredString(value, 'fingerprint'),
@@ -89,6 +116,7 @@ class PairedMac {
 
   final String serviceId;
   final String name;
+  final HostPlatform platform;
   final String host;
   final int port;
   final String fingerprint;
@@ -98,9 +126,21 @@ class PairedMac {
   Uri get endpoint =>
       Uri(scheme: 'wss', host: host, port: port, path: '/v1/remote');
 
+  String get displayName {
+    final normalized = name.trim().replaceFirst(_legacyNamePrefix, '').trim();
+    if (normalized.isNotEmpty) return normalized;
+    return switch (platform) {
+      HostPlatform.macOS => 'Mac',
+      HostPlatform.windows => 'Windows PC',
+      HostPlatform.linux => 'Linux PC',
+      HostPlatform.unknown => 'Computer',
+    };
+  }
+
   Map<String, dynamic> toJson() => {
     'serviceID': serviceId,
     'name': name,
+    'platform': platform.wireValue,
     'host': host,
     'port': port,
     'fingerprint': fingerprint,
@@ -185,6 +225,10 @@ int _requiredInt(Map<String, dynamic> value, String key) {
 
 final _messageType = RegExp(r'^[a-z][a-zA-Z0-9]*(\.[a-z][a-zA-Z0-9]*)+$');
 final _base64Url = RegExp(r'^[A-Za-z0-9_-]{43}$');
+final _legacyNamePrefix = RegExp(
+  r'^cine[\s-]*lark(?:\s*[—–:\-]\s*|\s+)',
+  caseSensitive: false,
+);
 
 bool _isBase64Url256(String value) {
   if (!_base64Url.hasMatch(value)) return false;

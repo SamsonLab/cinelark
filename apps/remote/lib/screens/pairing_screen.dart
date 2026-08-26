@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
@@ -62,7 +64,7 @@ class _PairingScreenState extends State<PairingScreen> {
 
   Future<void> scanAgain() async {
     debugPrint('[remote] retry_requested');
-    await widget.controller.forget();
+    await widget.controller.retryPairing();
     if (!mounted) return;
     setState(scanGate.reset);
     // The scanner remounts after the failed view and starts itself. Starting it
@@ -70,24 +72,42 @@ class _PairingScreenState extends State<PairingScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => PopScope(
+    canPop: false,
+    onPopInvokedWithResult: (didPop, _) {
+      if (!didPop) unawaited(widget.controller.showDevices());
+    },
+    child: _buildContent(context),
+  );
+
+  Widget _buildContent(BuildContext context) {
     final phase = widget.controller.phase;
     if (phase == RemoteConnectionPhase.connecting) {
-      return const _PairingProgress(
+      return _PairingProgress(
         icon: Icons.lock_outline_rounded,
         title: 'Securing connection…',
         message: 'Verifying the Mac certificate from the QR code.',
+        onCancel: widget.controller.showDevices,
       );
     }
     if (phase == RemoteConnectionPhase.awaitingApproval) {
-      return const _PairingProgress(
+      return _PairingProgress(
         icon: Icons.phonelink_lock_rounded,
         title: 'Approve on your Mac',
         message: 'CineLark is waiting for you to approve this phone.',
+        onCancel: widget.controller.showDevices,
       );
     }
     if (phase == RemoteConnectionPhase.failed) {
       return Scaffold(
+        appBar: AppBar(
+          title: const Text('Add Device'),
+          leading: IconButton(
+            tooltip: 'Devices',
+            onPressed: () => unawaited(widget.controller.showDevices()),
+            icon: const Icon(Icons.arrow_back_rounded),
+          ),
+        ),
         body: SafeArea(
           child: Center(
             child: Padding(
@@ -132,7 +152,20 @@ class _PairingScreenState extends State<PairingScreen> {
               padding: const EdgeInsets.all(24),
               child: Column(
                 children: [
-                  const CineLarkMark(size: 64),
+                  Row(
+                    children: [
+                      IconButton(
+                        tooltip: 'Devices',
+                        onPressed: () =>
+                            unawaited(widget.controller.showDevices()),
+                        icon: const Icon(Icons.arrow_back_rounded),
+                      ),
+                      const Expanded(
+                        child: Center(child: CineLarkMark(size: 64)),
+                      ),
+                      const SizedBox(width: 48),
+                    ],
+                  ),
                   const SizedBox(height: 8),
                   Text(
                     'CineLark Remote',
@@ -171,14 +204,24 @@ class _PairingProgress extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.message,
+    required this.onCancel,
   });
 
   final IconData icon;
   final String title;
   final String message;
+  final Future<void> Function() onCancel;
 
   @override
   Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(
+      title: const Text('Add Device'),
+      leading: IconButton(
+        tooltip: 'Devices',
+        onPressed: () => unawaited(onCancel()),
+        icon: const Icon(Icons.arrow_back_rounded),
+      ),
+    ),
     body: SafeArea(
       child: Center(
         child: Padding(

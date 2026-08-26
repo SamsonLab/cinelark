@@ -24,13 +24,17 @@ SECRET_PATTERNS = {
 
 def tracked_files() -> list[Path]:
     result = subprocess.run(
-        ["git", "ls-files"],
+        ["git", "ls-files", "--cached", "--others", "--exclude-standard"],
         cwd=ROOT,
         check=True,
         capture_output=True,
         text=True,
     )
-    return [ROOT / line for line in result.stdout.splitlines() if line]
+    return [
+        path
+        for line in result.stdout.splitlines()
+        if line and (path := ROOT / line).is_file()
+    ]
 
 
 def check_forbidden_paths(files: list[Path]) -> list[str]:
@@ -97,7 +101,7 @@ def main() -> int:
         for error in errors:
             print(f"- {error}", file=sys.stderr)
         return 1
-    print(f"Repository validation passed for {len(files)} tracked files.")
+    print(f"Repository validation passed for {len(files)} repository files.")
     return 0
 
 

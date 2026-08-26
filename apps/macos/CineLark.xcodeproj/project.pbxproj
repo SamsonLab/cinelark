@@ -9,10 +9,11 @@
 /* Begin PBXBuildFile section */
 		0B93F6D1056AE1362FE8965C /* ShortcutSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04957063F0E0AEF64D673B82 /* ShortcutSystem.swift */; };
 		0C44B5A2A8EE59306E51572F /* CollectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE6FDC450494CEE6E6F6391F /* CollectionView.swift */; };
-		0F085182EF603949A0DA55FB /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 8EA55C2C2EAB1572004F61D1 /* Sparkle */; };
+		0F085182EF603949A0DA55FB /* Kingfisher in Frameworks */ = {isa = PBXBuildFile; productRef = E6C9969F909E6E89FA05FD2C /* Kingfisher */; };
 		0FBA55BD2D5A9E90186B12A9 /* ImagePipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = E446DFF475AB6BE1AC655007 /* ImagePipeline.swift */; };
 		1B7F01EBA86DBED26D6882EA /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B054FB68231FF0E76CF25C1B /* LibraryView.swift */; };
 		2463788D3183E8D22727C692 /* MediaFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11E72F191AE8AB81C1DD9B26 /* MediaFormatting.swift */; };
+		24DC5BDFA79938311FD1F619 /* RemotePanelDismissalRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACDBFFD4519D0B5771DDEE2E /* RemotePanelDismissalRegistry.swift */; };
 		315CEE51C5C17A332C8AEFF5 /* MediaDetailModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C76AB4B34E0D4F7EF44F80A /* MediaDetailModel.swift */; };
 		33A2489883DF240055FA80B1 /* CineLarkPersistence in Frameworks */ = {isa = PBXBuildFile; productRef = 0DF4E3AD538E0D86CCDBFF48 /* CineLarkPersistence */; };
 		37C2F41B8BAEFD7604131113 /* RemoteNetworkAddress.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEF6B080944328AF6A2DF88A /* RemoteNetworkAddress.swift */; };
@@ -38,7 +39,8 @@
 		B3AE41D5BF04A4DEE93A0AF9 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = FA9FAFAB2F795541DE7F6F3C /* AppIcon.icon */; };
 		B489F5A60889975CD929D5D1 /* CineLarkRemote in Frameworks */ = {isa = PBXBuildFile; productRef = DA39EA08D22C8CAC956A0432 /* CineLarkRemote */; };
 		B5F3BB1A14D77C4536307248 /* MediaDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 159CEAD9CEDB3B09B0577D62 /* MediaDetailView.swift */; };
-		BACE446FC6892B1913D8E6C3 /* Kingfisher in Frameworks */ = {isa = PBXBuildFile; productRef = E6C9969F909E6E89FA05FD2C /* Kingfisher */; };
+		BACE446FC6892B1913D8E6C3 /* CineLarkGateway in Frameworks */ = {isa = PBXBuildFile; productRef = D41B1256FCBEC65488513032 /* CineLarkGateway */; };
+		BB6D0C0DE61F072000488C29 /* RemotePanelDismissalRegistryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 408BF65EDA243EF9A542F05A /* RemotePanelDismissalRegistryTests.swift */; };
 		BD2B0437A28E2E7431E58D04 /* CineLarkBrandMark.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCF7F76F1708A2B088F76C39 /* CineLarkBrandMark.swift */; };
 		C65461DB8956AF9C333324AD /* maskAppIcon.png in Resources */ = {isa = PBXBuildFile; fileRef = 245182FAC942098C02AE2A42 /* maskAppIcon.png */; };
 		C6B2322FAA6C958D5189BFB5 /* PlaybackCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46C07C2B9751EC89B1B0FD43 /* PlaybackCoordinatorTests.swift */; };
@@ -49,6 +51,7 @@
 		F188B954EB4C3636BB951E00 /* FavoritesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE58BCE702D398987224468F /* FavoritesView.swift */; };
 		F2C14971F92D729F13D53F3C /* RemoteNetworkAddressTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B532E84E86C995C4C7436EB0 /* RemoteNetworkAddressTests.swift */; };
 		F572ACAB3B95DE4822E99C94 /* RemoteCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D346A47A7846ACCD319604CE /* RemoteCoordinator.swift */; };
+		F6FA9B86D4977FD3DDEE9100 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 8EA55C2C2EAB1572004F61D1 /* Sparkle */; };
 		FB38130CCDF118323233623C /* CineLarkApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF1BEAD272C89D962C8DB178 /* CineLarkApp.swift */; };
 		FB650FF02184DCAD4CB1DED2 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7645BC2B798D0AEDE94D2340 /* RootView.swift */; };
 		FEA0753FFBFC5DE2AFB1F5E6 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28F9B8DDF66E20BDB88B2EFF /* HomeView.swift */; };
@@ -76,6 +79,7 @@
 		28F9B8DDF66E20BDB88B2EFF /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		395BB40B27A65E50568ACD66 /* SearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchView.swift; sourceTree = "<group>"; };
 		3AFAB30FB02C68C461F76FF7 /* FavoritesModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoritesModel.swift; sourceTree = "<group>"; };
+		408BF65EDA243EF9A542F05A /* RemotePanelDismissalRegistryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemotePanelDismissalRegistryTests.swift; sourceTree = "<group>"; };
 		46C07C2B9751EC89B1B0FD43 /* PlaybackCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackCoordinatorTests.swift; sourceTree = "<group>"; };
 		5453DD1F20CC657FE244EC32 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
 		5A2B52C7CCEA6A44B30EEBF8 /* CineLark.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CineLark.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -90,6 +94,7 @@
 		9E60EA4B37ECDE5FB62CA0F6 /* RemoteTextInputCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteTextInputCoordinatorTests.swift; sourceTree = "<group>"; };
 		A02668E828AF3DF47ADD782D /* MediaCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaCard.swift; sourceTree = "<group>"; };
 		A0D1C3B91534B390EFC9F800 /* SparkleUpdateViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparkleUpdateViews.swift; sourceTree = "<group>"; };
+		ACDBFFD4519D0B5771DDEE2E /* RemotePanelDismissalRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemotePanelDismissalRegistry.swift; sourceTree = "<group>"; };
 		B054FB68231FF0E76CF25C1B /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
 		B08A8B1D616822F23271FF8A /* CineLarkAppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CineLarkAppDelegate.swift; sourceTree = "<group>"; };
 		B532E84E86C995C4C7436EB0 /* RemoteNetworkAddressTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteNetworkAddressTests.swift; sourceTree = "<group>"; };
@@ -122,8 +127,9 @@
 				33A2489883DF240055FA80B1 /* CineLarkPersistence in Frameworks */,
 				B05299F38635BB6EA6EBF3E8 /* CineLarkPlayback in Frameworks */,
 				B489F5A60889975CD929D5D1 /* CineLarkRemote in Frameworks */,
-				BACE446FC6892B1913D8E6C3 /* Kingfisher in Frameworks */,
-				0F085182EF603949A0DA55FB /* Sparkle in Frameworks */,
+				BACE446FC6892B1913D8E6C3 /* CineLarkGateway in Frameworks */,
+				0F085182EF603949A0DA55FB /* Kingfisher in Frameworks */,
+				F6FA9B86D4977FD3DDEE9100 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -135,6 +141,7 @@
 			children = (
 				46C07C2B9751EC89B1B0FD43 /* PlaybackCoordinatorTests.swift */,
 				B532E84E86C995C4C7436EB0 /* RemoteNetworkAddressTests.swift */,
+				408BF65EDA243EF9A542F05A /* RemotePanelDismissalRegistryTests.swift */,
 				9E60EA4B37ECDE5FB62CA0F6 /* RemoteTextInputCoordinatorTests.swift */,
 			);
 			path = Tests;
@@ -246,6 +253,7 @@
 				21000BE7263769BB8C5E6578 /* PlaybackOptionsModel.swift */,
 				D346A47A7846ACCD319604CE /* RemoteCoordinator.swift */,
 				FEF6B080944328AF6A2DF88A /* RemoteNetworkAddress.swift */,
+				ACDBFFD4519D0B5771DDEE2E /* RemotePanelDismissalRegistry.swift */,
 				E765B55C29005B0C9C68A0A9 /* RemoteTextInputCoordinator.swift */,
 			);
 			path = Models;
@@ -292,6 +300,7 @@
 				0DF4E3AD538E0D86CCDBFF48 /* CineLarkPersistence */,
 				AA501AC6C8C7D61D9DA24810 /* CineLarkPlayback */,
 				DA39EA08D22C8CAC956A0432 /* CineLarkRemote */,
+				D41B1256FCBEC65488513032 /* CineLarkGateway */,
 				E6C9969F909E6E89FA05FD2C /* Kingfisher */,
 				8EA55C2C2EAB1572004F61D1 /* Sparkle */,
 			);
@@ -375,7 +384,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -euo pipefail\nexport PATH=\"$HOME/.cargo/bin:/opt/homebrew/bin:$PATH\"\n\nROOT=\"$SRCROOT/../..\"\nHELPER_DIR=\"$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH/Helpers\"\nRESOURCE_DIR=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH\"\nmkdir -p \"$HELPER_DIR\" \"$RESOURCE_DIR\"\n\nPROFILE_ARG=\"\"\nPROFILE_DIR=\"debug\"\nif [[ \"$CONFIGURATION\" == \"Release\" ]]; then\n  PROFILE_ARG=\"--release\"\n  PROFILE_DIR=\"release\"\nfi\n\nbuild_helper() {\n  local crate_name=\"$1\"\n  local binary_name=\"$2\"\n  local bundle_name=\"$3\"\n  local target_dir=\"$DERIVED_FILE_DIR/$crate_name\"\n  local crate=\"$ROOT/packages/rust/$crate_name/Cargo.toml\"\n  local binaries=()\n  mkdir -p \"$target_dir\"\n  for arch in ${ARCHS:-$(uname -m)}; do\n    case \"$arch\" in\n      arm64) rust_target=\"aarch64-apple-darwin\" ;;\n      x86_64) rust_target=\"x86_64-apple-darwin\" ;;\n      *) echo \"Unsupported helper architecture: $arch\" >&2; exit 1 ;;\n    esac\n    cargo +1.95.0 build --locked --manifest-path \"$crate\" --target-dir \"$target_dir\" --target \"$rust_target\" $PROFILE_ARG\n    binaries+=(\"$target_dir/$rust_target/$PROFILE_DIR/$binary_name\")\n  done\n  if [[ ${#binaries[@]} -eq 1 ]]; then\n    cp \"${binaries[0]}\" \"$HELPER_DIR/$bundle_name\"\n  else\n    /usr/bin/lipo -create \"${binaries[@]}\" -output \"$HELPER_DIR/$bundle_name\"\n  fi\n  chmod 755 \"$HELPER_DIR/$bundle_name\"\n}\n\nbuild_helper \"cinelark-bridge\" \"cinelark-bridge\" \"CineLarkBridge\"\nbuild_helper \"cinelark-remote-gateway\" \"cinelark-remote-gateway\" \"CineLarkRemoteGateway\"\n\nrm -f \"$RESOURCE_DIR/CineLark.iinaplgz\"\n(cd \"$ROOT/plugins/iina\" && /usr/bin/zip -q -r \"$RESOURCE_DIR/CineLark.iinaplgz\" Info.json src)\nrm -rf \"$RESOURCE_DIR/CineLark.iinaplugin\"\nmkdir -p \"$RESOURCE_DIR/CineLark.iinaplugin\"\n/usr/bin/ditto \"$ROOT/plugins/iina/Info.json\" \"$RESOURCE_DIR/CineLark.iinaplugin/Info.json\"\n/usr/bin/ditto \"$ROOT/plugins/iina/src\" \"$RESOURCE_DIR/CineLark.iinaplugin/src\"\n\nif [[ \"${CODE_SIGNING_ALLOWED:-YES}\" != \"NO\" && -n \"${EXPANDED_CODE_SIGN_IDENTITY:-}\" && \"${EXPANDED_CODE_SIGN_IDENTITY}\" != \"-\" ]]; then\n  /usr/bin/codesign --force --sign \"$EXPANDED_CODE_SIGN_IDENTITY\" --options runtime --timestamp=none \"$HELPER_DIR/CineLarkBridge\"\n  /usr/bin/codesign --force --sign \"$EXPANDED_CODE_SIGN_IDENTITY\" --options runtime --timestamp=none \"$HELPER_DIR/CineLarkRemoteGateway\"\nfi\n";
+			shellScript = "set -euo pipefail\nexport PATH=\"$HOME/.cargo/bin:/opt/homebrew/bin:$PATH\"\n\nROOT=\"$SRCROOT/../..\"\nHELPER_DIR=\"$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH/Helpers\"\nRESOURCE_DIR=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH\"\nmkdir -p \"$HELPER_DIR\" \"$RESOURCE_DIR\"\nrm -f \"$HELPER_DIR/CineLarkBridge\" \"$HELPER_DIR/CineLarkRemoteGateway\"\n\nPROFILE_ARG=\"\"\nPROFILE_DIR=\"debug\"\nif [[ \"$CONFIGURATION\" == \"Release\" ]]; then\n  PROFILE_ARG=\"--release\"\n  PROFILE_DIR=\"release\"\nfi\n\nbuild_helper() {\n  local crate_name=\"$1\"\n  local binary_name=\"$2\"\n  local bundle_name=\"$3\"\n  local target_dir=\"$DERIVED_FILE_DIR/$crate_name\"\n  local crate=\"$ROOT/packages/rust/$crate_name/Cargo.toml\"\n  local binaries=()\n  mkdir -p \"$target_dir\"\n  for arch in ${ARCHS:-$(uname -m)}; do\n    case \"$arch\" in\n      arm64) rust_target=\"aarch64-apple-darwin\" ;;\n      x86_64) rust_target=\"x86_64-apple-darwin\" ;;\n      *) echo \"Unsupported helper architecture: $arch\" >&2; exit 1 ;;\n    esac\n    cargo +1.95.0 build --locked --manifest-path \"$crate\" --target-dir \"$target_dir\" --target \"$rust_target\" $PROFILE_ARG\n    binaries+=(\"$target_dir/$rust_target/$PROFILE_DIR/$binary_name\")\n  done\n  if [[ ${#binaries[@]} -eq 1 ]]; then\n    cp \"${binaries[0]}\" \"$HELPER_DIR/$bundle_name\"\n  else\n    /usr/bin/lipo -create \"${binaries[@]}\" -output \"$HELPER_DIR/$bundle_name\"\n  fi\n  if [[ \"$CONFIGURATION\" == \"Release\" ]]; then\n    /usr/bin/strip -x \"$HELPER_DIR/$bundle_name\"\n  fi\n  chmod 755 \"$HELPER_DIR/$bundle_name\"\n}\n\nbuild_helper \"cinelark-gateway\" \"cinelark-gateway\" \"CineLarkGateway\"\n\nrm -f \"$RESOURCE_DIR/CineLark.iinaplgz\"\n(cd \"$ROOT/plugins/iina\" && /usr/bin/zip -q -r \"$RESOURCE_DIR/CineLark.iinaplgz\" Info.json src)\nrm -rf \"$RESOURCE_DIR/CineLark.iinaplugin\"\nmkdir -p \"$RESOURCE_DIR/CineLark.iinaplugin\"\n/usr/bin/ditto \"$ROOT/plugins/iina/Info.json\" \"$RESOURCE_DIR/CineLark.iinaplugin/Info.json\"\n/usr/bin/ditto \"$ROOT/plugins/iina/src\" \"$RESOURCE_DIR/CineLark.iinaplugin/src\"\n\nif [[ \"${CODE_SIGNING_ALLOWED:-YES}\" != \"NO\" && -n \"${EXPANDED_CODE_SIGN_IDENTITY:-}\" && \"${EXPANDED_CODE_SIGN_IDENTITY}\" != \"-\" ]]; then\n  /usr/bin/codesign --force --sign \"$EXPANDED_CODE_SIGN_IDENTITY\" --options runtime --timestamp=none \"$HELPER_DIR/CineLarkGateway\"\nfi\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -411,6 +420,7 @@
 				549F2C928050FD9D7C2E7826 /* PlaybackOptionsView.swift in Sources */,
 				F572ACAB3B95DE4822E99C94 /* RemoteCoordinator.swift in Sources */,
 				37C2F41B8BAEFD7604131113 /* RemoteNetworkAddress.swift in Sources */,
+				24DC5BDFA79938311FD1F619 /* RemotePanelDismissalRegistry.swift in Sources */,
 				480AB07562B599BBE5221A35 /* RemoteSettingsView.swift in Sources */,
 				AFDA797DE940F64692C23F6C /* RemoteTextInputCoordinator.swift in Sources */,
 				FB650FF02184DCAD4CB1DED2 /* RootView.swift in Sources */,
@@ -426,6 +436,7 @@
 			files = (
 				C6B2322FAA6C958D5189BFB5 /* PlaybackCoordinatorTests.swift in Sources */,
 				F2C14971F92D729F13D53F3C /* RemoteNetworkAddressTests.swift in Sources */,
+				BB6D0C0DE61F072000488C29 /* RemotePanelDismissalRegistryTests.swift in Sources */,
 				5126FC38625ABCF0CE1B2750 /* RemoteTextInputCoordinatorTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -488,7 +499,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 10;
+				CURRENT_PROJECT_VERSION = 11;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = 4B8LRMN347;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -503,7 +514,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 0.1.9;
+				MARKETING_VERSION = 0.1.10;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -602,7 +613,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 10;
+				CURRENT_PROJECT_VERSION = 11;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = 4B8LRMN347;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -623,7 +634,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 0.1.9;
+				MARKETING_VERSION = 0.1.10;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -733,6 +744,10 @@
 		AA501AC6C8C7D61D9DA24810 /* CineLarkPlayback */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = CineLarkPlayback;
+		};
+		D41B1256FCBEC65488513032 /* CineLarkGateway */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = CineLarkGateway;
 		};
 		DA39EA08D22C8CAC956A0432 /* CineLarkRemote */ = {
 			isa = XCSwiftPackageProductDependency;

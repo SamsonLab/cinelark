@@ -1,6 +1,6 @@
 # ADR-0008: Rust Remote transport with Mac authorization
 
-- **Status:** Accepted
+- **Status:** Superseded in part by [ADR-0009](0009-unified-native-gateway.md)
 - **Date:** 2026-08-25
 - **Related:** [ADR-0002](0002-native-macos-flutter-remote.md), [Remote protocol](../interfaces/remote-protocol.md)
 
@@ -79,3 +79,7 @@ availability.
 Revisit only if the separate helper creates measured packaging or lifecycle
 failures that cannot be fixed without merging processes. Do not weaken TLS,
 pinning, or Mac authorization to remove the helper boundary.
+
+The 0.1.9 package-size increase satisfied this condition. ADR-0009 merges the
+executable and runtime while preserving the TLS, pinning, authorization,
+protocol, credential, port, and center-state boundaries defined here.

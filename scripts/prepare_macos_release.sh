@@ -103,11 +103,12 @@ CineLark $VERSION for macOS 26 or later.
 
 ## Highlights
 
-- Introduced the new CineLark lark icon and matching in-app brand mark.
-- Fixed secure Remote gateway startup when paired devices already exist,
-  restoring QR-code pairing without clearing saved credentials.
-- Hardened managed IINA player teardown by cancelling plugin timers before IINA
-  releases its API owner, preventing an application-termination crash.
+- Consolidated the IINA bridge and Remote gateway into one native helper while
+  preserving independent playback and remote centers in the app architecture.
+- Added remembered-device selection to CineLark R, with device-scoped pairing,
+  removal, and a dedicated add-device entry.
+- Improved Remote navigation so mobile system Back closes the active Mac panel,
+  and pairing now presents the real host name with an explicit platform icon.
 
 ## Install
 

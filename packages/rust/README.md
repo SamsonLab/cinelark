@@ -1,32 +1,30 @@
 # Rust Packages
 
-- `cinelark-bridge/` is the loopback-only IINA command/event broker.
-- `cinelark-remote-gateway/` is the LAN TLS/WebSocket transport supervised by
-  the Mac Remote coordinator.
+`cinelark-gateway/` is the single native transport helper bundled and signed
+inside CineLark.app. It contains two independent code-level centers:
 
-The helpers are separate executables, secrets, ports, and failure domains. Both
-use private framed stdio with the Mac and contain no provider authority.
+- `IINABridgeCenter` owns authenticated loopback HTTP, bounded IINA commands,
+  player events, and the plugin secret.
+- `RemoteGatewayCenter` owns LAN TLS/WebSocket, identity, pairing expiry, device
+  authentication, sequencing, and rate limits.
 
-## `cinelark-bridge`
-
-A self-contained broker bundled and signed inside CineLark.app. It:
-
-- accepts bounded length-prefixed JSON over private parent stdin/stdout;
-- binds authenticated HTTP only to `127.0.0.1` and `::1`;
-- queues bounded IINA commands and forwards sanitized player events;
-- verifies request timestamp/nonce HMACs, envelope HMACs, and sequence order;
-- contains no provider client, persistent daemon, updater, or secret storage.
+The centers share one process shell, Tokio runtime, framed parent stdio, and
+linked dependencies. They do not share secrets, ports, protocols, state, or
+semantic authority. The Mac remains the only component that can perform product
+operations.
 
 Development commands:
 
 ```sh
-cargo fmt --manifest-path packages/rust/cinelark-bridge/Cargo.toml --check
-cargo test --locked --manifest-path packages/rust/cinelark-bridge/Cargo.toml
-cargo clippy --locked --all-targets \
-  --manifest-path packages/rust/cinelark-bridge/Cargo.toml -- -D warnings
+cargo +1.95.0 fmt --manifest-path packages/rust/cinelark-gateway/Cargo.toml --check
+cargo +1.95.0 test --locked --manifest-path packages/rust/cinelark-gateway/Cargo.toml
+cargo +1.95.0 clippy --locked --all-targets \
+  --manifest-path packages/rust/cinelark-gateway/Cargo.toml -- -D warnings
+python3 scripts/test_bridge_process.py \
+  --executable packages/rust/cinelark-gateway/target/debug/cinelark-gateway
 ```
 
-The Xcode build phase produces the app-bundled helper. Release builds compile
-both Apple Silicon and Intel targets, combine them with `lipo`, then sign the
-nested executable with the app identity. Users require no Cargo installation,
-daemon, login item, admin access, or port configuration.
+The Xcode build phase produces one app-bundled helper. Release builds compile
+Apple Silicon and Intel targets, combine them with `lipo`, and sign the nested
+executable with the app identity. Users require no Cargo installation, daemon,
+login item, admin access, or port configuration.

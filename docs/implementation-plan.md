@@ -51,8 +51,9 @@ apps/macos/CineLarkApp
 packages/apple/CineLarkKit
   ├── CineLarkApplication ──▶ CineLarkDomain
   ├── CineLarkUHDNow ───────▶ CineLarkDomain
-  ├── CineLarkBridgeClient ──▶ CineLarkDomain
+  ├── CineLarkPlayback ──────▶ CineLarkDomain
   ├── CineLarkRemote ────────────▶ Foundation / Security
+  ├── CineLarkGateway ───────▶ CineLarkPlayback + CineLarkRemote
   ├── CineLarkPersistence ──▶ CineLarkDomain
   ├── CineLarkDesignSystem
   └── CineLarkTestSupport
@@ -161,7 +162,7 @@ inbound network connections:
 CineLark for Mac
   │ private child-process stdin/stdout
   ▼
-CineLarkBridge (bundled Rust executable)
+CineLarkGateway / IINABridgeCenter (bundled Rust executable)
   │ authenticated HTTP/long-poll on 127.0.0.1 and ::1 only
   ▼
 CineLark IINA Plugin (minimal JavaScript/TypeScript)

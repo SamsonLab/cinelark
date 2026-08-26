@@ -36,6 +36,7 @@ void main() {
       'protocolVersion': 1,
       'serviceID': 'AD54E7BA-9409-4F54-8C7C-65E781978CF9',
       'name': 'Synthetic Mac',
+      'platform': 'windows',
       'host': '192.168.20.100',
       'port': 43201,
       'fingerprint': 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8',
@@ -46,6 +47,22 @@ void main() {
     final payload = PairingPayload.parse(jsonEncode(value));
 
     expect(payload.serviceId, 'ad54e7ba-9409-4f54-8c7c-65e781978cf9');
+    expect(payload.platform, HostPlatform.windows);
+  });
+
+  test('legacy paired Mac defaults to macOS and strips the product prefix', () {
+    final paired = PairedMac.fromJson({
+      'serviceID': 'ad54e7ba-9409-4f54-8c7c-65e781978cf9',
+      'name': 'Cine-Lark — Living Room Mac',
+      'host': '192.168.20.100',
+      'port': 43201,
+      'fingerprint': 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8',
+      'deviceID': '8dc63877-bf80-4d63-afc0-bec50d1ecb60',
+      'credential': 'BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc',
+    });
+
+    expect(paired.platform, HostPlatform.macOS);
+    expect(paired.displayName, 'Living Room Mac');
   });
 
   test('Remote envelope retains nullable playback payload values', () {

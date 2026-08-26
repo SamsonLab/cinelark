@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'controller/remote_controller.dart';
+import 'screens/device_selection_screen.dart';
 import 'screens/pairing_screen.dart';
 import 'screens/remote_screen.dart';
 import 'widgets/cinelark_mark.dart';
@@ -52,6 +53,9 @@ class _CineLarkRemoteAppState extends State<CineLarkRemoteApp> {
       builder: (context, _) {
         if (controller.phase == RemoteConnectionPhase.loading) {
           return const _LoadingScreen();
+        }
+        if (controller.phase == RemoteConnectionPhase.deviceSelection) {
+          return DeviceSelectionScreen(controller: controller);
         }
         if (!controller.isPaired) {
           return PairingScreen(controller: controller);

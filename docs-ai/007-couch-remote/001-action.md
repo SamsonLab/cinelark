@@ -15,14 +15,17 @@
 | 2026-08-25 | Fixed real-device pairing: toolbar entry, retryable same-code scanning, numeric LAN address, framed `i64` expiry, TLS 1.2, and generation-scoped helper callbacks | Working tree |
 | 2026-08-25 | Removed the retry-time camera start race by letting the remounted scanner own auto-start | Working tree |
 | 2026-08-25 | Diagnosed full-device VPN interception and routed Android WSS sockets through the active non-VPN Wi-Fi `Network` with native certificate pinning | Working tree |
+| 2026-08-26 | Added named multi-Mac persistence, explicit device selection, and scoped device removal | [`002-multi-device-selection.md`](002-multi-device-selection.md) |
+| 2026-08-26 | Separated host identity from CineLark service branding and added platform-specific device icons | [`003-host-identity-presentation.md`](003-host-identity-presentation.md) |
 
-## Outcome & current state (as of 2026-08-25)
+## Outcome & current state (as of 2026-08-26)
 
 CineLark now has a focused Flutter couch Remote for iOS and Android. The phone
 scans a five-minute QR payload, pins the Mac gateway certificate, waits for
 explicit Mac approval, and stores only its device-scoped credential in platform
 secure storage. Reconnect uses a connection-bound HMAC proof; revoked or unknown
-credentials return the phone to pairing.
+credentials remove only the affected Mac and return the phone to device
+selection.
 
 The bundled `CineLarkRemoteGateway` Rust child owns only LAN WSS, TLS identity,
 pairing-secret consumption, device proof verification, exact sequence checks,
@@ -31,12 +34,13 @@ The Mac owns paired-device records, capability grants, command authorization,
 provider login, navigation/focus, text sessions, playback continuity, and every
 IINA operation. It remains fully usable without the Remote.
 
-The Flutter UI switches context between remote login, semantic browsing/search,
-and now playing. Playback controls include pause/resume, relative and absolute
-seek, scrub reconciliation, speed, volume/mute, fullscreen, previous/next
-episode, audio/subtitle selection including subtitle disable, and player close
-with CineLark activation. Previous/next remains a Mac episode-continuity
-operation rather than an IINA playlist command.
+The Flutter UI starts with a named paired-Mac list, holds at most one active Mac
+session, and then switches context between remote login, semantic
+browsing/search, and now playing. Playback controls include pause/resume,
+relative and absolute seek, scrub reconciliation, speed, volume/mute,
+fullscreen, previous/next episode, audio/subtitle selection including subtitle
+disable, and player close with CineLark activation. Previous/next remains a Mac
+episode-continuity operation rather than an IINA playlist command.
 
 Shared schemas and sanitized fixtures live under `specs/remote/` and
 `fixtures/conformance/`. The Remote gateway and IINA bridge remain separate

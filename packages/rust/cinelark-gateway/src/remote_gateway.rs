@@ -26,8 +26,8 @@ use tokio::sync::{Mutex, RwLock, mpsc};
 use uuid::Uuid;
 
 use crate::{
-    identity::GatewayIdentity,
-    protocol::{
+    remote_identity::GatewayIdentity,
+    remote_protocol::{
         DeviceConfiguration, MAX_MESSAGE_BYTES, ParentOutput, RemoteEnvelope, authentication_input,
         decode_secret, secrets_equal, verify_authentication_code,
     },
@@ -653,7 +653,7 @@ fn now_unix_milliseconds() -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::protocol::authentication_code;
+    use crate::remote_protocol::authentication_code;
     use rustls::{ClientConfig, RootCertStore};
     use rustls_pki_types::CertificateDer;
     use tokio_tungstenite::{

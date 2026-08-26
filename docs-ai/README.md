@@ -46,3 +46,4 @@ writing, amendment, and verification rules.
 | 006 | [Sequential episode replacement](006-sequential-episode-replacement/000-plan.md) | 2026-08-25 | Single-content player that replaces the current episode at natural EOF |
 | 007 | [Couch Remote](007-couch-remote/000-plan.md) | 2026-08-25 | Secure Flutter Remote, Mac semantic control surfaces, and Rust transport integration |
 | 008 | [Safe IINA plugin lifecycle](008-safe-iina-plugin-lifecycle/000-plan.md) | 2026-08-25 | Restart-safe first installation, update, and repair of the managed IINA plugin |
+| 009 | [Unified native gateway](009-unified-native-gateway/000-plan.md) | 2026-08-26 | One native process with independent IINA and Remote centers |

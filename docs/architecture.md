@@ -125,13 +125,14 @@ Maintains one logical playback session:
 
 A new `play` supersedes the previous logical session and finalizes it first.
 
-### 3.7 `RustBridgeHelper`
+### 3.7 `CineLarkGateway`
 
 A self-contained native helper bundled and signed inside CineLark.app. The Mac
-supervises it as a child process and exchanges framed JSON over stdio. It exposes
-an authenticated loopback-only HTTP/long-poll endpoint to the IINA plugin,
-validates bridge envelopes, orders sessions, and contains no provider logic or
-persistent daemon behavior.
+supervises one child process and exchanges center-namespaced framed JSON over
+stdio. The process shell and Tokio runtime are shared; `IINABridgeCenter` and
+`RemoteGatewayCenter` retain separate state, protocols, credentials, ports, and
+network boundaries. The helper contains no provider logic or persistent daemon
+behavior.
 
 ### 3.8 `IINABridgePlugin`
 
@@ -139,16 +140,17 @@ A minimal JavaScript/TypeScript package with no provider dependency. It polls
 the Rust helper for commands, posts sanitized events, and maps the bridge
 protocol to IINA public plugin APIs and mpv properties/events.
 
-### 3.9 `RustRemoteGatewayTransport`
+### 3.9 `RemoteGatewayCenter`
 
-A separate bundled Rust child process owns the LAN TLS/WebSocket endpoint,
-certificate fingerprinting, frame limits, pairing-secret expiry, device proof
-verification, per-connection sequencing, and rate limits. It forwards only
-authenticated envelopes to the Mac over private length-prefixed JSON stdio. It
-has no provider, navigation, or playback authority and is isolated from the
-loopback-only IINA bridge process.
+The Remote center inside the bundled Rust child owns the LAN TLS/WebSocket
+endpoint, certificate fingerprinting, frame limits, pairing-secret expiry,
+device proof verification, per-connection sequencing, and rate limits. It
+forwards only authenticated envelopes to the Mac over private length-prefixed
+JSON stdio. It has no provider, navigation, or playback authority and remains
+isolated at the code, state, protocol, credential, port, and listener layers
+from the loopback-only IINA bridge center.
 
-See [ADR-0008](decisions/0008-rust-remote-transport.md).
+See [ADR-0009](decisions/0009-unified-native-gateway.md).
 
 ### 3.10 `RemoteGatewayCoordinator`
 
@@ -287,8 +289,7 @@ retry policy is Open.
 apps/macos/                         SwiftUI macOS app and Xcode project
 apps/remote/                        Flutter app for iOS and Android
 packages/apple/CineLarkKit/         local Swift package with focused targets
-packages/rust/cinelark-bridge/      bundled, signed native helper
-packages/rust/cinelark-remote-gateway/ bundled, signed Remote TLS/WSS transport
+packages/rust/cinelark-gateway/     one helper with independent IINA and Remote centers
 plugins/iina/                       minimal JavaScript/TypeScript adapter
 specs/common/                       cross-language domain/wire primitives
 specs/bridge/                       Mac app ↔ IINA contracts

@@ -244,7 +244,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "cinelark-remote-gateway"
+name = "cinelark-gateway"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -260,6 +260,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "socket2",
  "subtle",
  "time",
  "tokio",

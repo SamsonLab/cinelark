@@ -154,3 +154,9 @@ contract as a substitute for working behavior.
 - High-frequency transport, seek, and volume commands are scoped by playback ID
   but not snapshot revision. Requiring the rapidly changing telemetry revision
   would reject valid couch input without adding replacement-session safety.
+- Updated 2026-08-26: The mobile client now persists multiple named Mac
+  pairings and starts at an explicit device-selection surface; see
+  [002-multi-device-selection.md](002-multi-device-selection.md).
+- Updated 2026-08-26: Device presentation uses host names without CineLark
+  branding and explicit host-platform metadata; see
+  [003-host-identity-presentation.md](003-host-identity-presentation.md).

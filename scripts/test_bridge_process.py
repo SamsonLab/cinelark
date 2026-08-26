@@ -117,13 +117,18 @@ def main() -> int:
         write_frame(
             process,
             {
-                "kind": "configure",
-                "secret": b64url(secret),
-                "portStart": 44201,
-                "portEnd": 44220,
+                "center": "iina",
+                "payload": {
+                    "kind": "configure",
+                    "secret": b64url(secret),
+                    "portStart": 44201,
+                    "portEnd": 44220,
+                },
             },
         )
-        ready = read_frame(process)
+        ready_route = read_frame(process)
+        assert ready_route["center"] == "iina"
+        ready = ready_route["payload"]
         assert ready["kind"] == "ready"
         assert 44201 <= ready["port"] <= 44220
         base_url = f"http://127.0.0.1:{ready['port']}"
@@ -146,12 +151,17 @@ def main() -> int:
             },
             session_id,
         )
-        write_frame(process, {"kind": "command", "envelope": play})
+        write_frame(
+            process,
+            {"center": "iina", "payload": {"kind": "command", "envelope": play}},
+        )
 
         hello = envelope(secret, "bridge.hello", 0, {"pluginVersion": "0.1.0"})
         status, response = request(secret, base_url, "POST", "/v1/plugin/hello", hello)
         assert status == 200 and response["protocolVersion"] == 1
-        forwarded = read_frame(process)
+        forwarded_route = read_frame(process)
+        assert forwarded_route["center"] == "iina"
+        forwarded = forwarded_route["payload"]
         assert forwarded["kind"] == "event", (
             forwarded,
             b64url(hashlib.sha256(envelope_signing_input(play).encode()).digest()),
@@ -163,7 +173,47 @@ def main() -> int:
         assert [item["type"] for item in response["commands"]] == ["player.play"]
         assert response["commands"][0]["payload"]["playbackID"] == session_id
 
-        write_frame(process, {"kind": "shutdown"})
+        write_frame(
+            process,
+            {
+                "center": "remote",
+                "payload": {
+                    "kind": "configure",
+                    "serviceID": str(uuid.uuid4()),
+                    "name": "CineLark Integration Test",
+                    "portStart": 44221,
+                    "portEnd": 44240,
+                    "identity": None,
+                    "devices": [],
+                },
+            },
+        )
+        remote_kinds = set()
+        while "ready" not in remote_kinds:
+            routed = read_frame(process)
+            assert routed["center"] == "remote"
+            remote_kinds.add(routed["payload"]["kind"])
+        assert remote_kinds == {"identityGenerated", "ready"}
+
+        write_frame(process, {"center": "iina", "payload": {"kind": "shutdown"}})
+        write_frame(
+            process,
+            {
+                "center": "iina",
+                "payload": {
+                    "kind": "configure",
+                    "secret": b64url(secret),
+                    "portStart": 44201,
+                    "portEnd": 44220,
+                },
+            },
+        )
+        restarted = read_frame(process)
+        assert restarted["center"] == "iina"
+        assert restarted["payload"]["kind"] == "ready"
+        assert process.poll() is None
+
+        write_frame(process, {"center": "process", "payload": {"kind": "shutdown"}})
         process.stdin.close()
         assert process.wait(timeout=5) == 0
     except Exception:

@@ -1,6 +1,7 @@
 import SwiftUI
 import Sparkle
 import CineLarkDomain
+import CineLarkGateway
 import CineLarkPersistence
 import CineLarkPlayback
 import CineLarkUHDNow
@@ -14,11 +15,14 @@ struct CineLarkApp: App {
     @State private var shortcuts: ShortcutCoordinator
     @State private var remoteTextInput: RemoteTextInputCoordinator
     @State private var remote: RemoteCoordinator
+    private let gateway: CineLarkNativeGateway
     private let updateMonitor: SparkleUpdateMonitor
     private let updaterController: SPUStandardUpdaterController
 
     init() {
         let updateMonitor = SparkleUpdateMonitor()
+        let gateway = CineLarkNativeGateway()
+        self.gateway = gateway
         self.updateMonitor = updateMonitor
         updaterController = SPUStandardUpdaterController(
             startingUpdater: true,
@@ -35,7 +39,7 @@ struct CineLarkApp: App {
             cache: metadataCache,
             namespace: "uhdnow-v1"
         )
-        let launcher = ManagedIINAPlaybackLauncher()
+        let launcher = ManagedIINAPlaybackLauncher(transport: gateway.iina)
         let model = AppModel(provider: provider, launcher: launcher)
         let shortcuts = ShortcutCoordinator()
         let remoteTextInput = RemoteTextInputCoordinator()
@@ -46,7 +50,8 @@ struct CineLarkApp: App {
             initialValue: RemoteCoordinator(
                 model: model,
                 shortcuts: shortcuts,
-                textInput: remoteTextInput
+                textInput: remoteTextInput,
+                client: gateway.remote
             )
         )
     }
@@ -66,9 +71,10 @@ struct CineLarkApp: App {
                 .frame(minWidth: 960, minHeight: 640)
                 .task {
                     shortcuts.start()
-                    appDelegate.prepareForTermination = { [weak model, weak shortcuts, weak remote] in
+                    appDelegate.prepareForTermination = { [weak model, weak shortcuts, weak remote, gateway] in
                         await model?.prepareForTermination()
                         await remote?.stop()
+                        await gateway.shutdown()
                         shortcuts?.stop()
                     }
                     guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else {

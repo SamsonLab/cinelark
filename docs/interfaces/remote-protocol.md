@@ -31,18 +31,19 @@ provider API, a generic keyboard protocol, or a mobile playback protocol.
 Flutter Remote
     │ pinned WSS on LAN
     ▼
-CineLarkRemoteGateway (bundled Rust child)
+CineLarkGateway / RemoteGatewayCenter (bundled Rust child)
     │ private length-prefixed JSON stdio
     ▼
 CineLark RemoteGatewayCoordinator (Mac authority)
     ├── semantic navigation dispatcher
     ├── AppModel / provider login
-    └── PlaybackCoordinator → CineLarkBridge → IINA
+    └── PlaybackCoordinator → IINABridgeCenter → IINA
 ```
 
-The Rust Remote Gateway is a separate executable and trust domain from the
-loopback-only IINA bridge. They never reuse ports, secrets, device records, or
-session authentication.
+The Rust Remote Gateway is a separate center and trust domain from the
+loopback-only IINA bridge inside one executable. They never reuse ports,
+secrets, device records, session authentication, protocols, or lifecycle state.
+Only the process shell, runtime, and parent stdio framing are shared.
 
 The WebSocket endpoint is:
 
@@ -60,13 +61,13 @@ The Mac advertises its candidate endpoint with Bonjour/mDNS:
 
 ```text
 Service type: _cinelark._tcp
+Instance name: <user-visible-host-name>
 ```
 
 TXT records contain only non-secret negotiation hints:
 
 ```text
 serviceID=<opaque-uuid>
-name=<user-visible-mac-name>
 protocolMin=1
 protocolMax=1
 tls=required
@@ -74,8 +75,10 @@ tls=required
 
 An explicit Mac pairing window also displays a QR code conforming to
 [`specs/remote/pairing.schema.json`](../../specs/remote/pairing.schema.json).
-It contains protocol version, service ID/name, host and port hints, the SHA-256
-certificate fingerprint, a 256-bit single-use secret, and expiry.
+It contains protocol version, service ID, user-visible host name, optional host
+platform (`macos`, `windows`, `linux`, or `unknown`), host and port hints, the
+SHA-256 certificate fingerprint, a 256-bit single-use secret, and expiry. The
+platform is presentation metadata and never participates in authentication.
 
 The endpoint is never identity. Flutter accepts the self-signed TLS certificate
 only when its DER fingerprint exactly matches the QR pin. The gateway supports
@@ -234,7 +237,9 @@ is applied independently of general command throughput.
 | `navigation.back` | `{}` |
 | `navigation.openSection` | `{ "section": "home|movies|series|favorites|search" }` |
 
-These enter the same semantic dispatcher used by `NSEvent`. Wire messages never
+The active Remote management panel consumes `navigation.back` first so the phone
+can dismiss the pairing UI after approval. Otherwise, navigation commands enter
+the same semantic dispatcher used by `NSEvent`. Wire messages never
 address SwiftUI view identities or physical key codes.
 
 ### 8.4 Text input

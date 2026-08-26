@@ -50,8 +50,9 @@ final class RemoteCoordinator {
     @ObservationIgnored private let model: AppModel
     @ObservationIgnored private let shortcuts: ShortcutCoordinator
     @ObservationIgnored private let textInput: RemoteTextInputCoordinator
-    @ObservationIgnored private let client: RemoteGatewayProcessClient
+    @ObservationIgnored private let client: any RemoteGatewayTransport
     @ObservationIgnored private let store: RemoteCredentialStore
+    @ObservationIgnored private let panelDismissal = RemotePanelDismissalRegistry()
     @ObservationIgnored private var storedState: RemoteGatewayStoredState?
     @ObservationIgnored private var ready: RemoteGatewayReady?
     @ObservationIgnored private var eventTask: Task<Void, Never>?
@@ -65,19 +66,14 @@ final class RemoteCoordinator {
         model: AppModel,
         shortcuts: ShortcutCoordinator,
         textInput: RemoteTextInputCoordinator,
-        bundle: Bundle = .main,
+        client: any RemoteGatewayTransport,
         store: RemoteCredentialStore = RemoteCredentialStore()
     ) {
         self.model = model
         self.shortcuts = shortcuts
         self.textInput = textInput
         self.store = store
-        self.client = RemoteGatewayProcessClient(
-            executableURL: bundle.bundleURL.appendingPathComponent(
-                "Contents/Helpers/CineLarkRemoteGateway",
-                isDirectory: false
-            )
-        )
+        self.client = client
         model.onRemoteStateChanged = { [weak self] in
             self?.publishAppState()
         }
@@ -108,7 +104,7 @@ final class RemoteCoordinator {
             }
             let configuration = RemoteGatewayConfiguration(
                 serviceID: state.serviceID,
-                name: serviceName,
+                name: deviceName,
                 identity: state.identity,
                 devices: state.devices
             )
@@ -154,7 +150,8 @@ final class RemoteCoordinator {
             try await client.startPairing(secret: secret, expiresAt: expiresAt)
             let payload = RemotePairingPayload(
                 serviceID: state.serviceID.uuidString.lowercased(),
-                name: serviceName,
+                name: deviceName,
+                platform: "macos",
                 host: try RemoteNetworkAddress.preferredIPv4Address(),
                 port: ready.port,
                 fingerprint: ready.fingerprint,
@@ -230,6 +227,17 @@ final class RemoteCoordinator {
         } catch {
             errorCode = "gatewayUnavailable"
         }
+    }
+
+    func registerPanelPresentation(
+        id: UUID,
+        dismiss: @escaping @MainActor () -> Void
+    ) {
+        panelDismissal.register(id: id, dismiss: dismiss)
+    }
+
+    func unregisterPanelPresentation(id: UUID) {
+        panelDismissal.unregister(id: id)
     }
 
     private func handle(_ event: RemoteGatewayEvent) async {
@@ -344,6 +352,9 @@ final class RemoteCoordinator {
                 throw RemoteCommandError("invalidState")
             }
         case "navigation.back":
+            if panelDismissal.dismissIfPresented() {
+                return
+            }
             activateApp()
             guard shortcuts.navigateBackSemantically() else {
                 throw RemoteCommandError("invalidState")
@@ -812,7 +823,7 @@ final class RemoteCoordinator {
         let service = NetService(
             domain: "local.",
             type: "_cinelark._tcp.",
-            name: serviceName,
+            name: deviceName,
             port: Int32(port)
         )
         service.setTXTRecord(
@@ -827,8 +838,8 @@ final class RemoteCoordinator {
         bonjourService = service
     }
 
-    private var serviceName: String {
-        "CineLark — \(Host.current().localizedName ?? "Mac")"
+    private var deviceName: String {
+        Host.current().localizedName ?? "Mac"
     }
 }
 
@@ -836,6 +847,7 @@ private struct RemotePairingPayload: Encodable {
     let protocolVersion = 1
     let serviceID: String
     let name: String
+    let platform: String
     let host: String
     let port: UInt16
     let fingerprint: String

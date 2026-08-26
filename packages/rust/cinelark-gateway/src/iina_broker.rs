@@ -2,7 +2,7 @@ use std::{
     collections::{HashMap, VecDeque},
     io,
     net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6},
-    sync::{Arc, mpsc::Sender},
+    sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -25,7 +25,7 @@ use tokio::{
     time::{Duration, timeout},
 };
 
-use crate::protocol::{
+use crate::iina_protocol::{
     Envelope, MAX_ENVELOPE_BYTES, PROTOCOL_VERSION, ParentOutput, authentication_code,
 };
 
@@ -46,11 +46,14 @@ struct BrokerInner {
     replay_nonces: Mutex<HashMap<String, i64>>,
     last_parent_sequence: Mutex<Option<u64>>,
     last_plugin_sequence: Mutex<Option<u64>>,
-    parent_output: Sender<ParentOutput>,
+    parent_output: tokio::sync::mpsc::UnboundedSender<ParentOutput>,
 }
 
 impl BrokerState {
-    pub fn new(secret: Vec<u8>, parent_output: Sender<ParentOutput>) -> Self {
+    pub fn new(
+        secret: Vec<u8>,
+        parent_output: tokio::sync::mpsc::UnboundedSender<ParentOutput>,
+    ) -> Self {
         Self {
             inner: Arc::new(BrokerInner {
                 secret,
@@ -386,13 +389,12 @@ fn request_signature(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::protocol::Envelope;
+    use crate::iina_protocol::Envelope;
     use axum::{body::Body, http::Request};
     use serde_json::json;
-    use std::sync::mpsc;
 
     fn test_state() -> BrokerState {
-        let (sender, _) = mpsc::channel();
+        let (sender, _) = tokio::sync::mpsc::unbounded_channel();
         BrokerState::new(vec![3_u8; 32], sender)
     }
 

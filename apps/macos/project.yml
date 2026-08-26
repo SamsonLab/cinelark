@@ -24,8 +24,8 @@ settings:
     ENABLE_HARDENED_RUNTIME: true
     CODE_SIGN_STYLE: Automatic
     DEVELOPMENT_TEAM: 4B8LRMN347
-    MARKETING_VERSION: 0.1.9
-    CURRENT_PROJECT_VERSION: 10
+    MARKETING_VERSION: 0.1.10
+    CURRENT_PROJECT_VERSION: 11
 targets:
   CineLark:
     type: application
@@ -60,6 +60,7 @@ targets:
           HELPER_DIR="$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH/Helpers"
           RESOURCE_DIR="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH"
           mkdir -p "$HELPER_DIR" "$RESOURCE_DIR"
+          rm -f "$HELPER_DIR/CineLarkBridge" "$HELPER_DIR/CineLarkRemoteGateway"
 
           PROFILE_ARG=""
           PROFILE_DIR="debug"
@@ -90,11 +91,13 @@ targets:
             else
               /usr/bin/lipo -create "${binaries[@]}" -output "$HELPER_DIR/$bundle_name"
             fi
+            if [[ "$CONFIGURATION" == "Release" ]]; then
+              /usr/bin/strip -x "$HELPER_DIR/$bundle_name"
+            fi
             chmod 755 "$HELPER_DIR/$bundle_name"
           }
 
-          build_helper "cinelark-bridge" "cinelark-bridge" "CineLarkBridge"
-          build_helper "cinelark-remote-gateway" "cinelark-remote-gateway" "CineLarkRemoteGateway"
+          build_helper "cinelark-gateway" "cinelark-gateway" "CineLarkGateway"
 
           rm -f "$RESOURCE_DIR/CineLark.iinaplgz"
           (cd "$ROOT/plugins/iina" && /usr/bin/zip -q -r "$RESOURCE_DIR/CineLark.iinaplgz" Info.json src)
@@ -104,8 +107,7 @@ targets:
           /usr/bin/ditto "$ROOT/plugins/iina/src" "$RESOURCE_DIR/CineLark.iinaplugin/src"
 
           if [[ "${CODE_SIGNING_ALLOWED:-YES}" != "NO" && -n "${EXPANDED_CODE_SIGN_IDENTITY:-}" && "${EXPANDED_CODE_SIGN_IDENTITY}" != "-" ]]; then
-            /usr/bin/codesign --force --sign "$EXPANDED_CODE_SIGN_IDENTITY" --options runtime --timestamp=none "$HELPER_DIR/CineLarkBridge"
-            /usr/bin/codesign --force --sign "$EXPANDED_CODE_SIGN_IDENTITY" --options runtime --timestamp=none "$HELPER_DIR/CineLarkRemoteGateway"
+            /usr/bin/codesign --force --sign "$EXPANDED_CODE_SIGN_IDENTITY" --options runtime --timestamp=none "$HELPER_DIR/CineLarkGateway"
           fi
     dependencies:
       - package: CineLarkKit
@@ -118,6 +120,8 @@ targets:
         product: CineLarkPlayback
       - package: CineLarkKit
         product: CineLarkRemote
+      - package: CineLarkKit
+        product: CineLarkGateway
       - package: Kingfisher
         product: Kingfisher
       - package: Sparkle

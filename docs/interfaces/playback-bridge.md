@@ -12,8 +12,9 @@ playback capabilities and player state; it does not expose a media-provider API.
 
 - **Coordinator:** CineLark for Mac. Owns provider state, logical playback
   sessions, resume policy, and progress writes.
-- **Broker:** bundled `CineLarkBridge` Rust helper. Owns process isolation,
-  envelope validation, ordering, authentication, and loopback transport.
+- **Broker:** `IINABridgeCenter` inside the bundled `CineLarkGateway` Rust
+  helper. Owns envelope validation, ordering, authentication, and loopback
+  transport independently from the Remote center.
 - **Player:** thin IINA JavaScript plugin. Owns one or more IINA player instances
   and maps commands/events to IINA/mpv.
 
@@ -27,14 +28,16 @@ Preferred topology:
 Mac app ⇄ child stdin/stdout ⇄ bundled Rust helper ⇄ loopback HTTP ⇄ IINA plugin
 ```
 
-- The Mac app launches and supervises the helper; framed JSON over private child
-  stdio requires no app-facing listener.
+- The Mac app launches and supervises one helper; center-namespaced framed JSON
+  over private child stdio requires no app-facing listener.
 - The helper binds HTTP explicitly to `127.0.0.1` and `::1`, selects a port
   automatically, and accepts only authenticated plugin traffic.
 - The IINA plugin uses its public outbound `http` API for bounded command
   long-poll and event POST requests.
 - The helper terminates with CineLark and is never a launch daemon or separately
-  installed service.
+  installed service. Its `IINABridgeCenter` and `RemoteGatewayCenter` share only
+  the process shell and Rust runtime; their secrets, protocols, ports, and
+  lifecycle state remain separate.
 
 The audited IINA WebSocket server remains a non-default fallback because it has
 no TLS, exposes no loopback bind option, enables peer-to-peer networking, and

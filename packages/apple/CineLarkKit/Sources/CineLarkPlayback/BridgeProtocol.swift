@@ -1,20 +1,20 @@
 import CryptoKit
 import Foundation
 
-struct BridgeEnvelope: Codable, Sendable, Equatable {
-    static let currentProtocolVersion = 1
+public struct BridgeEnvelope: Codable, Sendable, Equatable {
+    public static let currentProtocolVersion = 1
 
-    let protocolVersion: Int
-    let id: String
-    let type: String
-    let sentAt: String
-    let sessionID: String?
-    let replyTo: String?
-    let sequence: UInt64
-    let payload: [String: JSONValue]
-    var mac: String
+    public let protocolVersion: Int
+    public let id: String
+    public let type: String
+    public let sentAt: String
+    public let sessionID: String?
+    public let replyTo: String?
+    public let sequence: UInt64
+    public let payload: [String: JSONValue]
+    public var mac: String
 
-    init(
+    public init(
         id: UUID = UUID(),
         type: String,
         sessionID: UUID? = nil,
@@ -36,7 +36,7 @@ struct BridgeEnvelope: Codable, Sendable, Equatable {
         self.mac = authenticationCode(secret: secret)
     }
 
-    func isAuthenticated(with secret: Data) -> Bool {
+    public func isAuthenticated(with secret: Data) -> Bool {
         guard protocolVersion == Self.currentProtocolVersion,
               let supplied = Data(base64URLEncoded: mac) else {
             return false
@@ -71,7 +71,7 @@ struct BridgeEnvelope: Codable, Sendable, Equatable {
     }
 }
 
-enum JSONValue: Codable, Sendable, Equatable {
+public enum JSONValue: Codable, Sendable, Equatable {
     case null
     case bool(Bool)
     case integer(Int64)
@@ -80,7 +80,7 @@ enum JSONValue: Codable, Sendable, Equatable {
     case array([JSONValue])
     case object([String: JSONValue])
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
         if container.decodeNil() {
             self = .null
@@ -99,7 +99,7 @@ enum JSONValue: Codable, Sendable, Equatable {
         }
     }
 
-    func encode(to encoder: Encoder) throws {
+    public func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
         switch self {
         case .null:
@@ -119,7 +119,7 @@ enum JSONValue: Codable, Sendable, Equatable {
         }
     }
 
-    var canonicalJSON: String {
+    public var canonicalJSON: String {
         switch self {
         case .null:
             "null"
@@ -140,7 +140,7 @@ enum JSONValue: Codable, Sendable, Equatable {
         }
     }
 
-    var doubleValue: Double? {
+    public var doubleValue: Double? {
         switch self {
         case .integer(let value): Double(value)
         case .number(let value): value
@@ -148,22 +148,22 @@ enum JSONValue: Codable, Sendable, Equatable {
         }
     }
 
-    var stringValue: String? {
+    public var stringValue: String? {
         guard case .string(let value) = self else { return nil }
         return value
     }
 
-    var boolValue: Bool? {
+    public var boolValue: Bool? {
         guard case .bool(let value) = self else { return nil }
         return value
     }
 
-    var arrayValue: [JSONValue]? {
+    public var arrayValue: [JSONValue]? {
         guard case .array(let value) = self else { return nil }
         return value
     }
 
-    var objectValue: [String: JSONValue]? {
+    public var objectValue: [String: JSONValue]? {
         guard case .object(let value) = self else { return nil }
         return value
     }

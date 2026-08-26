@@ -7,7 +7,7 @@ use subtle::ConstantTimeEq;
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use uuid::Uuid;
 
-use crate::identity::IdentityMaterial;
+use crate::remote_identity::IdentityMaterial;
 
 pub const PROTOCOL_VERSION: u8 = 1;
 pub const MAX_MESSAGE_BYTES: usize = 65_536;

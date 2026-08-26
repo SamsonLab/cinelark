@@ -5,7 +5,6 @@ use serde_json::Value;
 use sha2::Sha256;
 
 pub const PROTOCOL_VERSION: u8 = 1;
-pub const MAX_FRAME_BYTES: usize = 1_048_576;
 pub const MAX_ENVELOPE_BYTES: usize = 262_144;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

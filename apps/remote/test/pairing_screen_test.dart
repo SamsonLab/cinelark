@@ -42,7 +42,7 @@ class _RetryController extends RemoteController {
   }
 
   @override
-  Future<void> forget() async {
+  Future<void> retryPairing() async {
     phase = RemoteConnectionPhase.unpaired;
   }
 }
