@@ -1,0 +1,44 @@
+# Media Source Platform
+
+The platform is a compile-time SwiftPM plugin system. A plugin factory declares a
+stable ID, contract version, roles, setup/authentication modes, and a structured
+capability descriptor. The composition root explicitly registers factories;
+third-party dynamic code is not loaded.
+
+## Identity
+
+- `PluginID` identifies an implementation.
+- `SourceID` identifies a user-configured source across devices.
+- `SourceInstanceIdentity` combines plugin kind with a verified server identity.
+- `MediaLocatorID` identifies one provider item within one source.
+- `CatalogItemID` identifies normalized local metadata.
+- `ContentKey` is matching evidence and never replaces a locator.
+
+The Core Data catalog supports multiple locators for one catalog item. It does
+not merge items merely because TMDB or IMDb keys match.
+
+## Calls and streams
+
+Cold queries and commands are `async throws`. Snapshot streams use
+`AsyncStream`/`AsyncThrowingStream` with `bufferingNewest(1)`. Command delivery
+must use an actor-owned queue when loss is unacceptable. Plugins return value
+types and never import TCA or expose a Store, Effect, Publisher, View, or managed
+object.
+
+## Implemented providers
+
+UHDNow is adapted behind the same capability runtime as Emby. The macOS UI reads
+Catalog-backed TCA projections and does not depend on either concrete provider.
+
+Emby v1 implements manual/reverse-proxy setup, UDP discovery, authentication,
+Views/Items/Latest/Resume, detail hierarchy, people, artwork descriptors,
+direct-play/direct-stream resolution, playback check-ins, explicit user-state
+import, and optional outbound mirror. See
+[`../integrations/emby.md`](../integrations/emby.md).
+
+## Profile state boundary
+
+Profile favorites and playback are local-first and independent of source
+runtime state. CloudKit syncs Profile projections; source configuration, active
+selection, Catalog, and mirror delivery remain local. See
+[`profile-cloudkit-schema.md`](profile-cloudkit-schema.md).

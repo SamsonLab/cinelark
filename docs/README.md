@@ -28,13 +28,17 @@ Documents use the following status labels:
 | [ADR-0006](decisions/0006-sparkle-updates.md) | Accepted | Signed Sparkle feeds and native in-app updates |
 | [ADR-0007](decisions/0007-local-automatic-release-signing.md) | Accepted | Local Xcode Automatic Signing, export verification, and publication boundary |
 | [ADR-0008](decisions/0008-rust-remote-transport.md) | Accepted | Rust Remote TLS/WebSocket transport with Mac-owned authorization |
+| [ADR-0009](decisions/0009-unified-native-gateway.md) | Accepted direction | Unified native gateway boundary |
+| [ADR-0010](decisions/0010-tca-application-boundary.md) | Accepted | TCA application boundary and Swift-concurrency service isolation |
 
 ## Interfaces
 
 | Document | Status | Purpose |
 | --- | --- | --- |
-| [Media library provider](interfaces/media-library-provider.md) | Draft | Provider-neutral domain boundary |
-| [Metadata cache](interfaces/metadata-cache.md) | Accepted implementation | Durable metadata and artwork-cache boundaries |
+| [Media library provider](interfaces/media-library-provider.md) | Legacy internal adapter | Previous provider boundary retained below the UHDNow plugin only |
+| [Media source platform](interfaces/media-source-platform.md) | Implemented v1 | Capability-based plugin, identity, query, and runtime contracts |
+| [Profile and CloudKit persistence](interfaces/profile-cloudkit-schema.md) | Implemented; release smoke pending | Cloud/local entity placement, conflict, import, and mirror rules |
+| [Cache management](interfaces/metadata-cache.md) | Accepted implementation | Catalog/artwork accounting, purge, and user-data boundaries |
 | [Playback bridge](interfaces/playback-bridge.md) | Draft, Phase 0 implemented | Mac app ↔ IINA protocol |
 | [Remote protocol](interfaces/remote-protocol.md) | Implemented v1 | Flutter Remote ↔ Rust gateway ↔ Mac protocol |
 | [`specs/common/playback.schema.json`](../specs/common/playback.schema.json) | Draft | Cross-language playback state types |
@@ -46,6 +50,7 @@ Documents use the following status labels:
 | Document | Status | Purpose |
 | --- | --- | --- |
 | [UHDNow API](integrations/uhdnow-api.md) | Observed | Sanitized endpoint and model inventory |
+| [Emby integration](integrations/emby.md) | Implemented v1 | Discovery, authentication, content mapping, playback, import, and mirror |
 | [`specs/uhdnow/openapi.yaml`](../specs/uhdnow/openapi.yaml) | Observed, partial | Machine-readable endpoint contract |
 | [IINA plugin API](integrations/iina-plugin-api.md) | Verified snapshot | Available playback/plugin capabilities and gaps |
 

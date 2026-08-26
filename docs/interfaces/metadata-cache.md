@@ -1,19 +1,46 @@
-# Metadata cache
+# Cache management
 
 Status: **Accepted implementation**
 
-## 1. Scope
+## 1. Scope and ownership
 
-`CineLarkPersistence` provides a provider-neutral, actor-isolated metadata cache
-and a `CachedMediaLibraryProvider` read-through decorator. The cache persists
-recreatable domain metadata across app launches while keeping the provider API
-authoritative.
+Cached-first browsing remains a product capability after UI ownership moved
+away from `CachedMediaLibraryProvider`. The current application cache has three
+independent infrastructure categories:
 
-Artwork is intentionally outside this cache. The Mac app uses Kingfisher for
-bounded memory/disk image caching, request coalescing, cancellation, and
-size-aware decoding.
+| Category | Owner | User-visible size |
+| --- | --- | ---: |
+| Catalog metadata | `CoreDataCatalogStore` | Logical encoded payload |
+| Artwork | Kingfisher | Disk storage size |
+| Legacy metadata | `PersistentMetadataCache` | Encoded entry size |
 
-## 2. Storage invariants
+`LibraryFeature` reads Catalog projections first and then performs a source
+refresh. TCA stores only query identity, item IDs, and presentation snapshots;
+it does not own database records or image data. The legacy metadata cache is no
+longer an application read path and is included only so upgrades can measure
+and remove data created by the former provider decorator.
+
+## 2. Catalog invariants
+
+- Catalog data is local-only and recreatable from a media source.
+- Cache identity preserves exact source and provider locators. External content
+  IDs do not implicitly merge records.
+- Reported metadata size counts encoded values stored by Catalog entities. It
+  excludes SQLite pages, indexes, WAL files, and other structural overhead.
+- `removeAllCachedData()` removes Catalog items, locators, source records, and
+  refresh metadata. It never opens or deletes a Profile/CloudKit store.
+- Cached-first delivery is sequential: the cached response is projected before
+  the refresh begins, and query identity rejects obsolete responses.
+
+## 3. Artwork invariants
+
+- The Mac app uses a dedicated Kingfisher cache for bounded memory/disk image
+  caching, request coalescing, cancellation, and size-aware decoding.
+- Artwork usage reports disk bytes. Clearing also evicts memory entries.
+- Authentication tokens must be supplied by an authenticated request adapter;
+  they must not be embedded in image URLs or cache keys.
+
+## 4. Legacy metadata compatibility
 
 - Metadata lives under `Application Support/CineLark/MetadataCache`.
 - A versioned manifest indexes individually encoded JSON entries.
@@ -27,10 +54,11 @@ size-aware decoding.
 - A schema-version mismatch clears the recreatable store instead of attempting
   unsafe model migration.
 
-The cache assumes one in-process `PersistentMetadataCache` writer for a storage
-directory. It is not an inter-process database.
+The store assumes one in-process `PersistentMetadataCache` writer for a storage
+directory. It is not an inter-process database. New application reads use the
+Catalog; these rules are retained for safe cleanup and package compatibility.
 
-## 3. Read behavior
+### Historical read behavior
 
 Each provider capability has an explicit freshness TTL. Defaults are:
 
@@ -53,7 +81,7 @@ for network outages, rate limiting, provider unavailability, or an undecodable
 provider response. Authentication, authorization, not-found, cancellation, and
 unsupported-capability errors never fall back to stale data.
 
-## 4. Invalidation and account boundaries
+### Historical invalidation and account boundaries
 
 - Successful favorite and playback-state mutations invalidate related tagged
   entries.
@@ -67,7 +95,23 @@ These rules prevent user-specific playback/favorite state from crossing account
 boundaries while retaining metadata through normal launches for one valid
 session.
 
-## 5. Security exclusions
+## 5. User-controlled purge
+
+The macOS Settings window displays metadata, artwork, and total on-disk cache
+usage. Clearing requires confirmation and removes only recreatable categories.
+Profiles, favorites, playback progress, source configuration, active selection,
+Keychain credentials, playback runtime, and Remote pairing records are outside
+the cache boundary.
+
+Before deletion, `CacheFeature` delegates to `AppFeature`. The parent cancels
+Library and Search effects that may write Catalog data and removes detail paths
+whose projections depend on that data. Only then does `CacheClient` clear the
+independent infrastructure stores and refresh usage.
+
+Individual cache categories attempt deletion independently; failures are
+aggregated and displayed. A later size refresh reflects any data that remains.
+
+## 6. Security exclusions
 
 The following values must never enter metadata or artwork caches:
 
@@ -77,5 +121,5 @@ The following values must never enter metadata or artwork caches:
 - bridge pairing credentials
 - Remote credentials
 
-`playbackURL(for:)` and `downloadURL(for:)` always bypass
-`CachedMediaLibraryProvider` caching and are resolved just in time.
+Playback and download descriptors always bypass caching and are resolved just
+in time.

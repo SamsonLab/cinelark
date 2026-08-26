@@ -1,12 +1,12 @@
 import SwiftUI
+import ComposableArchitecture
 import CineLarkDomain
 
 struct SearchView: View {
     @Environment(\.appLanguage) private var language
     @Environment(ShortcutCoordinator.self) private var shortcuts
     @Environment(RemoteTextInputCoordinator.self) private var remoteTextInput
-    @Bindable var model: AppModel
-    @State private var query = ""
+    @Bindable var store: StoreOf<SearchFeature>
     @State private var keyboardOwner = UUID()
     @FocusState private var isSearchFocused: Bool
 
@@ -20,25 +20,25 @@ struct SearchView: View {
                     Image(systemName: "magnifyingglass")
                         .font(.title2.weight(.semibold))
                         .foregroundStyle(.secondary)
-                    TextField(language.localized("search.prompt"), text: $query)
+                    TextField(language.localized("search.prompt"), text: queryBinding)
                         .textFieldStyle(.plain)
                         .font(.title2)
                         .focused($isSearchFocused)
                         .onSubmit {
                             isSearchFocused = false
-                            Task { await model.search(query) }
+                            store.send(.view(.submitted))
                         }
                         .onKeyPress(.escape) {
-                            if query.isEmpty {
+                            if store.query.isEmpty {
                                 isSearchFocused = false
                             } else {
-                                query = ""
+                                store.send(.view(.queryChanged("")))
                             }
                             return .handled
                         }
-                    if !query.isEmpty {
+                    if !store.query.isEmpty {
                         Button {
-                            query = ""
+                            store.send(.view(.queryChanged("")))
                         } label: {
                             Image(systemName: "xmark.circle.fill")
                         }
@@ -74,44 +74,40 @@ struct SearchView: View {
             shortcuts.setFixedAction(.focusSearch, action: nil)
             remoteTextInput.close(owner: keyboardOwner)
         }
-        .onChange(of: query) {
-            remoteTextInput.localTextChanged(query, owner: keyboardOwner)
-        }
-        .task(id: query) {
-            do {
-                try await Task.sleep(for: .milliseconds(350))
-                await model.search(query)
-            } catch {
-                // A newer query cancelled this task.
-            }
+        .onChange(of: store.query) {
+            remoteTextInput.localTextChanged(store.query, owner: keyboardOwner)
         }
     }
 
     @ViewBuilder
     private var content: some View {
-        if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        if store.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             ContentUnavailableView(
                 language.localized("search.empty"),
                 systemImage: "sparkles.tv",
                 description: Text(language.localized("search.empty_description"))
             )
-        } else if model.isSearching && model.searchResults.isEmpty {
+        } else if store.isSearching && store.orderedResults.isEmpty {
             ProgressView(language.localized("search.searching"))
                 .controlSize(.large)
-        } else if model.searchResults.isEmpty {
-            ContentUnavailableView.search(text: query)
+        } else if store.orderedResults.isEmpty {
+            ContentUnavailableView.search(text: store.query)
         } else {
             PosterGrid(
-                items: model.searchResults,
+                items: store.orderedResults,
+                isLoadingMore: store.isLoadingMore,
+                canLoadMore: store.nextCursor != nil,
                 autoFocusFirst: false,
-                topContentInset: CineLarkDesign.Layout.focusSafeTopInset
+                topContentInset: CineLarkDesign.Layout.focusSafeTopInset,
+                onLoadMore: {
+                    await store.send(.view(.loadMore)).finish()
+                }
             )
         }
     }
 
     private func registerKeyboardNavigation() {
         let searchFocus = $isSearchFocused
-        let searchQuery = $query
         shortcuts.setFixedAction(.focusSearch) {
             searchFocus.wrappedValue = true
             return true
@@ -130,17 +126,17 @@ struct SearchView: View {
         remoteTextInput.open(
             owner: keyboardOwner,
             kind: "search",
-            text: query,
+            text: store.query,
             update: { text in
-                searchQuery.wrappedValue = text
+                store.send(.view(.queryChanged(text)))
                 searchFocus.wrappedValue = true
             },
             commit: {
                 searchFocus.wrappedValue = false
-                Task { await model.search(searchQuery.wrappedValue) }
+                store.send(.view(.submitted))
             },
             cancel: {
-                searchQuery.wrappedValue = ""
+                store.send(.view(.queryChanged("")))
                 searchFocus.wrappedValue = false
             }
         )
@@ -148,5 +144,12 @@ struct SearchView: View {
 
     private func focusSearchInput() {
         isSearchFocused = true
+    }
+
+    private var queryBinding: Binding<String> {
+        Binding(
+            get: { store.query },
+            set: { store.send(.view(.queryChanged($0))) }
+        )
     }
 }

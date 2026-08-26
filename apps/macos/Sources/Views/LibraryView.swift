@@ -1,27 +1,36 @@
 import SwiftUI
+import ComposableArchitecture
 import CineLarkDomain
-
-private enum LibrarySelection: Hashable {
-    case home
-    case movies
-    case series
-    case favorites
-    case search
-}
 
 struct LibraryView: View {
     @Environment(\.appLanguage) private var language
     @Environment(ShortcutCoordinator.self) private var shortcuts
-    @Bindable var model: AppModel
-    @State private var selection: LibrarySelection? = .home
-    @State private var columnVisibility: NavigationSplitViewVisibility = .all
-    @State private var navigationPath = NavigationPath()
+    @Bindable var store: StoreOf<NavigationFeature>
+    @Bindable var libraryStore: StoreOf<LibraryFeature>
+    @Bindable var searchStore: StoreOf<SearchFeature>
+    @Bindable var profileStore: StoreOf<ProfileFeature>
+    @State private var actualColumnVisibility: NavigationSplitViewVisibility
     @Namespace private var mediaTransitionNamespace
 
+    init(
+        store: StoreOf<NavigationFeature>,
+        libraryStore: StoreOf<LibraryFeature>,
+        searchStore: StoreOf<SearchFeature>,
+        profileStore: StoreOf<ProfileFeature>
+    ) {
+        self.store = store
+        self.libraryStore = libraryStore
+        self.searchStore = searchStore
+        self.profileStore = profileStore
+        _actualColumnVisibility = State(
+            initialValue: store.sidebarVisible ? .all : .detailOnly
+        )
+    }
+
     var body: some View {
-        NavigationSplitView(columnVisibility: $columnVisibility) {
+        NavigationSplitView(columnVisibility: $actualColumnVisibility) {
             VStack(spacing: 0) {
-                List(selection: $selection) {
+                List(selection: selection) {
                     Section {
                         navigationLink(.home, titleKey: "nav.home", symbol: "house", shortcut: 1)
                         navigationLink(.movies, titleKey: "nav.movies", symbol: "film.stack", shortcut: 2)
@@ -31,125 +40,136 @@ struct LibraryView: View {
                     }
                 }
                 .listStyle(.sidebar)
-
-                Divider()
-
-                sidebarUtilities
             }
             .navigationTitle("CineLark")
             .navigationSplitViewColumnWidth(min: 190, ideal: 228, max: 280)
+            .toolbar(removing: .sidebarToggle)
         } detail: {
-            NavigationStack(path: $navigationPath) {
+            NavigationStack(path: $store.scope(state: \.path, action: \.path)) {
                 destination
-                    .navigationDestination(for: MediaSummary.self) { item in
-                        MediaDetailView(
-                            item: item,
-                            provider: model.provider,
-                            playback: model.playback
+            } destination: { store in
+                switch store.case {
+                case .media(let routeStore):
+                    if let detailStore = routeStore.scope(state: \.detail, action: \.detail) {
+                        CatalogMediaDetailView(store: detailStore)
+                    } else {
+                        ContentUnavailableView(
+                            "Media source unavailable",
+                            systemImage: "externaldrive.badge.exclamationmark"
                         )
-                        .onAppear { columnVisibility = .detailOnly }
-                        .onDisappear { columnVisibility = .all }
                     }
-                    .navigationDestination(for: MediaDetailRoute.self) { route in
-                        MediaDetailView(
-                            item: route.item,
-                            provider: model.provider,
-                            playback: model.playback,
-                            transitionID: route.transitionID
+
+                case .collection(let routeStore):
+                    CatalogCollectionView(
+                        collection: routeStore.collection,
+                        store: libraryStore
+                    )
+
+                case .person(let routeStore):
+                    if let detailStore = routeStore.scope(state: \.detail, action: \.detail) {
+                        CatalogPersonDetailView(store: detailStore)
+                    } else {
+                        ContentUnavailableView(
+                            "Media source unavailable",
+                            systemImage: "externaldrive.badge.exclamationmark"
                         )
-                        .onAppear { columnVisibility = .detailOnly }
-                        .onDisappear { columnVisibility = .all }
                     }
-                    .navigationDestination(for: MediaCollection.self) { collection in
-                        CollectionView(collection: collection, model: model)
-                    }
-                    .navigationDestination(for: PersonCredit.self) { person in
-                        PersonDetailView(person: person, provider: model.provider)
-                            .onAppear { columnVisibility = .detailOnly }
-                            .onDisappear { columnVisibility = .all }
-                    }
+                }
             }
             .environment(\.mediaTransitionNamespace, mediaTransitionNamespace)
             .background(CineLarkPageBackground())
         }
         .navigationSplitViewStyle(.prominentDetail)
+        .environment(\.activeMediaSourceID, profileStore.activeSourceID)
+        .environment(\.activeProfileID, profileStore.activeProfileID)
+        .toolbar {
+            ToolbarItem(placement: .navigation) {
+                Button {
+                    let isVisible = !store.sidebarVisible
+                    store.send(.view(.sidebarVisibilityChanged(isVisible)))
+                    actualColumnVisibility = isVisible ? .all : .detailOnly
+                } label: {
+                    Label("Sidebar", systemImage: "sidebar.left")
+                }
+                .help("Toggle Sidebar")
+            }
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    libraryStore.send(.view(.reload))
+                } label: {
+                    Label(
+                        language.localized("general.refresh"),
+                        systemImage: "arrow.clockwise"
+                    )
+                }
+                .help(language.localized("general.refresh"))
+                .disabled(libraryStore.isLoadingOverview || libraryStore.isRefreshing)
+            }
+        }
         .ignoresSafeArea(.container, edges: .top)
         .windowToolbarFullScreenVisibility(.onHover)
         .task {
-            let path = $navigationPath
-            let selectedSection = $selection
             shortcuts.setBackAction {
-                guard !path.wrappedValue.isEmpty else { return false }
-                path.wrappedValue.removeLast()
+                guard !store.path.isEmpty else { return false }
+                store.send(.view(.backRequested))
                 return true
             }
             shortcuts.setOpenMediaAction { item in
-                path.wrappedValue.append(
-                    MediaDetailRoute(item: item, transitionID: UUID())
+                store.send(
+                    .view(.mediaRequested(item, transitionID: UUID()))
                 )
                 return true
             }
             shortcuts.setOpenCollectionAction { collection in
-                path.wrappedValue.append(collection)
+                store.send(.view(.collectionRequested(collection)))
                 return true
             }
             shortcuts.setOpenPersonAction { person in
-                path.wrappedValue.append(person)
+                store.send(.view(.personRequested(person)))
                 return true
             }
             shortcuts.setFixedAction(.navigation(1)) {
-                path.wrappedValue = NavigationPath()
-                selectedSection.wrappedValue = .home
+                store.send(.view(.sectionSelected(.home)))
                 return true
             }
             shortcuts.setFixedAction(.navigation(2)) {
-                path.wrappedValue = NavigationPath()
-                selectedSection.wrappedValue = .movies
+                store.send(.view(.sectionSelected(.movies)))
                 return true
             }
             shortcuts.setFixedAction(.navigation(3)) {
-                path.wrappedValue = NavigationPath()
-                selectedSection.wrappedValue = .series
+                store.send(.view(.sectionSelected(.series)))
                 return true
             }
             shortcuts.setFixedAction(.navigation(4)) {
-                path.wrappedValue = NavigationPath()
-                selectedSection.wrappedValue = .favorites
+                store.send(.view(.sectionSelected(.favorites)))
                 return true
             }
             shortcuts.setFixedAction(.navigation(5)) {
-                path.wrappedValue = NavigationPath()
-                selectedSection.wrappedValue = .search
+                store.send(.view(.sectionSelected(.search)))
                 return true
             }
             shortcuts.setSectionAction(.home) {
-                path.wrappedValue = NavigationPath()
-                selectedSection.wrappedValue = .home
+                store.send(.view(.sectionSelected(.home)))
                 return true
             }
             shortcuts.setSectionAction(.movies) {
-                path.wrappedValue = NavigationPath()
-                selectedSection.wrappedValue = .movies
+                store.send(.view(.sectionSelected(.movies)))
                 return true
             }
             shortcuts.setSectionAction(.series) {
-                path.wrappedValue = NavigationPath()
-                selectedSection.wrappedValue = .series
+                store.send(.view(.sectionSelected(.series)))
                 return true
             }
             shortcuts.setSectionAction(.favorites) {
-                path.wrappedValue = NavigationPath()
-                selectedSection.wrappedValue = .favorites
+                store.send(.view(.sectionSelected(.favorites)))
                 return true
             }
             shortcuts.setSectionAction(.search) {
-                path.wrappedValue = NavigationPath()
-                selectedSection.wrappedValue = .search
+                store.send(.view(.sectionSelected(.search)))
                 return true
             }
             shortcuts.setFixedAction(.refresh) {
-                guard !model.isLoadingHome else { return false }
-                Task { await model.refreshHome() }
+                libraryStore.send(.view(.reload))
                 return true
             }
         }
@@ -166,9 +186,8 @@ struct LibraryView: View {
             }
             shortcuts.setFixedAction(.refresh, action: nil)
         }
-        .onChange(of: selection) {
-            navigationPath = NavigationPath()
-            switch selection ?? .home {
+        .onChange(of: store.selection) {
+            switch store.selection {
             case .home: shortcuts.reportSection(.home)
             case .movies: shortcuts.reportSection(.movies)
             case .series: shortcuts.reportSection(.series)
@@ -176,78 +195,22 @@ struct LibraryView: View {
             case .search: shortcuts.reportSection(.search)
             }
         }
+        .onChange(of: store.sidebarVisible) {
+            actualColumnVisibility = store.sidebarVisible ? .all : .detailOnly
+        }
         .onExitCommand {
             shortcuts.navigateBack()
         }
-        .alert(
-            "CineLark",
-            isPresented: Binding(
-                get: { model.errorMessage != nil },
-                set: { if !$0 { model.dismissError() } }
-            )
-        ) {
-            if model.errorRecovery == .installIINA {
-                Button(language.localized("error.download_iina")) {
-                    model.performErrorRecovery()
-                }
-            }
-            Button(language.localized("general.dismiss"), role: .cancel) {
-                model.dismissError()
-            }
-        } message: {
-            Text(language.userFacingError(model.errorMessage))
-        }
     }
 
-    private var sidebarUtilities: some View {
-        VStack(spacing: 6) {
-            LanguageMenu(
-                fillsAvailableWidth: true
-            )
-                .buttonStyle(SidebarUtilityButtonStyle())
-
-            SidebarUtilityButton(shortcut: .commandKey("r")) {
-                Task { await model.refreshHome() }
-            } label: {
-                Label(
-                    language.localized("general.refresh"),
-                    systemImage: "arrow.clockwise"
-                )
+    private var selection: Binding<LibrarySelection?> {
+        Binding(
+            get: { store.selection },
+            set: { value in
+                guard let value else { return }
+                store.send(.view(.sectionSelected(value)))
             }
-            .disabled(model.isLoadingHome)
-
-            SidebarUtilityButton {
-                Task { await model.signOut() }
-            } label: {
-                Label(
-                    language.localized("nav.sign_out"),
-                    systemImage: "rectangle.portrait.and.arrow.right"
-                )
-            }
-            .foregroundStyle(.secondary)
-
-            HStack(spacing: 8) {
-                Text(appVersionLabel)
-                    .font(.caption2.monospacedDigit())
-                    .foregroundStyle(.tertiary)
-
-                Spacer(minLength: 4)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, 10)
-            .padding(.top, 2)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(12)
-    }
-
-    private var appVersionLabel: String {
-        guard let version = Bundle.main.object(
-            forInfoDictionaryKey: "CFBundleShortVersionString"
-        ) as? String else {
-            return "CineLark"
-        }
-        return "CineLark v\(version)"
+        )
     }
 
     private func navigationLink(
@@ -259,7 +222,7 @@ struct LibraryView: View {
         NavigationLink(value: value) {
             Label(
                 language.localized(titleKey),
-                systemImage: selection == value && symbol != "magnifyingglass"
+                systemImage: store.selection == value && symbol != "magnifyingglass"
                     ? "\(symbol).fill"
                     : symbol
             )
@@ -271,66 +234,17 @@ struct LibraryView: View {
 
     @ViewBuilder
     private var destination: some View {
-        switch selection ?? .home {
+        switch store.selection {
         case .home:
-            HomeView(model: model)
+            CatalogHomeView(store: libraryStore)
         case .movies:
-            MediaCategoryView(kind: .movie, model: model)
+            CatalogCategoryView(kind: .movie, store: libraryStore)
         case .series:
-            MediaCategoryView(kind: .series, model: model)
+            CatalogCategoryView(kind: .series, store: libraryStore)
         case .favorites:
-            FavoritesView(provider: model.provider)
+            CatalogFavoritesView(store: libraryStore)
         case .search:
-            SearchView(model: model)
+            SearchView(store: searchStore)
         }
-    }
-}
-
-private struct SidebarUtilityButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .cineLarkHoverSurface(
-                cornerRadius: 10,
-                normalFillOpacity: 0,
-                hoverFillOpacity: 0.10,
-                normalStrokeOpacity: 0,
-                hoverStrokeOpacity: 0.08
-            )
-            .opacity(configuration.isPressed ? 0.7 : 1)
-    }
-}
-
-private struct SidebarUtilityButton<Label: View>: View {
-    let action: () -> Void
-    let shortcut: CineLarkShortcutChord?
-    @ViewBuilder let label: () -> Label
-
-    init(
-        shortcut: CineLarkShortcutChord? = nil,
-        action: @escaping () -> Void,
-        @ViewBuilder label: @escaping () -> Label
-    ) {
-        self.shortcut = shortcut
-        self.action = action
-        self.label = label
-    }
-
-    var body: some View {
-        GeometryReader { proxy in
-            Button(action: action) {
-                label()
-                    .padding(.horizontal, 10)
-                    .frame(
-                        width: proxy.size.width,
-                        height: proxy.size.height,
-                        alignment: .leading
-                    )
-                    .background(Color.primary.opacity(0.001))
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(SidebarUtilityButtonStyle())
-            .cineLarkShortcut(shortcut)
-        }
-        .frame(height: 36)
     }
 }

@@ -97,7 +97,7 @@ public enum PlaybackControlCommand: Sendable, Equatable {
 }
 
 @MainActor
-public protocol PlaybackLaunching: AnyObject {
+public protocol PlaybackLaunching: AnyObject, Sendable {
     var events: AsyncStream<PlaybackEvent> { get }
     func prepare() async throws
     func open(_ descriptor: PlaybackDescriptor) async throws

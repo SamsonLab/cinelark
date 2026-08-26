@@ -42,6 +42,8 @@ The system coordinator and primary UI. It owns:
 - provider selection and account state
 - library/domain mapping and image loading
 - navigation, focus, and selection state
+- content-only library navigation with configuration consolidated in the native
+  macOS Settings scene
 - media-version selection and resume decisions
 - bridge session management
 - provider progress and stopped-event reporting

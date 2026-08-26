@@ -1,7 +1,7 @@
 # CineLark Architecture
 
 - **Status:** Accepted direction; implementation details remain Draft
-- **Last updated:** 2026-08-20
+- **Last updated:** 2026-08-26
 
 ## 1. System context
 
@@ -18,10 +18,10 @@
                                  │ private child stdio
                                  ▼
 ┌────────────────┐      ┌───────────────────────────────┐
-│ Media Provider │◀────▶│ CineLark for Mac             │
-│ UHDNow first   │      │                               │
-└────────────────┘      │ UI + domain + provider auth   │
-                        │ PlaybackCoordinator           │
+│ Media Sources  │◀────▶│ CineLark for Mac             │
+│ UHDNow / Emby  │      │ SwiftUI + TCA application     │
+└────────────────┘      │ Catalog + Profile projection  │
+                        │ PlaybackFeature + IINA client │
                         └───────────────┬───────────────┘
                                         │ private child stdio
                                         ▼
@@ -41,11 +41,13 @@
 
 | Concern | Owner |
 | --- | --- |
-| Account credentials and provider token | Provider adapter in Mac app |
+| Account credentials and provider token | Source plugin runtime; secrets persist only through Keychain client |
 | Keychain lifecycle | Mac app; plugin stores only its bridge secret |
-| Library, detail, favorites, resume source | Provider adapter |
-| Navigation and focus | Mac app presentation layer |
-| Version selection | Mac app `PlaybackCoordinator` |
+| UI-facing library metadata | Local Catalog; source plugins refresh and normalize it |
+| Favorites and resume state | Local profile repository; optional explicit remote import/mirror |
+| Semantic navigation and persisted sidebar preference | TCA application state |
+| Hover, pointer, transient focus, and live geometry | SwiftUI local state |
+| Version selection | Source playback resolver, orchestrated by `PlaybackFeature` |
 | Playback URL construction | Provider adapter |
 | Decode, HDR, tracks, subtitles | IINA/mpv |
 | Player transport and telemetry | Rust Bridge Helper + IINA plugin |
@@ -76,12 +78,13 @@ Provider-neutral value types and use cases:
 
 It contains no networking, UI framework, UHDNow JSON, or IINA API types.
 
-### 3.2 `MediaLibraryProvider`
+### 3.2 `CineLarkPluginAPI` and `CineLarkCatalog`
 
-An asynchronous capability boundary described in
-[`interfaces/media-library-provider.md`](interfaces/media-library-provider.md).
-Provider adapters translate unstable external contracts into stable domain
-models.
+`CineLarkPluginAPI` defines capability-based source factories and account-bound
+runtimes. `CineLarkCatalog` normalizes provider values into a local Core Data
+catalog with exact source isolation and one-to-many locator support. TCA sees
+both only through `MediaPlatformClient`; provider adapters translate unstable
+external contracts into stable value models.
 
 ### 3.3 `UHDNowProvider`
 
@@ -95,24 +98,41 @@ Owns:
 
 Raw DTOs stay internal to this package.
 
-### 3.4 `PersistentMetadataCache`
+### 3.4 Cache infrastructure
 
-An actor-isolated, bounded file store for recreatable domain metadata. A
-provider-neutral read-through decorator applies per-resource TTLs, stale outage
-fallback, tagged invalidation, schema resets, and account-lifecycle clearing.
-Playback descriptors and provider capabilities are never persisted. Artwork
-uses a separate bounded Kingfisher memory/disk pipeline.
+`CoreDataCatalogStore` is the current cached-first metadata source. It owns
+normalized recreatable records and reports logical payload usage independently
+of SQLite structural overhead. Artwork uses a separate bounded Kingfisher
+memory/disk pipeline. The former `PersistentMetadataCache` directory remains
+only for compatibility cleanup and is not a UI metadata source.
+
+`CacheClient` aggregates those infrastructure stores for `CacheFeature`.
+Before a destructive purge, the feature delegates to `AppFeature` so active
+Library/Search writers are cancelled and dependent detail routes are removed.
+Profile/CloudKit stores, source configuration, Keychain values, and Remote
+pairing records are outside this boundary.
 
 See [`interfaces/metadata-cache.md`](interfaces/metadata-cache.md).
 
 ### 3.5 `CineLarkApplication`
 
-Coordinates use cases and state machines. It depends on domain protocols, not
-concrete provider or bridge implementations.
+TCA 1.26.1 is the sole application-layer state and orchestration convention.
+`AppFeature` scopes Navigation, Profile, Source, Library, Search, Playback,
+Remote, and Cache; media/person destinations live in `StackState`. Views read
+scoped stores and send actions. Dependency clients isolate repositories,
+plugins, playback, and gateway lifetimes from reducer state.
 
-### 3.6 `PlaybackCoordinator`
+The main sidebar is a content information architecture: Home, Movies, Series,
+Favorites, and Search. Configuration does not add sidebar destinations or one
+toolbar button per subsystem. The system Settings scene composes General,
+Profiles & Sources, Remote, and Storage categories from the same root Store.
+Transient Settings-window presentation is owned by SwiftUI; only profile/source
+selection intent and its playback-stop confirmation enter `AppFeature` state.
 
-Maintains one logical playback session:
+### 3.6 `PlaybackFeature`
+
+Maintains one observable logical playback session while `PlaybackEngineClient`
+adapts the independent IINA launcher:
 
 1. Resolve provider item and selected media asset.
 2. Decide resume/start-over position.
@@ -152,14 +172,15 @@ from the loopback-only IINA bridge center.
 
 See [ADR-0009](decisions/0009-unified-native-gateway.md).
 
-### 3.10 `RemoteGatewayCoordinator`
+### 3.10 `RemoteGatewayCoordinator` and `RemoteFeature`
 
 A Mac application service owns TLS identity/device-record persistence, pairing
 presentation and approval, Bonjour advertisement, capability calculation,
-snapshot publication, and semantic-command authorization. It dispatches
-navigation through the same command layer as local keyboard input and delegates
-playback operations to `PlaybackCoordinator`. It never exposes provider DTOs,
-credentials, playback URLs, or SwiftUI view identities.
+snapshot publication, and semantic-command authorization. `RemoteFeature`
+subscribes through a dependency client and owns the rendered projection.
+Semantic navigation and playback commands enter the same TCA action paths as
+local input. Neither layer exposes provider DTOs, credentials, playback URLs,
+or SwiftUI view identities.
 
 ### 3.11 `CineLarkRemote`
 
@@ -175,10 +196,10 @@ channels.
 ### 4.1 Browse
 
 ```text
-View → Use Case → CachedMediaLibraryProvider → fresh metadata cache
-                           │
-                           └→ Provider API → cache replacement
-View ← View State ← Domain Models ← cached or mapped provider data
+View → TCA Action → Library/Search Feature → Local Catalog
+                                      │
+                                      └→ Source Runtime → Provider API
+View ← Scoped Store ← IDs + snapshots ← normalized Catalog page
 ```
 
 Expired metadata falls back to stale data only for transient provider failures.
@@ -188,10 +209,9 @@ Views never depend on provider DTOs.
 
 ```text
 Selection
-  → provider.assets(item)
-  → choose asset
-  → provider.makePlaybackDescriptor(asset)
-  → bridge.play(descriptor, startPosition)
+  → PlaybackFeature.play(locator)
+  → source runtime resolves an ephemeral descriptor
+  → PlaybackEngineClient.open(descriptor, startPosition)
   → Rust helper queues authenticated command
   → IINA plugin calls core.open(url)
   → file-loaded
@@ -230,7 +250,7 @@ positionTicks = round(positionSeconds × 10,000,000)
 positionSeconds = positionTicks ÷ 10,000,000
 ```
 
-The coordinator uploads one immutable snapshot when an item becomes active and
+The playback feature uploads one immutable snapshot when an item becomes active and
 periodically coalesces later position changes. Timers are playback-ID scoped,
 and the serial synchronization worker retains only the latest pending progress
 snapshot for a slow provider. A terminal stopped snapshot forms an ordering
@@ -241,13 +261,17 @@ retry policy is Open.
 
 ## 5. State and concurrency
 
-- SwiftUI observes `@MainActor` feature models built with the Observation
-  framework; domain values remain immutable and UI-independent.
+- SwiftUI observes scoped TCA stores. Domain values remain immutable and
+  UI-independent; transient hover, focus, animation, and geometry stay in local
+  SwiftUI state.
+- Feature state retains semantic state, query identity, stable IDs, and bounded
+  presentation snapshots. Managed objects, complete catalogs, plugin runtimes,
+  gateway transports, and playback engines stay behind dependencies.
 - Provider sessions, bridge sessions, image/cache coordination, and progress
   writes use Swift actors and structured concurrency.
 - Provider and bridge operations support cancellation.
-- Each playback session has a unique opaque ID; late events from superseded
-  sessions are ignored.
+- Each playback request and session has a unique opaque ID; late results/events
+  from superseded sessions are ignored.
 - Progress writes are immutable, playback-ID scoped, serialized across item
   replacement, and monotonic within an item unless the user explicitly seeks
   backward. Pending non-terminal writes for one playback may be coalesced.
@@ -321,3 +345,22 @@ adapters.
 - Flutter UI: widget/golden tests for controls and connection states, with
   platform integration tests for discovery and secure storage.
 - Security: secret scanning and URL/header redaction tests in CI.
+## 10. Application and media-source boundaries
+
+SwiftUI views read scoped TCA stores. TCA reducers own semantic feature state,
+navigation, and effect orchestration. They access the media platform through
+dependency clients; plugin runtimes, the local catalog, persistence, IINA, and
+native gateways remain actor/service layers using Swift concurrency.
+
+```mermaid
+flowchart LR
+    Views[SwiftUI] --> Features[TCA Features]
+    Features --> Dependencies[Dependency Clients]
+    Dependencies --> Catalog[Local Catalog]
+    Dependencies --> Platform[Media Source Platform]
+    Platform --> UHD[UHDNow Plugin]
+    Platform --> Emby[Emby Plugin]
+    Platform --> Future[Future Protocol Plugins]
+    Features --> Playback[Playback Engine Client]
+    Playback --> IINA[IINA]
+```

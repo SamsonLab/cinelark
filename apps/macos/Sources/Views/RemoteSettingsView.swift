@@ -1,35 +1,29 @@
 import CineLarkRemote
+import ComposableArchitecture
 import CoreImage
 import CoreImage.CIFilterBuiltins
 import SwiftUI
 
 struct RemoteSettingsView: View {
-    @Environment(\.dismiss) private var dismiss
-    @Bindable var remote: RemoteCoordinator
-    @State private var presentationID = UUID()
+    @Bindable var store: StoreOf<RemoteFeature>
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            header
-            Divider()
-            content
-            Divider()
-            pairedDevices
+        ScrollView {
+            VStack(alignment: .leading, spacing: 22) {
+                header
+                Divider()
+                content
+                Divider()
+                pairedDevices
+            }
+            .padding(28)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(28)
-        .frame(width: 640, height: 680)
         .task {
-            if remote.pairingDisplay == nil {
-                await remote.beginPairing()
-            }
-        }
-        .onAppear {
-            remote.registerPanelPresentation(id: presentationID) {
-                dismiss()
-            }
+            store.send(.view(.settingsAppeared))
         }
         .onDisappear {
-            remote.unregisterPanelPresentation(id: presentationID)
+            store.send(.view(.settingsDisappeared))
         }
     }
 
@@ -41,27 +35,21 @@ struct RemoteSettingsView: View {
                 Text(statusText)
                     .foregroundStyle(.secondary)
             }
-            Spacer()
-            Button("Done") { dismiss() }
-                .keyboardShortcut(.cancelAction)
         }
     }
 
     @ViewBuilder
     private var content: some View {
-        if remote.status == .failed {
+        if store.status == .failed {
             ContentUnavailableView(
                 "Remote Unavailable",
                 systemImage: "exclamationmark.triangle",
                 description: Text("CineLark could not start its secure Remote gateway.")
             )
             Button("Retry") {
-                Task {
-                    await remote.start()
-                    await remote.beginPairing()
-                }
+                store.send(.view(.retry))
             }
-        } else if let pairing = remote.pairingDisplay,
+        } else if let pairing = store.pairingDisplay,
            let image = QRCode.image(for: pairing.payload) {
             HStack(alignment: .top, spacing: 28) {
                 Image(nsImage: image)
@@ -79,18 +67,18 @@ struct RemoteSettingsView: View {
                         .font(.callout.monospacedDigit())
                         .foregroundStyle(.secondary)
 
-                    if remote.pendingPairings.isEmpty {
+                    if store.pendingPairings.isEmpty {
                         ProgressView("Waiting for a phone…")
                             .controlSize(.small)
                     } else {
-                        ForEach(remote.pendingPairings) { request in
+                        ForEach(store.pendingPairings) { request in
                             pendingPairing(request)
                         }
                     }
 
                     Spacer()
                     Button("Generate New Code") {
-                        Task { await remote.beginPairing() }
+                        store.send(.view(.generateCode))
                     }
                 }
             }
@@ -106,10 +94,10 @@ struct RemoteSettingsView: View {
                 .font(.headline)
             HStack {
                 Button("Reject", role: .destructive) {
-                    Task { await remote.reject(request) }
+                    store.send(.view(.reject(request)))
                 }
                 Button("Approve") {
-                    Task { await remote.approve(request) }
+                    store.send(.view(.approve(request)))
                 }
                 .buttonStyle(.borderedProminent)
             }
@@ -122,24 +110,24 @@ struct RemoteSettingsView: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Paired Devices")
                 .font(.headline)
-            if remote.pairedDevices.isEmpty {
+            if store.pairedDevices.isEmpty {
                 Text("No phones paired yet.")
                     .foregroundStyle(.secondary)
             } else {
-                ForEach(remote.pairedDevices) { device in
+                ForEach(store.pairedDevices) { device in
                     HStack {
                         Image(systemName: "iphone")
                         VStack(alignment: .leading) {
                             Text(device.name)
-                            Text(remote.connectedDeviceIDs.contains(device.id) ? "Connected" : "Offline")
+                            Text(store.connectedDeviceIDs.contains(device.id) ? "Connected" : "Offline")
                                 .font(.caption)
                                 .foregroundStyle(
-                                    remote.connectedDeviceIDs.contains(device.id) ? .green : .secondary
+                                    store.connectedDeviceIDs.contains(device.id) ? .green : .secondary
                                 )
                         }
                         Spacer()
                         Button("Forget", role: .destructive) {
-                            Task { await remote.revoke(device) }
+                            store.send(.view(.revoke(device)))
                         }
                     }
                 }
@@ -148,7 +136,7 @@ struct RemoteSettingsView: View {
     }
 
     private var statusText: String {
-        switch remote.status {
+        switch store.status {
         case .stopped: "Stopped"
         case .starting: "Starting secure gateway…"
         case .ready(let port): "Available on this network · port \(port)"

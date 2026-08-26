@@ -1,19 +1,18 @@
 import SwiftUI
 import Sparkle
+import ComposableArchitecture
 
 struct RootView: View {
     @Environment(\.appLanguage) private var language
     @Environment(ShortcutCoordinator.self) private var shortcuts
-    @Bindable var model: AppModel
     let updater: SPUUpdater
     @ObservedObject var updateMonitor: SparkleUpdateMonitor
     @Bindable var remote: RemoteCoordinator
-    @State private var showsRemote = false
+    @Bindable var store: StoreOf<AppFeature>
 
     var body: some View {
         Group {
-            switch model.phase {
-            case .launching:
+            if store.bootstrap != .ready {
                 ZStack {
                     CineLarkPageBackground()
                     VStack(spacing: 16) {
@@ -32,14 +31,14 @@ struct RootView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-            case .signedOut:
-                LoginView(model: model)
-            case .signedIn:
-                LibraryView(model: model)
+            } else {
+                LibraryView(
+                    store: store.scope(state: \.navigation, action: \.navigation),
+                    libraryStore: store.scope(state: \.library, action: \.library),
+                    searchStore: store.scope(state: \.search, action: \.search),
+                    profileStore: store.scope(state: \.profile, action: \.profile)
+                )
             }
-        }
-        .task {
-            await model.bootstrap()
         }
         .overlay(alignment: .bottom) {
             VStack(spacing: 10) {
@@ -62,16 +61,28 @@ struct RootView: View {
         }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Button {
-                    showsRemote = true
-                } label: {
-                    Label("Remote", systemImage: "iphone.and.arrow.forward")
+                SettingsLink {
+                    Label("Settings", systemImage: "gearshape")
                 }
-                .help("Set up and manage CineLark Remote")
+                .help("Open CineLark Settings")
             }
         }
-        .sheet(isPresented: $showsRemote) {
-            RemoteSettingsView(remote: remote)
+        .onChange(of: store.playback.active, initial: true) { _, active in
+            remote.updatePlayback(active.map {
+                RemoteCoordinator.PlaybackState(
+                    playbackID: $0.id,
+                    state: $0.isPaused ? .paused : .playing,
+                    title: $0.title,
+                    positionSeconds: $0.positionSeconds,
+                    durationSeconds: $0.durationSeconds,
+                    speed: $0.speed,
+                    volume: $0.volume,
+                    muted: $0.muted,
+                    fullscreen: $0.fullscreen,
+                    audioTracks: $0.audioTracks,
+                    subtitleTracks: $0.subtitleTracks
+                )
+            })
         }
         .preferredColorScheme(.dark)
     }

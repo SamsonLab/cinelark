@@ -334,17 +334,23 @@ public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
         sessionID: UUID,
         secret: Data
     ) -> BridgeEnvelope {
-        BridgeEnvelope(
+        var payload: [String: JSONValue] = [
+            "playbackID": .string(descriptor.id.uuidString.lowercased()),
+            "url": .string(descriptor.url.absoluteString),
+            "title": .string(descriptor.title),
+            "startPositionSeconds": .number(descriptor.startPositionSeconds),
+            "presentation": .object(["fullscreen": .bool(descriptor.startsInFullscreen)])
+        ]
+        if !descriptor.headers.isEmpty {
+            payload["httpHeaders"] = .object(
+                descriptor.headers.mapValues(JSONValue.string)
+            )
+        }
+        return BridgeEnvelope(
             type: type,
             sessionID: sessionID,
             sequence: nextSequence(),
-            payload: [
-                "playbackID": .string(descriptor.id.uuidString.lowercased()),
-                "url": .string(descriptor.url.absoluteString),
-                "title": .string(descriptor.title),
-                "startPositionSeconds": .number(descriptor.startPositionSeconds),
-                "presentation": .object(["fullscreen": .bool(descriptor.startsInFullscreen)])
-            ],
+            payload: payload,
             secret: secret
         )
     }

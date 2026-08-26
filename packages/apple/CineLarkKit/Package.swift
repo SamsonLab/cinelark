@@ -9,6 +9,10 @@ let package = Package(
     ],
     products: [
         .library(name: "CineLarkDomain", targets: ["CineLarkDomain"]),
+        .library(name: "CineLarkPluginAPI", targets: ["CineLarkPluginAPI"]),
+        .library(name: "CineLarkCatalog", targets: ["CineLarkCatalog"]),
+        .library(name: "CineLarkProfile", targets: ["CineLarkProfile"]),
+        .library(name: "CineLarkEmby", targets: ["CineLarkEmby"]),
         .library(name: "CineLarkUHDNow", targets: ["CineLarkUHDNow"]),
         .library(name: "CineLarkPersistence", targets: ["CineLarkPersistence"]),
         .library(name: "CineLarkPlayback", targets: ["CineLarkPlayback"]),
@@ -18,8 +22,24 @@ let package = Package(
     targets: [
         .target(name: "CineLarkDomain"),
         .target(
-            name: "CineLarkUHDNow",
+            name: "CineLarkPluginAPI",
             dependencies: ["CineLarkDomain"]
+        ),
+        .target(
+            name: "CineLarkCatalog",
+            dependencies: ["CineLarkDomain", "CineLarkPluginAPI"]
+        ),
+        .target(
+            name: "CineLarkProfile",
+            dependencies: ["CineLarkDomain", "CineLarkPluginAPI"]
+        ),
+        .target(
+            name: "CineLarkEmby",
+            dependencies: ["CineLarkDomain", "CineLarkPluginAPI"]
+        ),
+        .target(
+            name: "CineLarkUHDNow",
+            dependencies: ["CineLarkDomain", "CineLarkPluginAPI"]
         ),
         .target(
             name: "CineLarkPersistence",
@@ -37,6 +57,22 @@ let package = Package(
         .testTarget(
             name: "CineLarkUHDNowTests",
             dependencies: ["CineLarkDomain", "CineLarkUHDNow"]
+        ),
+        .testTarget(
+            name: "CineLarkPluginAPITests",
+            dependencies: ["CineLarkDomain", "CineLarkPluginAPI"]
+        ),
+        .testTarget(
+            name: "CineLarkCatalogTests",
+            dependencies: ["CineLarkDomain", "CineLarkPluginAPI", "CineLarkCatalog"]
+        ),
+        .testTarget(
+            name: "CineLarkProfileTests",
+            dependencies: ["CineLarkDomain", "CineLarkPluginAPI", "CineLarkProfile"]
+        ),
+        .testTarget(
+            name: "CineLarkEmbyTests",
+            dependencies: ["CineLarkDomain", "CineLarkPluginAPI", "CineLarkEmby"]
         ),
         .testTarget(
             name: "CineLarkPersistenceTests",

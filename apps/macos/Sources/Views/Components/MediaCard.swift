@@ -1,10 +1,6 @@
 import SwiftUI
+import ComposableArchitecture
 import CineLarkDomain
-
-struct MediaDetailRoute: Hashable {
-    let item: MediaSummary
-    let transitionID: UUID
-}
 
 struct PosterLockup: View {
     @Environment(ShortcutCoordinator.self) private var shortcuts
@@ -83,6 +79,8 @@ struct PosterLockup: View {
 }
 
 private struct PosterNavigationLink: View {
+    @Environment(\.activeMediaSourceID) private var activeSourceID
+    @Environment(\.activeProfileID) private var activeProfileID
     let item: MediaSummary
     let onPointerSelection: ((MediaSummary, Bool) -> Void)?
     let onHighlight: ((MediaSummary) -> Void)?
@@ -92,7 +90,14 @@ private struct PosterNavigationLink: View {
 
     var body: some View {
         NavigationLink(
-            value: MediaDetailRoute(item: item, transitionID: transitionID)
+            state: NavigationFeature.Path.State.media(
+                MediaRouteFeature.State(
+                    item: item,
+                    transitionID: transitionID,
+                    sourceID: activeSourceID,
+                    profileID: activeProfileID
+                )
+            )
         ) {
             PosterLockup(
                 item: item,
@@ -160,7 +165,11 @@ struct PosterShelf: View {
                 Spacer()
 
                 if let viewAllCollection {
-                    NavigationLink(value: viewAllCollection) {
+                    NavigationLink(
+                        state: NavigationFeature.Path.State.collection(
+                            CollectionRouteFeature.State(collection: viewAllCollection)
+                        )
+                    ) {
                         Label(
                             language.localized("general.view_all"),
                             systemImage: "chevron.right"
@@ -268,6 +277,7 @@ struct PosterGrid: View {
     @State private var selectedItemID: String?
     @State private var focusOwner = UUID()
     @State private var availableWidth: CGFloat = 0
+    @State private var previousColumnsPerRow = 1
     @State private var selectedLeadingKeyboardID: String?
     @State private var rememberedItemID: String?
     @State private var rememberedLeadingKeyboardID: String?
@@ -368,10 +378,18 @@ struct PosterGrid: View {
             .onGeometryChange(for: CGFloat.self) { proxy in
                 proxy.size.width
             } action: { width in
+                let oldColumnCount = previousColumnsPerRow
                 availableWidth = width
+                let newColumnCount = columnsPerRow
+                previousColumnsPerRow = newColumnCount
+                if oldColumnCount != newColumnCount,
+                   let anchorID = selectedItemID ?? focusedItemID ?? rememberedItemID {
+                    scrollProxy.scrollTo(anchorID, anchor: .center)
+                }
                 registerDirectionalAction(scrollProxy: scrollProxy)
             }
             .onAppear {
+                previousColumnsPerRow = columnsPerRow
                 if autoFocusFirst, selectedItemID == nil {
                     selectedItemID = items.first?.id
                     rememberedItemID = items.first?.id

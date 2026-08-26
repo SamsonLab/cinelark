@@ -116,7 +116,18 @@ function playbackEntry(payload, sessionID) {
     url: payload.url,
     title: typeof payload.title === 'string' ? payload.title : '',
     startPositionSeconds: Math.max(0, finiteNumber(payload.startPositionSeconds)),
+    httpHeaders: payload.httpHeaders && typeof payload.httpHeaders === 'object'
+      ? payload.httpHeaders
+      : {},
   };
+}
+
+function applyHTTPHeaders(headers) {
+  const value = Object.entries(headers || {})
+    .filter(([name, headerValue]) => name && typeof headerValue === 'string')
+    .map(([name, headerValue]) => `${name}: ${headerValue}`)
+    .join(',');
+  mpv.set('http-header-fields', value);
 }
 
 function activatePlayingEntry() {
@@ -468,6 +479,7 @@ function handleCommand(command) {
     // eof-reached property event to request and open the next episode before
     // IINA applies its normal close-at-end window policy.
     keepManagedPlayerOpen();
+    applyHTTPHeaders(entry.httpHeaders);
     core.open(payload.url);
     return;
   }

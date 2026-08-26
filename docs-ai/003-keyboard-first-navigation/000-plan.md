@@ -188,3 +188,8 @@ heading instead of the card body — see
   episode origins and moves focus deterministically when the episode list is
   expanded or collapsed — see
   [015-visible-series-detail-navigation.md](015-visible-series-detail-navigation.md).
+
+- Updated 2026-08-26: Sidebar visibility becomes root-owned semantic state and
+  collection grids restore a stable selected anchor across navigation and
+  geometry changes — see
+  [016-global-sidebar-and-grid-restoration.md](016-global-sidebar-and-grid-restoration.md).

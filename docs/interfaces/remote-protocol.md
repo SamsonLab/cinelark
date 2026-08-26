@@ -36,8 +36,9 @@ CineLarkGateway / RemoteGatewayCenter (bundled Rust child)
     ▼
 CineLark RemoteGatewayCoordinator (Mac authority)
     ├── semantic navigation dispatcher
-    ├── AppModel / provider login
-    └── PlaybackCoordinator → IINABridgeCenter → IINA
+    ├── RemoteFeature → AppFeature actions
+    ├── Source/Profile dependencies
+    └── PlaybackFeature → IINABridgeCenter → IINA
 ```
 
 The Rust Remote Gateway is a separate center and trust domain from the

@@ -47,3 +47,7 @@ writing, amendment, and verification rules.
 | 007 | [Couch Remote](007-couch-remote/000-plan.md) | 2026-08-25 | Secure Flutter Remote, Mac semantic control surfaces, and Rust transport integration |
 | 008 | [Safe IINA plugin lifecycle](008-safe-iina-plugin-lifecycle/000-plan.md) | 2026-08-25 | Restart-safe first installation, update, and repair of the managed IINA plugin |
 | 009 | [Unified native gateway](009-unified-native-gateway/000-plan.md) | 2026-08-26 | One native process with independent IINA and Remote centers |
+| 010 | [TCA application architecture](010-tca-application-architecture/000-plan.md) | 2026-08-26 | Incremental TCA feature architecture, deterministic effects, and curated learning records |
+| 011 | [Media source platform](011-media-source-platform/000-plan.md) | 2026-08-26 | Capability-based plugins, local catalog, profiles, and standard Emby support |
+| 012 | [Cache management](012-cache-management/000-plan.md) | 2026-08-26 | Catalog/artwork usage visibility and safe recreatable-data purge |
+| 013 | [Settings information architecture](013-settings-information-architecture/000-plan.md) | 2026-08-26 | Content-only sidebar and consolidated native macOS configuration categories |

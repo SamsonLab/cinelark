@@ -51,6 +51,7 @@ public struct Page<Element: Sendable>: Sendable {
 }
 
 extension Page: Codable where Element: Codable {}
+extension Page: Equatable where Element: Equatable {}
 
 public enum MediaKind: String, Codable, Sendable, Hashable {
     case movie
@@ -146,6 +147,26 @@ public struct MediaSummary: Codable, Sendable, Hashable, Identifiable {
         self.hasMultipleVersions = hasMultipleVersions
         self.genres = genres
         self.userState = userState
+    }
+
+    public func replacingUserState(_ userState: UserPlaybackState) -> Self {
+        Self(
+            id: id,
+            kind: kind,
+            title: title,
+            originalTitle: originalTitle,
+            synopsis: synopsis,
+            releaseYear: releaseYear,
+            rating: rating,
+            durationSeconds: durationSeconds,
+            posterURL: posterURL,
+            backdropURL: backdropURL,
+            logoURL: logoURL,
+            totalSeasons: totalSeasons,
+            hasMultipleVersions: hasMultipleVersions,
+            genres: genres,
+            userState: userState
+        )
     }
 }
 
@@ -312,6 +333,23 @@ public struct Episode: Codable, Sendable, Hashable, Identifiable {
         self.versionCount = max(versionCount, 0)
         self.hasMultipleVersions = hasMultipleVersions
         self.userState = userState
+    }
+
+    public func replacingUserState(_ userState: UserPlaybackState) -> Self {
+        Self(
+            id: id,
+            seriesID: seriesID,
+            seasonID: seasonID,
+            number: number,
+            title: title,
+            synopsis: synopsis,
+            airDate: airDate,
+            thumbnailURL: thumbnailURL,
+            durationSeconds: durationSeconds,
+            versionCount: versionCount,
+            hasMultipleVersions: hasMultipleVersions,
+            userState: userState
+        )
     }
 }
 
@@ -567,18 +605,21 @@ public struct PlaybackDescriptor: Sendable {
     public let title: String
     public let startPositionSeconds: Double
     public let startsInFullscreen: Bool
+    public let headers: [String: String]
 
     public init(
         id: UUID = UUID(),
         url: URL,
         title: String,
         startPositionSeconds: Double = 0,
-        startsInFullscreen: Bool = true
+        startsInFullscreen: Bool = true,
+        headers: [String: String] = [:]
     ) {
         self.id = id
         self.url = url
         self.title = title
         self.startPositionSeconds = max(startPositionSeconds, 0)
         self.startsInFullscreen = startsInFullscreen
+        self.headers = headers
     }
 }

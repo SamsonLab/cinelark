@@ -8,12 +8,35 @@ import OSLog
 @Observable
 @MainActor
 final class RemoteCoordinator {
-    struct PairingDisplay: Equatable {
+    struct StateSnapshot: Equatable, Sendable {
+        let status: Status
+        let pairingDisplay: PairingDisplay?
+        let pendingPairings: [RemotePairingRequest]
+        let pairedDevices: [RemoteDeviceRecord]
+        let connectedDeviceIDs: Set<UUID>
+        let errorCode: String?
+    }
+
+    struct PlaybackState: Equatable, Sendable {
+        let playbackID: UUID
+        let state: PlaybackSnapshot.State
+        let title: String
+        let positionSeconds: Double
+        let durationSeconds: Double
+        let speed: Double
+        let volume: Double
+        let muted: Bool
+        let fullscreen: Bool
+        let audioTracks: [BridgeTrack]
+        let subtitleTracks: [BridgeTrack]
+    }
+
+    struct PairingDisplay: Equatable, Sendable {
         let payload: String
         let expiresAt: Date
     }
 
-    enum Status: Equatable {
+    enum Status: Equatable, Sendable {
         case stopped
         case starting
         case ready(port: UInt16)
@@ -26,7 +49,6 @@ final class RemoteCoordinator {
     )
     private static let pairingDuration: TimeInterval = 5 * 60
     private static let allCapabilities = [
-        "auth.remoteEntry",
         "navigation.basic",
         "navigation.sections",
         "textInput.remote",
@@ -34,7 +56,6 @@ final class RemoteCoordinator {
         "playback.seek",
         "playback.rate",
         "playback.fullscreen",
-        "playback.episodeNavigation",
         "playback.trackSelection",
         "playback.closeAndActivate",
         "audio.volume"
@@ -47,7 +68,17 @@ final class RemoteCoordinator {
     private(set) var connectedDeviceIDs: Set<UUID> = []
     private(set) var errorCode: String?
 
-    @ObservationIgnored private let model: AppModel
+    var stateSnapshot: StateSnapshot {
+        StateSnapshot(
+            status: status,
+            pairingDisplay: pairingDisplay,
+            pendingPairings: pendingPairings,
+            pairedDevices: pairedDevices,
+            connectedDeviceIDs: connectedDeviceIDs,
+            errorCode: errorCode
+        )
+    }
+
     @ObservationIgnored private let shortcuts: ShortcutCoordinator
     @ObservationIgnored private let textInput: RemoteTextInputCoordinator
     @ObservationIgnored private let client: any RemoteGatewayTransport
@@ -60,32 +91,39 @@ final class RemoteCoordinator {
     @ObservationIgnored private var pairingExpiryTask: Task<Void, Never>?
     @ObservationIgnored private var bonjourService: NetService?
     @ObservationIgnored private var appRevision: UInt64 = 0
-    @ObservationIgnored private var lastAuthSubmission: [UUID: Date] = [:]
+    @ObservationIgnored private var playbackRevision: UInt64 = 0
+    @ObservationIgnored private var playbackState: PlaybackState?
+    @ObservationIgnored private var playbackCommand: (@MainActor (PlaybackControlCommand) -> Void)?
 
     init(
-        model: AppModel,
         shortcuts: ShortcutCoordinator,
         textInput: RemoteTextInputCoordinator,
         client: any RemoteGatewayTransport,
         store: RemoteCredentialStore = RemoteCredentialStore()
     ) {
-        self.model = model
         self.shortcuts = shortcuts
         self.textInput = textInput
         self.store = store
         self.client = client
-        model.onRemoteStateChanged = { [weak self] in
-            self?.publishAppState()
-        }
-        model.playback.onRemoteStateChanged = { [weak self] in
-            self?.publishPlaybackState()
-        }
         shortcuts.onSectionChanged = { [weak self] in
             self?.publishAppState()
         }
         textInput.onSnapshotChanged = { [weak self] in
             self?.publishTextInputState()
         }
+    }
+
+    func configurePlayback(
+        command: @escaping @MainActor (PlaybackControlCommand) -> Void
+    ) {
+        playbackCommand = command
+    }
+
+    func updatePlayback(_ state: PlaybackState?) {
+        guard playbackState != state else { return }
+        playbackState = state
+        playbackRevision &+= 1
+        publishPlaybackState()
     }
 
     func start() async {
@@ -333,12 +371,7 @@ final class RemoteCoordinator {
         case "app.activate":
             activateApp()
         case "auth.submitCredentials":
-            try await submitCredentials(
-                envelope.payload,
-                connectionID: connectionID,
-                deviceID: deviceID,
-                replyTo: envelope.id
-            )
+            throw RemoteCommandError("unsupportedCapability")
         case "navigation.move":
             activateApp()
             guard let raw = envelope.payload.string("direction"),
@@ -394,23 +427,23 @@ final class RemoteCoordinator {
             try await sendPlaybackSnapshot(to: connectionID)
         case "playback.togglePause":
             let snapshot = try playbackScope(envelope.payload)
-            try await model.playback.send(snapshot.state == .playing ? .pause : .resume)
+            try sendPlayback(snapshot.state == .playing ? .pause : .resume)
         case "playback.pause":
             _ = try playbackScope(envelope.payload)
-            try await model.playback.send(.pause)
+            try sendPlayback(.pause)
         case "playback.resume":
             _ = try playbackScope(envelope.payload)
-            try await model.playback.send(.resume)
+            try sendPlayback(.resume)
         case "playback.stop":
             _ = try playbackScope(envelope.payload)
-            await model.playback.stop()
+            try sendPlayback(.stop)
         case "playback.seekRelative":
             _ = try playbackScope(envelope.payload)
             guard let seconds = envelope.payload.number("seconds"),
                   (-3600...3600).contains(seconds) else {
                 throw RemoteCommandError("invalidMessage")
             }
-            try await model.playback.send(
+            try sendPlayback(
                 .seekRelative(seconds: seconds, exact: envelope.payload.bool("exact") ?? false)
             )
         case "playback.seekAbsolute":
@@ -419,67 +452,63 @@ final class RemoteCoordinator {
                   snapshot.durationSeconds == 0 || seconds <= snapshot.durationSeconds else {
                 throw RemoteCommandError("invalidMessage")
             }
-            try await model.playback.send(.seekAbsolute(seconds: seconds))
+            try sendPlayback(.seekAbsolute(seconds: seconds))
         case "playback.setRate":
             _ = try playbackScope(envelope.payload)
             guard let rate = envelope.payload.number("rate"), (0.25...4).contains(rate) else {
                 throw RemoteCommandError("invalidMessage")
             }
-            try await model.playback.send(.setSpeed(rate))
+            try sendPlayback(.setSpeed(rate))
         case "playback.setFullscreen":
             _ = try playbackScope(envelope.payload)
             guard let fullscreen = envelope.payload.bool("fullscreen") else {
                 throw RemoteCommandError("invalidMessage")
             }
-            try await model.playback.send(.setFullscreen(fullscreen))
+            try sendPlayback(.setFullscreen(fullscreen))
         case "playback.playPrevious":
-            let snapshot = try revisionedPlaybackScope(envelope.payload)
-            guard snapshot.canPlayPrevious else { throw RemoteCommandError("invalidState") }
-            try await model.playback.playPreviousEpisode()
+            throw RemoteCommandError("unsupportedCapability")
         case "playback.playNext":
-            let snapshot = try revisionedPlaybackScope(envelope.payload)
-            guard snapshot.canPlayNext else { throw RemoteCommandError("invalidState") }
-            try await model.playback.playNextEpisode()
+            throw RemoteCommandError("unsupportedCapability")
         case "playback.selectAudioTrack":
             let snapshot = try revisionedPlaybackScope(envelope.payload)
             guard let trackID = envelope.payload.int("trackID"),
                   snapshot.audioTracks.contains(where: { $0.id == trackID }) else {
                 throw RemoteCommandError("invalidMessage")
             }
-            try await model.playback.send(.selectAudioTrack(trackID))
+            try sendPlayback(.selectAudioTrack(trackID))
         case "playback.selectSubtitleTrack":
             let snapshot = try revisionedPlaybackScope(envelope.payload)
             if envelope.payload["trackID"] == .null {
-                try await model.playback.send(.disableSubtitles)
+                try sendPlayback(.disableSubtitles)
             } else {
                 guard let trackID = envelope.payload.int("trackID"),
                       snapshot.subtitleTracks.contains(where: { $0.id == trackID }) else {
                     throw RemoteCommandError("invalidMessage")
                 }
-                try await model.playback.send(.selectSubtitleTrack(trackID))
+                try sendPlayback(.selectSubtitleTrack(trackID))
             }
         case "playback.closeAndActivateApp":
             _ = try playbackScope(envelope.payload)
-            await model.playback.stop()
+            try sendPlayback(.stop)
             activateApp()
         case "audio.setVolume":
             _ = try playbackScope(envelope.payload)
             guard let volume = envelope.payload.number("volume"), (0...100).contains(volume) else {
                 throw RemoteCommandError("invalidMessage")
             }
-            try await model.playback.send(.setVolume(volume))
+            try sendPlayback(.setVolume(volume))
         case "audio.adjustVolume":
             let snapshot = try playbackScope(envelope.payload)
             guard let delta = envelope.payload.number("delta"), (-100...100).contains(delta) else {
                 throw RemoteCommandError("invalidMessage")
             }
-            try await model.playback.send(.setVolume(min(max(snapshot.volume + delta, 0), 100)))
+            try sendPlayback(.setVolume(min(max(snapshot.volume + delta, 0), 100)))
         case "audio.setMuted":
             _ = try playbackScope(envelope.payload)
             guard let muted = envelope.payload.bool("muted") else {
                 throw RemoteCommandError("invalidMessage")
             }
-            try await model.playback.send(.setMuted(muted))
+            try sendPlayback(.setMuted(muted))
         default:
             throw RemoteCommandError("unsupportedCapability")
         }
@@ -504,54 +533,20 @@ final class RemoteCoordinator {
         case "app.activate", "navigation.move", "navigation.select", "navigation.back":
             "navigation.basic"
         case "navigation.openSection": "navigation.sections"
-        case "auth.submitCredentials": "auth.remoteEntry"
+        case "auth.submitCredentials": nil
         case "textInput.update", "textInput.commit", "textInput.cancel": "textInput.remote"
         case "playback.togglePause", "playback.pause", "playback.resume", "playback.stop":
             "playback.transport"
         case "playback.seekRelative", "playback.seekAbsolute": "playback.seek"
         case "playback.setRate": "playback.rate"
         case "playback.setFullscreen": "playback.fullscreen"
-        case "playback.playPrevious", "playback.playNext": "playback.episodeNavigation"
+        case "playback.playPrevious", "playback.playNext": nil
         case "playback.selectAudioTrack", "playback.selectSubtitleTrack":
             "playback.trackSelection"
         case "playback.closeAndActivateApp": "playback.closeAndActivate"
         case "audio.setVolume", "audio.adjustVolume", "audio.setMuted": "audio.volume"
         default: nil
         }
-    }
-
-    private func submitCredentials(
-        _ payload: [String: RemoteJSONValue],
-        connectionID: UUID,
-        deviceID: UUID,
-        replyTo: String
-    ) async throws {
-        guard model.phase == .signedOut else { throw RemoteCommandError("invalidState") }
-        if let last = lastAuthSubmission[deviceID], Date().timeIntervalSince(last) < 2 {
-            throw RemoteCommandError("rateLimited")
-        }
-        guard let username = payload.string("username"), !username.isEmpty,
-              username.count <= 320,
-              let password = payload.string("password"), !password.isEmpty,
-              password.count <= 1024 else {
-            throw RemoteCommandError("invalidMessage")
-        }
-        let totpCode = payload.string("totpCode")
-        guard totpCode?.count ?? 0 <= 32 else { throw RemoteCommandError("invalidMessage") }
-        lastAuthSubmission[deviceID] = Date()
-        await model.signIn(username: username, password: password, totpCode: totpCode)
-        let succeeded = model.phase == .signedIn
-        try await client.send(
-            connectionID: connectionID,
-            type: "auth.result",
-            replyTo: replyTo,
-            payload: [
-                "accepted": .bool(true),
-                "succeeded": .bool(succeeded),
-                "code": .string(succeeded ? "ok" : "authenticationFailed")
-            ]
-        )
-        try await sendAppSnapshot(to: connectionID)
     }
 
     private func sendInitialSnapshots(to connectionID: UUID, deviceID: UUID) async throws {
@@ -588,7 +583,7 @@ final class RemoteCoordinator {
     private func publishPlaybackState() {
         broadcast(
             type: "playback.snapshot",
-            revision: model.playback.remotePlaybackRevision,
+            revision: playbackRevision,
             payload: playbackPayload
         )
         publishCapabilities()
@@ -623,7 +618,7 @@ final class RemoteCoordinator {
         try await client.send(
             connectionID: connectionID,
             type: "playback.snapshot",
-            revision: model.playback.remotePlaybackRevision,
+            revision: playbackRevision,
             payload: playbackPayload
         )
     }
@@ -645,17 +640,11 @@ final class RemoteCoordinator {
     }
 
     private var appPayload: [String: RemoteJSONValue] {
-        let phase: String
-        switch model.phase {
-        case .launching: phase = "launching"
-        case .signedOut: phase = "signedOut"
-        case .signedIn: phase = "signedIn"
-        }
         return [
-            "phase": .string(phase),
+            "phase": .string("signedIn"),
             "selectedSection": .string(shortcuts.currentSection.rawValue),
             "sections": .array(CineLarkSection.allCases.map { .string($0.rawValue) }),
-            "errorCode": model.errorMessage == nil ? .null : .string("operationFailed")
+            "errorCode": .null
         ]
     }
 
@@ -673,7 +662,7 @@ final class RemoteCoordinator {
     }
 
     private var playbackPayload: [String: RemoteJSONValue] {
-        guard let snapshot = model.playback.remoteSnapshot else {
+        guard let snapshot = playbackState else {
             return [
                 "playbackID": .null,
                 "state": .string("idle"),
@@ -704,8 +693,8 @@ final class RemoteCoordinator {
             "volume": .number(snapshot.volume),
             "muted": .bool(snapshot.muted),
             "fullscreen": .bool(snapshot.fullscreen),
-            "canPlayPrevious": .bool(snapshot.canPlayPrevious),
-            "canPlayNext": .bool(snapshot.canPlayNext),
+            "canPlayPrevious": .bool(false),
+            "canPlayNext": .bool(false),
             "audioTracks": .array(snapshot.audioTracks.map { trackPayload($0, kind: "audio") }),
             "subtitleTracks": .array(snapshot.subtitleTracks.map { trackPayload($0, kind: "subtitle") })
         ]
@@ -728,19 +717,14 @@ final class RemoteCoordinator {
     }
 
     private var capabilities: [String] {
-        var values: [String] = []
-        if model.phase == .signedOut { values.append("auth.remoteEntry") }
-        if model.phase == .signedIn {
-            values += ["navigation.basic", "navigation.sections"]
-        }
+        var values = ["navigation.basic", "navigation.sections"]
         if textInput.snapshot != nil { values.append("textInput.remote") }
-        if model.playback.remoteSnapshot != nil {
+        if playbackState != nil {
             values += [
                 "playback.transport",
                 "playback.seek",
                 "playback.rate",
                 "playback.fullscreen",
-                "playback.episodeNavigation",
                 "playback.trackSelection",
                 "playback.closeAndActivate",
                 "audio.volume"
@@ -751,9 +735,9 @@ final class RemoteCoordinator {
 
     private func playbackScope(
         _ payload: [String: RemoteJSONValue]
-    ) throws -> PlaybackCoordinator.RemoteSnapshot {
+    ) throws -> PlaybackState {
         guard let playbackID = payload.uuid("playbackID"),
-              let snapshot = model.playback.remoteSnapshot,
+              let snapshot = playbackState,
               snapshot.playbackID == playbackID else {
             throw RemoteCommandError("invalidState")
         }
@@ -762,10 +746,10 @@ final class RemoteCoordinator {
 
     private func revisionedPlaybackScope(
         _ payload: [String: RemoteJSONValue]
-    ) throws -> PlaybackCoordinator.RemoteSnapshot {
+    ) throws -> PlaybackState {
         let snapshot = try playbackScope(payload)
         guard let revision = payload.uint64("revision"),
-              revision == model.playback.remotePlaybackRevision else {
+              revision == playbackRevision else {
             throw RemoteCommandError("staleRevision")
         }
         return snapshot
@@ -798,6 +782,13 @@ final class RemoteCoordinator {
         case "down": .down
         default: nil
         }
+    }
+
+    private func sendPlayback(_ command: PlaybackControlCommand) throws {
+        guard let playbackCommand else {
+            throw RemoteCommandError("invalidState")
+        }
+        playbackCommand(command)
     }
 
     private func activateApp() {
