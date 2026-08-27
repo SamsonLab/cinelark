@@ -30,6 +30,19 @@ must use an actor-owned queue when loss is unacceptable. Plugins return value
 types and never import TCA or expose a Store, Effect, Publisher, View, or managed
 object.
 
+Artwork is a just-in-time transport capability. Presentation keeps only the
+secret-free fallback URL, exact media locator, and artwork kind. On a network
+cache miss, the image pipeline asks the account-bound runtime for an
+`ArtworkDescriptor` and applies its headers to that request only. Resolved
+descriptors, headers, tokens, and runtime objects never enter TCA state.
+
+The macOS cache identity is scoped by Source, provider item, artwork kind, and
+a URL with user info, query, and fragment removed. Cached images can therefore
+render without an installed runtime, while credentials never enter cache
+metadata. Header-authenticated descriptors are restricted to the fallback
+origin and capability-resolved requests reject redirects until a future
+credential-scope contract supports authenticated CDNs safely.
+
 ## Implemented providers
 
 Emby v1 implements manual/reverse-proxy setup, UDP discovery, authentication,

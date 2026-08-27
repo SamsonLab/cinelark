@@ -179,7 +179,8 @@ struct InsightsView: View {
                                 .frame(width: 30, alignment: .trailing)
                             ArtworkView(
                                 url: title.artworkURL,
-                                placeholderSystemImage: placeholderSystemImage(for: title.kind)
+                                placeholderSystemImage: placeholderSystemImage(for: title.kind),
+                                locator: title.locator
                             )
                                 .frame(width: 46, height: 69)
                                 .clipShape(RoundedRectangle(cornerRadius: 7))

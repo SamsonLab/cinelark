@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import CineLarkDomain
+import CineLarkPluginAPI
 
 struct MediaFactSet: OptionSet, Sendable {
     let rawValue: Int
@@ -82,9 +83,11 @@ enum MediaArtworkRole {
 
 struct MediaArtworkSurface: View {
     @Environment(\.mediaTransitionNamespace) private var transitionNamespace
+    @Environment(\.activeMediaSourceID) private var activeSourceID
 
     let item: MediaSummary
     let url: URL?
+    let locator: MediaLocatorID?
     let size: CGSize
     let role: MediaArtworkRole
     let transitionID: UUID?
@@ -93,6 +96,7 @@ struct MediaArtworkSurface: View {
     init(
         item: MediaSummary,
         url: URL?,
+        locator: MediaLocatorID? = nil,
         size: CGSize,
         role: MediaArtworkRole,
         transitionID: UUID? = nil,
@@ -100,6 +104,7 @@ struct MediaArtworkSurface: View {
     ) {
         self.item = item
         self.url = url
+        self.locator = locator
         self.size = size
         self.role = role
         self.transitionID = transitionID
@@ -107,7 +112,11 @@ struct MediaArtworkSurface: View {
     }
 
     var body: some View {
-        ArtworkView(url: url)
+        ArtworkView(
+            url: url,
+            locator: resolvedLocator,
+            artworkKind: resolvedArtworkKind
+        )
             .frame(width: size.width, height: size.height)
             .accessibilityHidden(true)
             .clipShape(shape)
@@ -133,6 +142,18 @@ struct MediaArtworkSurface: View {
             cornerRadius: CineLarkDesign.Shape.cardRadius,
             style: .continuous
         )
+    }
+
+    private var resolvedLocator: MediaLocatorID? {
+        locator ?? activeSourceID.map {
+            MediaLocatorID(sourceID: $0, providerItemID: item.id)
+        }
+    }
+
+    private var resolvedArtworkKind: String {
+        url == item.backdropURL && item.posterURL != item.backdropURL
+            ? "backdrop"
+            : "primary"
     }
 }
 

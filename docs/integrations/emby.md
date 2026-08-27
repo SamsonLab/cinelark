@@ -63,9 +63,12 @@ keeps an unsupported provider item from stalling browse or remote-state import.
 
 Poster, backdrop, logo, season, episode, and person image metadata are mapped to
 provider-neutral URLs. The artwork capability can also produce the required
-authorization header. The current URL-only SwiftUI image surface does not yet
-consume that header, so authenticated artwork delivery is the remaining UI
-integration gap; putting the token in the URL is intentionally forbidden.
+authorization header. On a Kingfisher cache miss, the macOS image pipeline
+resolves that capability just in time and attaches the header to the ephemeral
+request. Headers never enter SwiftUI/TCA state, Catalog/Profile values, URLs, or
+cache keys. Capability-resolved artwork rejects credential-bearing URLs,
+cross-origin header forwarding, and redirects; a future authenticated CDN needs
+an explicit credential-scope contract rather than relaxed validation.
 
 ## Playback semantics
 

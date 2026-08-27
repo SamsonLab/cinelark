@@ -54,6 +54,10 @@ Insights are rebuildable and therefore are not currently persisted in Core
 Data or CloudKit. TCA receives only the selected period, request identity, and
 compact presentation snapshot. Repository rows, managed objects, calendars,
 and source runtimes do not enter Store state.
+Top-title presentation retains the optional source locator from its media
+snapshot so the image pipeline can resolve authenticated artwork. The resolved
+descriptor and headers remain below Store state and are never part of the
+Insights projection.
 
 ## Refresh and failure semantics
 

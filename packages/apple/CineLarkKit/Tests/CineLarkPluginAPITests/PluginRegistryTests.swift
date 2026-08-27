@@ -41,6 +41,23 @@ private struct MigratingFactory: MediaSourcePluginFactory {
     }
 }
 
+private struct ArtworkFactory: MediaSourcePluginFactory {
+    let descriptor: CineLarkPluginDescriptor
+    let artworkDescriptor: ArtworkDescriptor
+
+    func validate(baseURL: URL) async throws -> SourceInstanceIdentity {
+        SourceInstanceIdentity(pluginID: descriptor.id, serverID: baseURL.absoluteString)
+    }
+
+    func makeRuntime(configuration: SourceConfiguration) async throws -> MediaSourceRuntime {
+        MediaSourceRuntime(
+            sourceID: configuration.sourceID,
+            descriptor: descriptor,
+            artwork: ArtworkClient { _, _ in artworkDescriptor }
+        )
+    }
+}
+
 @Test func registryRejectsDuplicateStablePluginIDs() async throws {
     let descriptor = CineLarkPluginDescriptor(
         id: "test.media",
@@ -135,6 +152,37 @@ private struct MigratingFactory: MediaSourcePluginFactory {
             )
         ])
     }
+}
+
+@Test func platformRoutesArtworkThroughTheAccountBoundRuntime() async throws {
+    let pluginDescriptor = descriptor(id: "test.artwork", name: "Artwork")
+    let sourceID = SourceID(rawValue: UUID())
+    let expected = ArtworkDescriptor(
+        url: URL(string: "https://example.test/items/movie-1/images/primary")!,
+        headers: ["Authorization": "Synthetic credential"]
+    )
+    let registry = try PluginRegistry(factories: [ArtworkFactory(
+        descriptor: pluginDescriptor,
+        artworkDescriptor: expected
+    )])
+    let platform = MediaSourcePlatform(registry: registry)
+    let configuration = SourceConfiguration(
+        sourceID: sourceID,
+        baseURL: URL(string: "https://example.test")!,
+        serverIdentity: SourceInstanceIdentity(
+            pluginID: pluginDescriptor.id,
+            serverID: "server"
+        ),
+        displayName: "Synthetic"
+    )
+    _ = try await platform.install(pluginID: pluginDescriptor.id, configuration: configuration)
+
+    let result = try await platform.artwork(
+        for: MediaLocatorID(sourceID: sourceID, providerItemID: "movie-1"),
+        kind: "primary"
+    )
+
+    #expect(result == expected)
 }
 
 private func descriptor(id: PluginID, name: String) -> CineLarkPluginDescriptor {

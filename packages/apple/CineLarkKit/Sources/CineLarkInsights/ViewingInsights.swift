@@ -1,5 +1,6 @@
 import Foundation
 import CineLarkDomain
+import CineLarkPluginAPI
 import CineLarkProfile
 
 public enum ViewingInsightPeriod: String, Codable, CaseIterable, Hashable, Sendable {
@@ -37,6 +38,7 @@ public struct ViewingInsightActivity: Codable, Hashable, Sendable, Identifiable 
 public struct ViewingInsightTitle: Codable, Hashable, Sendable, Identifiable {
     public var id: ProfileMediaKey { mediaKey }
     public let mediaKey: ProfileMediaKey
+    public let locator: MediaLocatorID?
     public let title: String
     public let kind: MediaKind?
     public let artworkURL: URL?
@@ -46,6 +48,7 @@ public struct ViewingInsightTitle: Codable, Hashable, Sendable, Identifiable {
 
     public init(
         mediaKey: ProfileMediaKey,
+        locator: MediaLocatorID? = nil,
         title: String,
         kind: MediaKind?,
         artworkURL: URL?,
@@ -54,6 +57,7 @@ public struct ViewingInsightTitle: Codable, Hashable, Sendable, Identifiable {
         completedSessionCount: Int
     ) {
         self.mediaKey = mediaKey
+        self.locator = locator
         self.title = title
         self.kind = kind
         self.artworkURL = artworkURL
@@ -165,6 +169,7 @@ public enum ViewingInsightsProjector {
             let snapshot = snapshots[session.mediaKey]
             var title = titles[session.mediaKey] ?? TitleAccumulator(
                 mediaKey: session.mediaKey,
+                locator: snapshot?.locator,
                 title: snapshot?.title ?? session.mediaKey.rawValue,
                 kind: snapshot?.kind,
                 artworkURL: snapshot?.artworkURL
@@ -202,6 +207,7 @@ public enum ViewingInsightsProjector {
         let topTitles = titles.values.map { value in
             ViewingInsightTitle(
                 mediaKey: value.mediaKey,
+                locator: value.locator,
                 title: value.title,
                 kind: value.kind,
                 artworkURL: value.artworkURL,
@@ -235,6 +241,7 @@ public enum ViewingInsightsProjector {
 
     private struct TitleAccumulator {
         let mediaKey: ProfileMediaKey
+        let locator: MediaLocatorID?
         let title: String
         let kind: MediaKind?
         let artworkURL: URL?

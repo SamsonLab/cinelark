@@ -108,6 +108,15 @@ public actor MediaSourcePlatform {
         return hierarchy
     }
 
+    public func artwork(
+        for locator: MediaLocatorID,
+        kind: String
+    ) async throws -> ArtworkDescriptor? {
+        let runtime = try runtime(for: locator.sourceID)
+        guard let artwork = runtime.artwork else { return nil }
+        return try await artwork.resolve(locator, kind)
+    }
+
     public func playback(for locator: MediaLocatorID) async throws -> SourcePlaybackDescriptor {
         let runtime = try runtime(for: locator.sourceID)
         guard let playback = runtime.playback else {

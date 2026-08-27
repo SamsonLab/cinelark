@@ -35,7 +35,7 @@ let package = Package(
         ),
         .target(
             name: "CineLarkInsights",
-            dependencies: ["CineLarkDomain", "CineLarkProfile"]
+            dependencies: ["CineLarkDomain", "CineLarkPluginAPI", "CineLarkProfile"]
         ),
         .target(
             name: "CineLarkEmby",

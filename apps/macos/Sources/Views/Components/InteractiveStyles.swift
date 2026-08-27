@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import CineLarkPluginAPI
 
 private final class HorizontalScrollerHiderView: NSView {
     override func viewDidMoveToSuperview() {
@@ -243,11 +244,12 @@ struct CineLarkFilterButton: View {
 
 struct CineLarkCinematicBackdrop: View {
     let url: URL?
+    var locator: MediaLocatorID?
     var height: CGFloat = 620
     var leadingShade = 0.82
 
     var body: some View {
-        ArtworkView(url: url)
+        ArtworkView(url: url, locator: locator, artworkKind: "backdrop")
             .frame(maxWidth: .infinity)
             .frame(height: height)
             .clipped()

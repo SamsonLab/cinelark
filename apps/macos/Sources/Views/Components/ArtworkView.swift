@@ -1,13 +1,17 @@
 import SwiftUI
 import Kingfisher
+import CineLarkPluginAPI
 
 struct ArtworkView: View {
     let url: URL?
     var contentMode: SwiftUI.ContentMode = .fill
     var placeholderSystemImage = "film"
     var cachedPreviewSize: CGSize?
+    var locator: MediaLocatorID?
+    var artworkKind = "primary"
 
     @Environment(\.displayScale) private var displayScale
+    @Environment(\.artworkResolutionClient) private var artworkResolver
 
     var body: some View {
         GeometryReader { proxy in
@@ -15,9 +19,11 @@ struct ArtworkView: View {
                 unavailablePlaceholder(size: proxy.size)
 
                 if let url {
-                    KFImage(url)
+                    KFImage(source: imageSource(url))
                         .targetCache(CineLarkImagePipeline.cache)
                         .cacheOriginalImage()
+                        .requestModifier(requestModifier)
+                        .redirectHandler(redirectHandler)
                         .setProcessor(
                             DownsamplingImageProcessor(
                                 size: bucketedPixelSize(for: proxy.size)
@@ -77,8 +83,10 @@ struct ArtworkView: View {
         sourceSize: CGSize,
         displaySize: CGSize
     ) -> some View {
-        KFImage(url)
+        KFImage(source: imageSource(url))
             .targetCache(CineLarkImagePipeline.cache)
+            .requestModifier(requestModifier)
+            .redirectHandler(redirectHandler)
             .setProcessor(
                 DownsamplingImageProcessor(
                     size: bucketedPixelSize(for: sourceSize)
@@ -93,6 +101,28 @@ struct ArtworkView: View {
             .aspectRatio(contentMode: contentMode)
             .frame(width: displaySize.width, height: displaySize.height)
             .clipped()
+    }
+
+    private var reference: ArtworkRequestReference? {
+        locator.map { ArtworkRequestReference(locator: $0, kind: artworkKind) }
+    }
+
+    private var requestModifier: ArtworkRequestModifier {
+        ArtworkRequestModifier(reference: reference, resolver: artworkResolver)
+    }
+
+    private var redirectHandler: ArtworkRedirectHandler {
+        ArtworkRedirectHandler(rejectsRedirects: reference != nil)
+    }
+
+    private func imageSource(_ url: URL) -> Source {
+        let resource = KF.ImageResource(
+            downloadURL: url,
+            cacheKey: reference.map {
+                ArtworkRequestPolicy.cacheKey(reference: $0, fallbackURL: url)
+            }
+        )
+        return .network(resource)
     }
 
     private func loadingPlaceholder(size: CGSize) -> some View {

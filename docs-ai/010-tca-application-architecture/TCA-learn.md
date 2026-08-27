@@ -537,3 +537,35 @@ Each entry uses a stable `LNNN` identifier and contains:
 - **Version caveat:** TCA 1.26.1 enum actions guarantee payload shape, not
   semantic agreement between fields. Use `TestStore` to assert the complete
   delegate payload for heterogeneous hierarchies.
+
+## L020 — Credential-bearing presentation resources stay below Store state
+
+- **Problem / context:** Emby artwork needs an account authorization header,
+  but list/detail/Insights state must remain value-typed and safe to inspect,
+  persist, diff, or log. Resolving an `ArtworkDescriptor` in a reducer would put
+  a token-bearing value in presentation state and perform work even on cache
+  hits.
+- **TCA pattern applied:** Feature state keeps only semantic identity—the media
+  locator, artwork kind, and secret-free fallback URL. A value-typed dependency
+  client is injected at the composition root, and Kingfisher invokes it inside
+  an async request modifier only when transport is required. No View `.task`
+  or reducer action carries the descriptor.
+- **Why this boundary was chosen:** TCA owns observable business state and
+  effect orchestration; the image pipeline owns cache lookup and network request
+  construction. The latter is the first layer that knows whether authorization
+  is needed and can keep it ephemeral.
+- **Minimal CineLark example:** `ViewingInsightTitle` retains an optional
+  `MediaLocatorID`, while `ArtworkRequestModifier` resolves the account-bound
+  descriptor after a cache miss and attaches headers to one request.
+- **Test evidence:** `ArtworkRequestTests` verifies ephemeral header injection,
+  unsafe URL/origin rejection, and credential-free cache identity.
+  `platformRoutesArtworkThroughTheAccountBoundRuntime` verifies capability
+  routing, and the full unsigned macOS suite passes with authenticated artwork
+  enabled across Library, Detail, and Insights.
+- **Reuse rule:** Store only the stable identity needed to reacquire a protected
+  presentation resource. Resolve credentials at the narrowest transport
+  boundary and never return them through an Action or store them in Feature
+  state merely to drive a View.
+- **Version caveat:** TCA 1.26.1 dependency clients do not automatically prevent
+  sensitive return values from entering State. The boundary depends on the
+  client being consumed by transport infrastructure instead of a reducer.

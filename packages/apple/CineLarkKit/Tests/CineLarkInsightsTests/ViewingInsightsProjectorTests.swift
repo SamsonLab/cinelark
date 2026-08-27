@@ -86,6 +86,10 @@ import CineLarkProfile
     #expect(result.longestStreakDays == 1)
     #expect(result.topTitles.map(\.title) == ["Blade Runner 2049", "Arrival"])
     #expect(result.topTitles.map(\.watchedSeconds) == [40, 30])
+    #expect(result.topTitles.first?.locator == MediaLocatorID(
+        sourceID: sourceID,
+        providerItemID: secondKey.rawValue
+    ))
     #expect(result.topGenres.map(\.name) == ["Drama", "Science Fiction"])
     #expect(result.topGenres.map(\.watchedSeconds) == [70, 30])
     #expect(result.topDirectors.first?.name == "Denis Villeneuve")

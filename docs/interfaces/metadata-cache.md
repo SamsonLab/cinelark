@@ -121,5 +121,10 @@ The following values must never enter metadata or artwork caches:
 - bridge pairing credentials
 - Remote credentials
 
+Artwork cache keys use Source ID, provider item ID, artwork kind, and a fallback
+URL stripped of user info, query, and fragment. Authorization is resolved after
+a cache miss and attached only to the download request, so cached artwork can be
+used offline without persisting plugin headers or tokens.
+
 Playback and download descriptors always bypass caching and are resolved just
 in time.

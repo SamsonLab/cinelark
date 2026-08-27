@@ -39,6 +39,7 @@
 		70C14D59345F72DEB66B532A /* ComposableArchitecture in Frameworks */ = {isa = PBXBuildFile; productRef = E2A406AD72EA115EBB7078DF /* ComposableArchitecture */; };
 		7650F3757844A96D543171D3 /* CineLarkSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB47DF5FBB63F7B997DE32D6 /* CineLarkSettingsView.swift */; };
 		7FD6FC460F299A30B2CF86E3 /* PlaybackEngineClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 483EBAF59527918EC755E9DB /* PlaybackEngineClient.swift */; };
+		86AED1016C613AE5BA259D8B /* ArtworkRequestTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D19B5E7B51777E1FB265688B /* ArtworkRequestTests.swift */; };
 		8DFAB7061F5A026730AE9BE7 /* InsightsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0655AD5F6065C2C7D3995483 /* InsightsView.swift */; };
 		960EB8C065B6371FC7BE7795 /* CatalogPersonDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA2B841298AED234E26DF707 /* CatalogPersonDetailView.swift */; };
 		9E77C3A3A69B22DCE4090CC1 /* CineLarkDomain in Frameworks */ = {isa = PBXBuildFile; productRef = A749D953D7ACF6BC4D462B11 /* CineLarkDomain */; };
@@ -149,6 +150,7 @@
 		B5976220527170DE4D05D69F /* CineLarkKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = CineLarkKit; path = ../../packages/apple/CineLarkKit; sourceTree = SOURCE_ROOT; };
 		CB47DF5FBB63F7B997DE32D6 /* CineLarkSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CineLarkSettingsView.swift; sourceTree = "<group>"; };
 		CCF7F76F1708A2B088F76C39 /* CineLarkBrandMark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CineLarkBrandMark.swift; sourceTree = "<group>"; };
+		D19B5E7B51777E1FB265688B /* ArtworkRequestTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkRequestTests.swift; sourceTree = "<group>"; };
 		D346A47A7846ACCD319604CE /* RemoteCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteCoordinator.swift; sourceTree = "<group>"; };
 		DC8129EC82C531D382AA1497 /* NavigationFeature.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationFeature.swift; sourceTree = "<group>"; };
 		DF1BEAD272C89D962C8DB178 /* CineLarkApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CineLarkApp.swift; sourceTree = "<group>"; };
@@ -194,6 +196,7 @@
 			isa = PBXGroup;
 			children = (
 				3ABABA128E2A0D311D6A7F7D /* AppFeatureTests.swift */,
+				D19B5E7B51777E1FB265688B /* ArtworkRequestTests.swift */,
 				44E630295E91495671DCDF26 /* CacheFeatureTests.swift */,
 				1A871399EF1660889251D88E /* InsightsFeatureTests.swift */,
 				0654E9CA1587D965FE7FF5C5 /* LibraryFeatureTests.swift */,
@@ -536,6 +539,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				D449539E42C6AAB50207B561 /* AppFeatureTests.swift in Sources */,
+				86AED1016C613AE5BA259D8B /* ArtworkRequestTests.swift in Sources */,
 				2018937F5ABAD73AF2A1A1D7 /* CacheFeatureTests.swift in Sources */,
 				D6801076D0A0DB015F0E3D44 /* InsightsFeatureTests.swift in Sources */,
 				45E2048B8A2A19D95ED13C04 /* LibraryFeatureTests.swift in Sources */,

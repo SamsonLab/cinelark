@@ -21,6 +21,7 @@ struct CineLarkApp: App {
     @State private var remote: RemoteCoordinator
     private let store: StoreOf<AppFeature>
     private let gateway: CineLarkNativeGateway
+    private let artworkResolver: ArtworkResolutionClient
     private let updateMonitor: SparkleUpdateMonitor
     private let updaterController: SPUStandardUpdaterController
 
@@ -81,6 +82,7 @@ struct CineLarkApp: App {
             preconditionFailure("Invalid built-in plugin registry: \(error)")
         }
         let mediaPlatform = MediaSourcePlatform(registry: registry)
+        artworkResolver = .live(platform: mediaPlatform)
         let catalogURL = FileManager.default.urls(
             for: .applicationSupportDirectory,
             in: .userDomainMask
@@ -173,6 +175,7 @@ struct CineLarkApp: App {
                 .environment(\.locale, language.locale)
                 .environment(shortcuts)
                 .environment(remoteTextInput)
+                .environment(\.artworkResolutionClient, artworkResolver)
                 .frame(minWidth: 960, minHeight: 640)
                 .task {
                     store.send(.view(.appeared))
@@ -200,6 +203,7 @@ struct CineLarkApp: App {
             )
                 .environment(\.appLanguage, language)
                 .environment(\.locale, language.locale)
+                .environment(\.artworkResolutionClient, artworkResolver)
         }
     }
 

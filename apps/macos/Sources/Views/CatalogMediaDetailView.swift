@@ -12,6 +12,7 @@ struct CatalogMediaDetailView: View {
                     MediaArtworkSurface(
                         item: store.item,
                         url: store.item.posterURL ?? store.item.backdropURL,
+                        locator: store.locator,
                         size: CGSize(width: 240, height: 360),
                         role: .playback,
                         transitionID: nil
