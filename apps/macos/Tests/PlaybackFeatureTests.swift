@@ -33,7 +33,9 @@ struct PlaybackFeatureTests {
         let playbackID = UUID()
         let recorder = PlaybackReportRecorder()
         let profileClient = ProfileClient(
-            deviceID: { "test-device" },
+            clientID: {
+                ClientID(rawValue: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!)
+            },
             load: { throw ProfileClientFailure.unavailable("unused") },
             saveProfile: { _ in },
             setSelection: { _ in },

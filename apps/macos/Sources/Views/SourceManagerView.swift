@@ -18,6 +18,32 @@ struct SourceManagerView: View {
                         Text(profile.name).tag(Optional(profile.id))
                     }
                 }
+                if let manifest = activeManifest {
+                    Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 5) {
+                        GridRow {
+                            Text("Last activity")
+                                .foregroundStyle(.secondary)
+                            Text((manifest.lastActivityAt ?? manifest.profile.modifiedAt).formatted(
+                                date: .abbreviated,
+                                time: .shortened
+                            ))
+                        }
+                        GridRow {
+                            Text("Last device")
+                                .foregroundStyle(.secondary)
+                            Text(manifest.lastDeviceName ?? "This device")
+                        }
+                        GridRow {
+                            Text("Saved data")
+                                .foregroundStyle(.secondary)
+                            Text(
+                                "\(manifest.titleCount) titles · "
+                                    + "\(manifest.favoriteCount) favorites"
+                            )
+                        }
+                    }
+                    .font(.caption)
+                }
                 HStack {
                     TextField("New profile name", text: $newProfileName)
                     Button("Create") {
@@ -191,6 +217,11 @@ struct SourceManagerView: View {
                 if let id { profileStore.send(.view(.selectProfile(id))) }
             }
         )
+    }
+
+    private var activeManifest: ProfileManifest? {
+        guard let activeProfileID = profileStore.activeProfileID else { return nil }
+        return profileStore.manifests.first { $0.id == activeProfileID }
     }
 
     private func setupBinding(

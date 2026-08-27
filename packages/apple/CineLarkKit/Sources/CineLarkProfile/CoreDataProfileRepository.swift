@@ -33,10 +33,12 @@ public actor CoreDataProfileRepository: ProfileRepository {
         static let playback = "PlaybackState"
         static let snapshot = "MediaSnapshot"
         static let importMarker = "ImportMarker"
+        static let profileMergeMarker = "ProfileMergeMarker"
         static let source = "ProfileSourceRecord"
         static let binding = "ProfileSourceBinding"
         static let activeSelection = "ActiveProfileSelection"
         static let mirrorQueue = "MirrorQueueEntry"
+        static let mutationClock = "MutationClockState"
     }
 
     private let container: NSPersistentCloudKitContainer
@@ -56,6 +58,8 @@ public actor CoreDataProfileRepository: ProfileRepository {
         let cloud = NSPersistentStoreDescription(url: cloudURL)
         cloud.configuration = StoreConfiguration.cloud
         cloud.type = configuration.inMemory ? NSInMemoryStoreType : NSSQLiteStoreType
+        cloud.setOption(true as NSNumber, forKey: NSMigratePersistentStoresAutomaticallyOption)
+        cloud.setOption(true as NSNumber, forKey: NSInferMappingModelAutomaticallyOption)
         cloud.setOption(true as NSNumber, forKey: NSPersistentHistoryTrackingKey)
         cloud.setOption(true as NSNumber, forKey: NSPersistentStoreRemoteChangeNotificationPostOptionKey)
         if !configuration.inMemory, let identifier = configuration.cloudKitContainerIdentifier {
@@ -104,8 +108,33 @@ public actor CoreDataProfileRepository: ProfileRepository {
         try await context.perform { [context] in
             let request = NSFetchRequest<NSManagedObject>(entityName: Entity.profile)
             request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: true)]
-            return try context.fetch(request).compactMap(Self.decodeProfile)
+            return try context.fetch(request)
+                .compactMap(Self.decodeProfile)
+                .filter { $0.deletedAt == nil && $0.mergedIntoProfileID == nil }
         }
+    }
+
+    public func profileManifests() async throws -> [ProfileManifest] {
+        let profiles = try await profiles()
+        var manifests: [ProfileManifest] = []
+        for profile in profiles {
+            async let favorites = favorites(profileID: profile.id)
+            async let playback = playbackStates(profileID: profile.id)
+            let (favoriteStates, playbackStates) = try await (favorites, playback)
+            let keys = Set(favoriteStates.map(\.mediaKey) + playbackStates.map(\.mediaKey))
+            let snapshots = try await mediaSnapshots(keys: keys)
+            let stateDates = favoriteStates.map(\.modifiedAt) + playbackStates.map(\.modifiedAt)
+            manifests.append(ProfileManifest(
+                profile: profile,
+                lastActivityAt: stateDates.max() ?? profile.modifiedAt,
+                lastDeviceName: nil,
+                titleCount: snapshots.count,
+                viewingSessionCount: 0,
+                favoriteCount: favoriteStates.count(where: \.isFavorite),
+                totalWatchSeconds: 0
+            ))
+        }
+        return manifests
     }
 
     public func saveProfile(_ profile: Profile) async throws {
@@ -116,48 +145,153 @@ public actor CoreDataProfileRepository: ProfileRepository {
                 value: profile.id.rawValue,
                 context: context
             ) ?? NSEntityDescription.insertNewObject(forEntityName: Entity.profile, into: context)
-            if let existing = Self.decodeProfile(object), !Self.incomingWins(
-                modifiedAt: profile.modifiedAt,
-                deviceID: profile.deviceID,
-                over: existing.modifiedAt,
-                existingDeviceID: existing.deviceID
-            ) {
+            if let existing = Self.decodeProfile(object),
+               profile.effectiveMutationStamp <= existing.effectiveMutationStamp {
                 return
             }
-            object.setValue(profile.id.rawValue, forKey: "id")
-            object.setValue(profile.name, forKey: "name")
-            object.setValue(profile.createdAt, forKey: "createdAt")
-            object.setValue(profile.modifiedAt, forKey: "modifiedAt")
-            object.setValue(profile.deviceID, forKey: "deviceID")
+            Self.writeProfile(profile, to: object)
             try Self.save(context)
         }
         changeHub.yield(.profiles)
     }
 
-    public func deleteProfile(id: ProfileID) async throws {
+    public func tombstoneProfile(
+        id: ProfileID,
+        at date: Date,
+        mutationStamp: MutationStamp
+    ) async throws {
         try await context.perform { [context] in
-            for entity in [Entity.profile, Entity.favorite, Entity.playback] {
-                let key = entity == Entity.profile ? "id" : "profileID"
-                try Self.deleteAll(entity: entity, predicate: NSPredicate(format: "\(key) == %@", id.rawValue as CVarArg), context: context)
+            guard let object = try Self.fetchOne(
+                entity: Entity.profile,
+                key: "id",
+                value: id.rawValue,
+                context: context
+            ), let profile = Self.decodeProfile(object) else {
+                throw ProfileRepositoryError.profileNotFound(id)
             }
-            try Self.deleteAll(
-                entity: Entity.importMarker,
-                predicate: NSPredicate(format: "profileID == %@", id.rawValue as CVarArg),
-                context: context
-            )
-            try Self.deleteAll(
-                entity: Entity.binding,
-                predicate: NSPredicate(format: "profileID == %@", id.rawValue as CVarArg),
-                context: context
-            )
-            try Self.deleteAll(
-                entity: Entity.mirrorQueue,
-                predicate: NSPredicate(format: "profileID == %@", id.rawValue as CVarArg),
-                context: context
-            )
+            guard mutationStamp > profile.effectiveMutationStamp else { return }
+            Self.writeProfile(profile.tombstoned(at: date, stamp: mutationStamp), to: object)
             try Self.save(context)
         }
         changeHub.yield(.profiles)
+    }
+
+    @discardableResult
+    public func mergeProfiles(_ request: ProfileMergeRequest) async throws -> Bool {
+        guard request.sourceProfileID != request.targetProfileID else {
+            throw ProfileRepositoryError.invalidProfileMerge
+        }
+        let applied = try await context.perform { [context] in
+            guard try Self.fetchOne(
+                entity: Entity.profileMergeMarker,
+                key: "operationID",
+                value: request.operationID,
+                context: context
+            ) == nil else {
+                return false
+            }
+            guard
+                let sourceObject = try Self.fetchOne(
+                    entity: Entity.profile,
+                    key: "id",
+                    value: request.sourceProfileID.rawValue,
+                    context: context
+                ),
+                let sourceProfile = Self.decodeProfile(sourceObject)
+            else {
+                throw ProfileRepositoryError.profileNotFound(request.sourceProfileID)
+            }
+            guard try Self.fetchOne(
+                entity: Entity.profile,
+                key: "id",
+                value: request.targetProfileID.rawValue,
+                context: context
+            ) != nil else {
+                throw ProfileRepositoryError.profileNotFound(request.targetProfileID)
+            }
+
+            let encoder = JSONEncoder()
+            try Self.copyStates(
+                entity: Entity.favorite,
+                sourceProfileID: request.sourceProfileID,
+                targetProfileID: request.targetProfileID,
+                as: ProfileFavoriteState.self,
+                encoder: encoder,
+                context: context
+            )
+            try Self.copyStates(
+                entity: Entity.playback,
+                sourceProfileID: request.sourceProfileID,
+                targetProfileID: request.targetProfileID,
+                as: ProfilePlaybackState.self,
+                encoder: encoder,
+                context: context
+            )
+
+            if request.mutationStamp > sourceProfile.effectiveMutationStamp {
+                Self.writeProfile(
+                    sourceProfile.merged(
+                        into: request.targetProfileID,
+                        at: request.mergedAt,
+                        stamp: request.mutationStamp
+                    ),
+                    to: sourceObject
+                )
+            }
+
+            let marker = NSEntityDescription.insertNewObject(
+                forEntityName: Entity.profileMergeMarker,
+                into: context
+            )
+            marker.setValue(request.operationID, forKey: "operationID")
+            marker.setValue(request.sourceProfileID.rawValue, forKey: "sourceProfileID")
+            marker.setValue(request.targetProfileID.rawValue, forKey: "targetProfileID")
+            marker.setValue(request.mergedAt, forKey: "mergedAt")
+            marker.setValue(try encoder.encode(request), forKey: "payload")
+            try Self.save(context)
+            return true
+        }
+        if applied {
+            changeHub.yield(.profiles)
+            changeHub.yield(.userState(request.targetProfileID))
+        }
+        return applied
+    }
+
+    public func nextMutationStamp(
+        clientID: ClientID,
+        at wallTime: Date
+    ) async throws -> MutationStamp {
+        try await context.perform { [context] in
+            let key = clientID.description
+            let object = try Self.fetchOne(
+                entity: Entity.mutationClock,
+                key: "clientID",
+                value: key,
+                context: context
+            ) ?? NSEntityDescription.insertNewObject(
+                forEntityName: Entity.mutationClock,
+                into: context
+            )
+            let previous: MutationStamp?
+            if let physical = object.value(forKey: "physicalMillisecondsUTC") as? NSNumber,
+               let logical = object.value(forKey: "logicalCounter") as? NSNumber {
+                previous = MutationStamp(
+                    physicalMillisecondsUTC: physical.int64Value,
+                    logicalCounter: UInt32(clamping: logical.uint64Value),
+                    clientID: key
+                )
+            } else {
+                previous = nil
+            }
+            var clock = MutationClockState(clientID: clientID, lastStamp: previous)
+            let stamp = clock.tick(at: wallTime)
+            object.setValue(key, forKey: "clientID")
+            object.setValue(stamp.physicalMillisecondsUTC, forKey: "physicalMillisecondsUTC")
+            object.setValue(Int64(stamp.logicalCounter), forKey: "logicalCounter")
+            try Self.save(context)
+            return stamp
+        }
     }
 
     public func activeSelection(deviceID: String) async throws -> ActiveProfileSelection {
@@ -406,6 +540,7 @@ public actor CoreDataProfileRepository: ProfileRepository {
                     mediaKey: favorite.mediaKey,
                     modifiedAt: favorite.modifiedAt,
                     deviceID: favorite.deviceID,
+                    mutationStamp: favorite.mutationStamp,
                     encoder: encoder,
                     context: context
                 )
@@ -419,6 +554,7 @@ public actor CoreDataProfileRepository: ProfileRepository {
                     mediaKey: playback.mediaKey,
                     modifiedAt: playback.modifiedAt,
                     deviceID: playback.deviceID,
+                    mutationStamp: playback.mutationStamp,
                     encoder: encoder,
                     context: context
                 )
@@ -576,6 +712,7 @@ public actor CoreDataProfileRepository: ProfileRepository {
                 mediaKey: mediaKey,
                 modifiedAt: modifiedAt,
                 deviceID: deviceID,
+                mutationStamp: Self.mutationStamp(from: value),
                 encoder: encoder,
                 context: context
             )
@@ -594,21 +731,15 @@ public actor CoreDataProfileRepository: ProfileRepository {
         mediaKey: ProfileMediaKey,
         modifiedAt: Date,
         deviceID: String,
+        mutationStamp incomingMutationStamp: MutationStamp?,
         encoder: JSONEncoder,
         context: NSManagedObjectContext
     ) throws {
         let object = try fetchOne(entity: entity, key: "key", value: key, context: context)
             ?? NSEntityDescription.insertNewObject(forEntityName: entity, into: context)
-        if
-            let existingDate = object.value(forKey: "modifiedAt") as? Date,
-            let existingDeviceID = object.value(forKey: "deviceID") as? String,
-            !incomingWins(
-                modifiedAt: modifiedAt,
-                deviceID: deviceID,
-                over: existingDate,
-                existingDeviceID: existingDeviceID
-            )
-        {
+        let incomingStamp = incomingMutationStamp
+            ?? MutationStamp(date: modifiedAt, clientID: deviceID)
+        if let existingStamp = mutationStamp(from: object), incomingStamp <= existingStamp {
             return
         }
         object.setValue(key, forKey: "key")
@@ -616,6 +747,7 @@ public actor CoreDataProfileRepository: ProfileRepository {
         object.setValue(mediaKey.rawValue, forKey: "mediaKey")
         object.setValue(modifiedAt, forKey: "modifiedAt")
         object.setValue(deviceID, forKey: "deviceID")
+        setMutationStamp(incomingStamp, on: object)
         object.setValue(try encoder.encode(value), forKey: "payload")
     }
 
@@ -630,21 +762,14 @@ public actor CoreDataProfileRepository: ProfileRepository {
             value: snapshot.key.rawValue,
             context: context
         ) ?? NSEntityDescription.insertNewObject(forEntityName: Entity.snapshot, into: context)
-        if
-            let existingDate = object.value(forKey: "modifiedAt") as? Date,
-            let existingDeviceID = object.value(forKey: "deviceID") as? String,
-            !incomingWins(
-                modifiedAt: snapshot.modifiedAt,
-                deviceID: snapshot.deviceID,
-                over: existingDate,
-                existingDeviceID: existingDeviceID
-            )
-        {
+        if let existingStamp = mutationStamp(from: object),
+           snapshot.effectiveMutationStamp <= existingStamp {
             return
         }
         object.setValue(snapshot.key.rawValue, forKey: "key")
         object.setValue(snapshot.modifiedAt, forKey: "modifiedAt")
         object.setValue(snapshot.deviceID, forKey: "deviceID")
+        setMutationStamp(snapshot.effectiveMutationStamp, on: object)
         object.setValue(try encoder.encode(snapshot), forKey: "payload")
     }
 
@@ -673,8 +798,24 @@ public actor CoreDataProfileRepository: ProfileRepository {
             name: name,
             createdAt: createdAt,
             modifiedAt: modifiedAt,
-            deviceID: deviceID
+            deviceID: deviceID,
+            mutationStamp: mutationStamp(from: object),
+            deletedAt: object.value(forKey: "deletedAt") as? Date,
+            mergedIntoProfileID: (object.value(forKey: "mergedIntoProfileID") as? UUID).map {
+                ProfileID(rawValue: $0)
+            }
         )
+    }
+
+    private static func writeProfile(_ profile: Profile, to object: NSManagedObject) {
+        object.setValue(profile.id.rawValue, forKey: "id")
+        object.setValue(profile.name, forKey: "name")
+        object.setValue(profile.createdAt, forKey: "createdAt")
+        object.setValue(profile.modifiedAt, forKey: "modifiedAt")
+        object.setValue(profile.deviceID, forKey: "deviceID")
+        object.setValue(profile.deletedAt, forKey: "deletedAt")
+        object.setValue(profile.mergedIntoProfileID?.rawValue, forKey: "mergedIntoProfileID")
+        setMutationStamp(profile.effectiveMutationStamp, on: object)
     }
 
     private static func decodeBinding(_ object: NSManagedObject) -> ProfileSourceBinding? {
@@ -690,14 +831,95 @@ public actor CoreDataProfileRepository: ProfileRepository {
         )
     }
 
-    private static func incomingWins(
-        modifiedAt: Date,
-        deviceID: String,
-        over existingDate: Date,
-        existingDeviceID: String
-    ) -> Bool {
-        if modifiedAt != existingDate { return modifiedAt > existingDate }
-        return deviceID >= existingDeviceID
+    private static func mutationStamp<Value>(from value: Value) -> MutationStamp? {
+        switch value {
+        case let value as ProfileFavoriteState:
+            value.mutationStamp
+        case let value as ProfilePlaybackState:
+            value.mutationStamp
+        default:
+            nil
+        }
+    }
+
+    private static func mutationStamp(from object: NSManagedObject) -> MutationStamp? {
+        if let physical = object.value(forKey: "mutationPhysicalMillisecondsUTC") as? NSNumber,
+           let logical = object.value(forKey: "mutationLogicalCounter") as? NSNumber,
+           let clientID = object.value(forKey: "mutationClientID") as? String {
+            return MutationStamp(
+                physicalMillisecondsUTC: physical.int64Value,
+                logicalCounter: UInt32(clamping: logical.uint64Value),
+                clientID: clientID
+            )
+        }
+        guard
+            let modifiedAt = object.value(forKey: "modifiedAt") as? Date,
+            let deviceID = object.value(forKey: "deviceID") as? String
+        else { return nil }
+        return MutationStamp(date: modifiedAt, clientID: deviceID)
+    }
+
+    private static func setMutationStamp(_ stamp: MutationStamp, on object: NSManagedObject) {
+        object.setValue(stamp.physicalMillisecondsUTC, forKey: "mutationPhysicalMillisecondsUTC")
+        object.setValue(Int64(stamp.logicalCounter), forKey: "mutationLogicalCounter")
+        object.setValue(stamp.clientID, forKey: "mutationClientID")
+    }
+
+    private static func copyStates<Value: Decodable>(
+        entity: String,
+        sourceProfileID: ProfileID,
+        targetProfileID: ProfileID,
+        as type: Value.Type,
+        encoder: JSONEncoder,
+        context: NSManagedObjectContext
+    ) throws {
+        let request = NSFetchRequest<NSManagedObject>(entityName: entity)
+        request.predicate = NSPredicate(
+            format: "profileID == %@",
+            sourceProfileID.rawValue as CVarArg
+        )
+        let decoder = JSONDecoder()
+        for object in try context.fetch(request) {
+            guard let payload = object.value(forKey: "payload") as? Data else { continue }
+            let value = try decoder.decode(type, from: payload)
+            if let favorite = value as? ProfileFavoriteState {
+                let copy = favorite.withMutationStamp(
+                    favorite.effectiveMutationStamp,
+                    profileID: targetProfileID
+                )
+                try upsertVersioned(
+                    copy,
+                    entity: entity,
+                    key: stateKey(profileID: targetProfileID, mediaKey: copy.mediaKey),
+                    profileID: targetProfileID,
+                    mediaKey: copy.mediaKey,
+                    modifiedAt: copy.modifiedAt,
+                    deviceID: copy.deviceID,
+                    mutationStamp: copy.mutationStamp,
+                    encoder: encoder,
+                    context: context
+                )
+            } else if let playback = value as? ProfilePlaybackState {
+                let copy = playback.withMutationStamp(
+                    playback.effectiveMutationStamp,
+                    profileID: targetProfileID
+                )
+                try upsertVersioned(
+                    copy,
+                    entity: entity,
+                    key: stateKey(profileID: targetProfileID, mediaKey: copy.mediaKey),
+                    profileID: targetProfileID,
+                    mediaKey: copy.mediaKey,
+                    modifiedAt: copy.modifiedAt,
+                    deviceID: copy.deviceID,
+                    mutationStamp: copy.mutationStamp,
+                    encoder: encoder,
+                    context: context
+                )
+            } else {
+                throw ProfileRepositoryError.invalidRecord
+            }
+        }
     }
 
     private static func stateKey(profileID: ProfileID, mediaKey: ProfileMediaKey) -> String {
@@ -747,7 +969,12 @@ public actor CoreDataProfileRepository: ProfileRepository {
             attribute("name", .stringAttributeType),
             attribute("createdAt", .dateAttributeType),
             attribute("modifiedAt", .dateAttributeType),
-            attribute("deviceID", .stringAttributeType)
+            attribute("deviceID", .stringAttributeType),
+            attribute("mutationPhysicalMillisecondsUTC", .integer64AttributeType),
+            attribute("mutationLogicalCounter", .integer64AttributeType),
+            attribute("mutationClientID", .stringAttributeType),
+            attribute("deletedAt", .dateAttributeType),
+            attribute("mergedIntoProfileID", .UUIDAttributeType)
         ])
         let favorite = entity(Entity.favorite, attributes: stateAttributes())
         let playback = entity(Entity.playback, attributes: stateAttributes())
@@ -755,6 +982,9 @@ public actor CoreDataProfileRepository: ProfileRepository {
             attribute("key", .stringAttributeType),
             attribute("modifiedAt", .dateAttributeType),
             attribute("deviceID", .stringAttributeType),
+            attribute("mutationPhysicalMillisecondsUTC", .integer64AttributeType),
+            attribute("mutationLogicalCounter", .integer64AttributeType),
+            attribute("mutationClientID", .stringAttributeType),
             attribute("payload", .binaryDataAttributeType)
         ])
         let importMarker = entity(Entity.importMarker, attributes: [
@@ -764,6 +994,13 @@ public actor CoreDataProfileRepository: ProfileRepository {
             attribute("remoteUserID", .stringAttributeType),
             attribute("marker", .stringAttributeType),
             attribute("importedAt", .dateAttributeType)
+        ])
+        let profileMergeMarker = entity(Entity.profileMergeMarker, attributes: [
+            attribute("operationID", .UUIDAttributeType),
+            attribute("sourceProfileID", .UUIDAttributeType),
+            attribute("targetProfileID", .UUIDAttributeType),
+            attribute("mergedAt", .dateAttributeType),
+            attribute("payload", .binaryDataAttributeType)
         ])
         let source = entity(Entity.source, attributes: [
             requiredAttribute("sourceID", .UUIDAttributeType),
@@ -792,17 +1029,22 @@ public actor CoreDataProfileRepository: ProfileRepository {
             requiredAttribute("nextAttemptAt", .dateAttributeType),
             requiredAttribute("payload", .binaryDataAttributeType)
         ])
+        let mutationClock = entity(Entity.mutationClock, attributes: [
+            requiredAttribute("clientID", .stringAttributeType),
+            requiredAttribute("physicalMillisecondsUTC", .integer64AttributeType),
+            requiredAttribute("logicalCounter", .integer64AttributeType)
+        ])
 
         model.entities = [
-            profile, favorite, playback, snapshot, importMarker,
-            source, binding, active, mirror
+            profile, favorite, playback, snapshot, importMarker, profileMergeMarker,
+            source, binding, active, mirror, mutationClock
         ]
         model.setEntities(
-            [profile, favorite, playback, snapshot, importMarker],
+            [profile, favorite, playback, snapshot, importMarker, profileMergeMarker],
             forConfigurationName: StoreConfiguration.cloud
         )
         model.setEntities(
-            [source, binding, active, mirror],
+            [source, binding, active, mirror, mutationClock],
             forConfigurationName: StoreConfiguration.local
         )
         return model
@@ -815,6 +1057,9 @@ public actor CoreDataProfileRepository: ProfileRepository {
             attribute("mediaKey", .stringAttributeType),
             attribute("modifiedAt", .dateAttributeType),
             attribute("deviceID", .stringAttributeType),
+            attribute("mutationPhysicalMillisecondsUTC", .integer64AttributeType),
+            attribute("mutationLogicalCounter", .integer64AttributeType),
+            attribute("mutationClientID", .stringAttributeType),
             attribute("payload", .binaryDataAttributeType)
         ]
     }

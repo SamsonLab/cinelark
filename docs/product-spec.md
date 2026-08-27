@@ -1,14 +1,15 @@
 # CineLark Product Specification
 
 - **Status:** Draft 0.1
-- **Last updated:** 2026-08-20
+- **Last updated:** 2026-08-27
 - **Initial platform:** macOS
 
 ## 1. Product statement
 
-CineLark is a TV-first client for browsing a personal media library and playing
-it through IINA/mpv. It combines an Infuse-like, poster-led interface with
-predictable directional navigation and provider-neutral domain boundaries.
+CineLark is an Apple-ecosystem personal viewing-memory client. It preserves a
+user-owned history across replaceable media sources, turns that history into
+period insights and preference dimensions, and plays available media through
+IINA/mpv with a TV-first interface.
 
 ## 2. Goals
 
@@ -21,13 +22,17 @@ predictable directional navigation and provider-neutral domain boundaries.
    couch workflow without duplicating provider or playback ownership.
 6. Work fully without CineLark Remote; the companion is an enhancement, not
    an activation or control dependency.
+7. Preserve long-term viewing memory in the user's iCloud private database
+   independently from Emby, Jellyfin, Plex, or filesystem account state.
+8. Build monthly, quarterly, yearly, and all-time insights from durable viewing
+   facts before introducing external recommendation services.
 
 ## 3. Non-goals for the first release
 
 - Implementing a native decoder or replacing IINA/mpv
 - Editing media metadata or administering a media server
 - A managed offline-download library, background downloader, or DRM store
-- Multi-user profile switching
+- Cross-Apple-ID household sharing, parental controls, or social profiles
 - A general-purpose IINA library browser inside the plugin
 - Matching every web-provider feature or visual detail
 - Shipping provider credentials to the plugin or Remote

@@ -5,8 +5,13 @@ public protocol ProfileRepository: Sendable {
     func changes() async -> AsyncStream<ProfileRepositoryChange>
 
     func profiles() async throws -> [Profile]
+    func profileManifests() async throws -> [ProfileManifest]
     func saveProfile(_ profile: Profile) async throws
-    func deleteProfile(id: ProfileID) async throws
+    func tombstoneProfile(id: ProfileID, at date: Date, mutationStamp: MutationStamp) async throws
+    @discardableResult
+    func mergeProfiles(_ request: ProfileMergeRequest) async throws -> Bool
+
+    func nextMutationStamp(clientID: ClientID, at wallTime: Date) async throws -> MutationStamp
 
     func activeSelection(deviceID: String) async throws -> ActiveProfileSelection
     func setActiveSelection(_ selection: ActiveProfileSelection, deviceID: String) async throws

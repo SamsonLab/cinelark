@@ -1,17 +1,30 @@
-# Profile and CloudKit Persistence
+# Personal Viewing Memory and CloudKit Persistence
 
-- **Status:** Implemented; signed multi-device smoke test required for release
+- **Status:** Identity and conflict foundation implemented; CloudKit bootstrap UI pending
 - **CloudKit container:** `iCloud.com.samsonlab.cinelark`
+- **Normative decision:** [`../decisions/0011-personal-viewing-memory.md`](../decisions/0011-personal-viewing-memory.md)
 
-The Profile repository is the local-first authority for favorites and playback
-state. Provider user state is never queried as the live UI source. It enters the
-repository only through an explicit one-time import, and leaves through an
-optional durable mirror queue.
+CineLark owns a source-independent personal viewing memory. The local Profile
+repository is the UI authority for favorites, progress, history, and later
+insights. Emby user data remains a separate remote record: it can be imported
+explicitly and mirrored outbound through standard Emby APIs, but it never
+becomes an implicit fallback for the active Profile.
 
-Library/detail projections replace provider `UserData` with the active
-Profile's state. Continue Watching is built from local playback records; an
-empty Profile value renders empty state rather than falling back to Emby or
-UHDNow progress.
+## Identity layers
+
+| Identity | Scope | Persistence | Rule |
+| --- | --- | --- | --- |
+| `ClientID` | One CineLark installation | Local preferences | Generated before network access; used as Emby `DeviceId`; never replaced by Profile resolution |
+| `DeviceRecordID` | Synced device presentation record | Cloud | Records device name and last-seen activity without containing credentials |
+| `ProfileID` | One durable viewing history | Cloud | Multiple Profiles may coexist in one iCloud private database |
+| `SourceID` | One configured media source | Local configuration | Stable app identity; connection details and credentials do not enter CloudKit |
+| `RemoteUserID` | Provider account within a Source | Local binding | Never substitutes for `ProfileID` |
+| `ContentKey` | Optional canonical content evidence | Cloud snapshot/Catalog | Supports future cross-source matching; never replaces a locator |
+| `MediaLocatorID` | Exact provider item/path | Cloud snapshot/Local Catalog | Required to play or mirror a provider mutation |
+
+The active `{profileID, sourceID}` selection is keyed by `ClientID` and remains
+local. Choosing or merging a cloud Profile changes this binding, not the
+client identity.
 
 ## Store topology
 
@@ -19,47 +32,99 @@ UHDNow progress.
 
 | Configuration | Entities | Synchronization |
 | --- | --- | --- |
-| `Cloud` | `Profile`, `FavoriteState`, `PlaybackState`, `MediaSnapshot`, `ImportMarker` | Private CloudKit database when signed; in-memory in reducer/package tests |
-| `Local` | `ProfileSourceRecord`, `ProfileSourceBinding`, `ActiveProfileSelection`, `MirrorQueueEntry` | Device-local only |
+| `Cloud` | `Profile`, `FavoriteState`, `PlaybackState`, `MediaSnapshot`, `ImportMarker`, `ProfileMergeMarker`; future `ViewingSession`, `PlaybackEvent`, `DeviceRecord`, `InsightSnapshot` | Private CloudKit database when signed in; in-memory in package/reducer tests |
+| `Local` | `ProfileSourceRecord`, `ProfileSourceBinding`, `ActiveProfileSelection`, `MirrorQueueEntry`, `MutationClockState`; future provisional Profile record | Device-local only |
 
-The separate media Catalog is another local Core Data store and is not part of
-the CloudKit model. Provider tokens and remote credentials live in Keychain.
+The media Catalog is a separate local Core Data store. Provider tokens and
+remote credentials remain in Keychain.
 
-## Identity and conflict rules
+## Bootstrap state machine
 
-- Favorite and playback records use `{profileID, mediaKey}` identity.
-- `ProfileMediaKey` is locator-based in v1, so two sources remain isolated even
-  if they report the same external movie ID.
-- Incoming cloud state wins by `modifiedAt`, then lexicographic `deviceID` when
-  timestamps are equal.
-- `MediaSnapshot` carries the minimum display projection needed for favorites
-  and resume while the source is offline.
-- Active Profile/Source selection is keyed by device ID and never syncs.
+A fresh installation creates `ClientID` and a provisional local Profile before
+CloudKit availability is known. The provisional Profile must not be published
+merely because the local cloud replica is temporarily empty.
 
-## Import and mirror
+| Cloud state | Profile state | Resolution |
+| --- | --- | --- |
+| Unavailable | Any | Continue local-only and retry discovery later |
+| Initial import pending | Any | Keep provisional local; show checking state |
+| Confirmed empty | Provisional only | Promote provisional Profile to Cloud |
+| Available | Matching `ProfileID` | Normal synchronization |
+| Available | Different Profiles | Present attach/merge/keep-separate choice |
 
-Import is explicit and idempotent. The provider returns a stable marker and
-remote user ID; the repository stores a composite marker scoped to Profile and
-Source before reporting success. Repeating the same import returns `false` and
-does not rewrite local state.
+The choice surface presents Profile name, recent activity, last device, title
+and favorite counts, session count, and total watch time. These manifest values
+are eventually consistent presentation summaries; durable viewing facts remain
+the rebuildable source of truth.
 
-Outbound mirror is opt-in per `ProfileSourceBinding`. At most one Profile can
-own `{sourceID, remoteUserID}` mirroring. Local writes complete first, then a
-device-local queue entry records the locator and mutation. Failures increment
-the attempt count and use a capped exponential retry scheduled by
-`ProfileFeature`; playback and UI remain available.
+Merge is idempotent. A `ProfileMergeMarker` records the operation, source, and
+target. Facts are copied with their original mutation stamps, the source is
+marked `mergedIntoProfileID`, and destructive cleanup is deferred.
 
-## Change delivery
+## Time and conflict ordering
 
-The Cloud store enables persistent history and remote-change notifications.
-The repository converts notifications and local writes into a bounded
-`AsyncStream<ProfileRepositoryChange>` using `bufferingNewest(1)`. TCA converts
-each value to an internal action and reloads only repository projections.
+All stored `Date` values represent absolute instants. UI formatting applies the
+current locale and time zone. A UTC date alone is not a conflict clock because
+device time can move backward.
 
-## Release verification
+Mutable records use `MutationStamp`:
 
-Unit tests cover conflict ordering, Profile isolation, local selection/source
-placement, import idempotency, and unique mirror ownership. Before release,
-perform a signed two-device smoke test for CloudKit schema deployment, offline
-writes, merge delivery, and Profile isolation. Unsigned builds cannot validate
-the container entitlement.
+```text
+physicalMillisecondsUTC + logicalCounter + clientID
+```
+
+The local `MutationClockState` guarantees that each issued stamp is greater than
+the previous stamp even when wall time is equal or decreases. The client ID is
+the deterministic final tie-breaker. Legacy records without a stamp fall back
+to `{modifiedAt, deviceID}` during migration.
+
+| Data | Merge rule |
+| --- | --- |
+| `ViewingSession`, `PlaybackEvent` | Union by stable event ID |
+| `PlaybackState` | Materialized projection; higher mutation stamp wins until event rebuilding is implemented |
+| `FavoriteState`, `RatingState` | Explicit value/tombstone with higher mutation stamp |
+| Profile metadata | Field-level mutation in the eventual schema; record-level stamp in the current slice |
+| `MediaSnapshot` | Preserve historical value; latest snapshot is a presentation projection |
+| Deletion | Tombstone first; physical cleanup only after a validated retention boundary |
+
+CloudKit record change tags and server `modificationDate` remain transport
+metadata. They detect conflicts but do not define CineLark's domain merge rule.
+
+## Provider-state boundary
+
+Every playback lifecycle has two independent outputs:
+
+1. Append or update CineLark viewing memory locally, then allow CloudKit to
+   mirror it asynchronously.
+2. Enqueue standard provider reporting for the bound remote user.
+
+Local persistence is mandatory for product continuity. Provider reporting is
+ordered and best-effort; failure never rolls back local state. Emby reporting
+uses `Started`, periodic/interactive `Progress`, and `Stopped`. UHDNow does not
+own a separate Profile model. Its transitional custom adapter remains until the
+standard Emby setup path is compatibility-tested against that deployment.
+
+Remote import remains explicit and idempotent. Outbound favorite/playback mirror
+remains opt-in per binding, with at most one local Profile owning a given
+`{sourceID, remoteUserID}` mirror.
+
+## Current implementation boundary
+
+Implemented and covered by package tests:
+
+- typed client/Profile identity;
+- persistent hybrid logical mutation-clock entity;
+- mutation-stamp conflict ordering with legacy fallback;
+- Profile manifests over current snapshot/projection data;
+- bootstrap resolution as a pure contract;
+- idempotent Profile merge markers and non-destructive source retention;
+- tombstoned Profile deletion.
+
+Still required before enabling first-install resolution in production:
+
+- local provisional Profile entity and promotion transaction;
+- CloudKit account/import readiness client;
+- Device records and durable viewing sessions;
+- TCA resolution presentation and user-choice actions;
+- signed two-device tests covering offline creation, delayed initial import,
+  merge, tombstones, and reinstall behavior.

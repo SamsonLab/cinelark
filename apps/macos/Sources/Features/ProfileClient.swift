@@ -6,17 +6,20 @@ import CineLarkPluginAPI
 
 struct ProfileBootstrap: Equatable, Sendable {
     let profiles: [Profile]
+    let manifests: [ProfileManifest]
     let sources: [PersistedMediaSource]
     let selection: ActiveProfileSelection
     let bindings: [ProfileSourceBinding]
 
     init(
         profiles: [Profile],
+        manifests: [ProfileManifest] = [],
         sources: [PersistedMediaSource],
         selection: ActiveProfileSelection,
         bindings: [ProfileSourceBinding] = []
     ) {
         self.profiles = profiles
+        self.manifests = manifests
         self.sources = sources
         self.selection = selection
         self.bindings = bindings
@@ -48,7 +51,7 @@ enum ProfileClientFailure: Error, Equatable, Sendable {
 }
 
 struct ProfileClient: Sendable {
-    var deviceID: @Sendable () -> String
+    var clientID: @Sendable () -> ClientID
     var load: @Sendable () async throws -> ProfileBootstrap
     var saveProfile: @Sendable (Profile) async throws -> Void
     var setSelection: @Sendable (ActiveProfileSelection) async throws -> Void
@@ -63,11 +66,19 @@ struct ProfileClient: Sendable {
     var completeMirrorEntry: @Sendable (UUID) async throws -> Void
     var rescheduleMirrorEntry: @Sendable (UUID, Int, Date) async throws -> Void
     var changes: @Sendable () async -> AsyncStream<ProfileRepositoryChange>
+
+    func deviceID() -> String {
+        clientID().description
+    }
 }
 
 extension ProfileClient: DependencyKey {
     static let liveValue = Self(
-        deviceID: { "unconfigured-device" },
+        clientID: {
+            ClientID(
+                rawValue: UUID(uuidString: "00000000-0000-0000-0000-000000000000")!
+            )
+        },
         load: { throw ProfileClientFailure.unavailable("Profile repository is not configured") },
         saveProfile: { _ in throw ProfileClientFailure.unavailable("Profile repository is not configured") },
         setSelection: { _ in throw ProfileClientFailure.unavailable("Profile repository is not configured") },
@@ -97,18 +108,19 @@ extension DependencyValues {
 extension ProfileClient {
     static func live(
         repository: any ProfileRepository,
-        deviceID: String,
+        clientID: ClientID,
         now: @escaping @Sendable () -> Date = { Date() },
         uuid: @escaping @Sendable () -> UUID = { UUID() }
     ) -> Self {
         Self(
-            deviceID: { deviceID },
+            clientID: { clientID },
             load: {
-                async let profiles = repository.profiles()
+                async let manifests = repository.profileManifests()
                 async let sources = repository.sourceConfigurations()
-                async let selection = repository.activeSelection(deviceID: deviceID)
+                async let selection = repository.activeSelection(deviceID: clientID.description)
                 let values = try await ProfileBootstrap(
-                    profiles: profiles,
+                    profiles: manifests.map(\.profile),
+                    manifests: manifests,
                     sources: sources,
                     selection: selection
                 )
@@ -118,35 +130,71 @@ extension ProfileClient {
                 }
                 return ProfileBootstrap(
                     profiles: values.profiles,
+                    manifests: values.manifests,
                     sources: values.sources,
                     selection: values.selection,
                     bindings: bindings
                 )
             },
-            saveProfile: { try await repository.saveProfile($0) },
-            setSelection: { try await repository.setActiveSelection($0, deviceID: deviceID) },
+            saveProfile: { profile in
+                let stamp: MutationStamp
+                if let existing = profile.mutationStamp {
+                    stamp = existing
+                } else {
+                    stamp = try await repository.nextMutationStamp(
+                        clientID: clientID,
+                        at: profile.modifiedAt
+                    )
+                }
+                try await repository.saveProfile(profile.withMutationStamp(stamp))
+            },
+            setSelection: {
+                try await repository.setActiveSelection($0, deviceID: clientID.description)
+            },
             saveSource: { try await repository.saveSource(pluginID: $0, configuration: $1) },
             saveBinding: { try await repository.saveBinding($0) },
             savePlayback: { state, snapshot in
-                try await repository.savePlayback(state, snapshot: snapshot)
-                guard let snapshot else { return }
+                let stamp: MutationStamp
+                if let existing = state.mutationStamp {
+                    stamp = existing
+                } else {
+                    stamp = try await repository.nextMutationStamp(
+                        clientID: clientID,
+                        at: state.modifiedAt
+                    )
+                }
+                let stampedState = state.withMutationStamp(stamp)
+                let stampedSnapshot = snapshot?.withMutationStamp(stamp)
+                try await repository.savePlayback(stampedState, snapshot: stampedSnapshot)
+                guard let stampedSnapshot else { return }
                 try await enqueueMirrorIfEnabled(
                     repository: repository,
-                    profileID: state.profileID,
-                    snapshot: snapshot,
-                    mutation: .playback(state),
+                    profileID: stampedState.profileID,
+                    snapshot: stampedSnapshot,
+                    mutation: .playback(stampedState),
                     now: now,
                     uuid: uuid
                 )
             },
             saveFavorite: { state, snapshot in
-                try await repository.saveFavorite(state, snapshot: snapshot)
-                guard let snapshot else { return }
+                let stamp: MutationStamp
+                if let existing = state.mutationStamp {
+                    stamp = existing
+                } else {
+                    stamp = try await repository.nextMutationStamp(
+                        clientID: clientID,
+                        at: state.modifiedAt
+                    )
+                }
+                let stampedState = state.withMutationStamp(stamp)
+                let stampedSnapshot = snapshot?.withMutationStamp(stamp)
+                try await repository.saveFavorite(stampedState, snapshot: stampedSnapshot)
+                guard let stampedSnapshot else { return }
                 try await enqueueMirrorIfEnabled(
                     repository: repository,
-                    profileID: state.profileID,
-                    snapshot: snapshot,
-                    mutation: .favorite(state),
+                    profileID: stampedState.profileID,
+                    snapshot: stampedSnapshot,
+                    mutation: .favorite(stampedState),
                     now: now,
                     uuid: uuid
                 )
@@ -169,7 +217,15 @@ extension ProfileClient {
                 )
             },
             enqueueMirror: { try await repository.enqueueMirror($0) },
-            importRemoteState: { try await repository.importRemoteState($0) },
+            importRemoteState: { batch in
+                try await repository.importRemoteState(
+                    try await stampImportBatch(
+                        batch,
+                        repository: repository,
+                        clientID: clientID
+                    )
+                )
+            },
             dueMirrorEntries: { try await repository.dueMirrorEntries(at: $0, limit: $1) },
             completeMirrorEntry: { try await repository.completeMirrorEntry(id: $0) },
             rescheduleMirrorEntry: {
@@ -203,5 +259,60 @@ extension ProfileClient {
             mutation: mutation,
             nextAttemptAt: now()
         ))
+    }
+
+    private static func stampImportBatch(
+        _ batch: RemoteStateImportBatch,
+        repository: any ProfileRepository,
+        clientID: ClientID
+    ) async throws -> RemoteStateImportBatch {
+        var snapshots: [ProfileMediaSnapshot] = []
+        for snapshot in batch.snapshots {
+            let stamp: MutationStamp
+            if let existing = snapshot.mutationStamp {
+                stamp = existing
+            } else {
+                stamp = try await repository.nextMutationStamp(
+                    clientID: clientID,
+                    at: snapshot.modifiedAt
+                )
+            }
+            snapshots.append(snapshot.withMutationStamp(stamp))
+        }
+        var favorites: [ProfileFavoriteState] = []
+        for favorite in batch.favorites {
+            let stamp: MutationStamp
+            if let existing = favorite.mutationStamp {
+                stamp = existing
+            } else {
+                stamp = try await repository.nextMutationStamp(
+                    clientID: clientID,
+                    at: favorite.modifiedAt
+                )
+            }
+            favorites.append(favorite.withMutationStamp(stamp))
+        }
+        var playback: [ProfilePlaybackState] = []
+        for state in batch.playback {
+            let stamp: MutationStamp
+            if let existing = state.mutationStamp {
+                stamp = existing
+            } else {
+                stamp = try await repository.nextMutationStamp(
+                    clientID: clientID,
+                    at: state.modifiedAt
+                )
+            }
+            playback.append(state.withMutationStamp(stamp))
+        }
+        return RemoteStateImportBatch(
+            marker: batch.marker,
+            profileID: batch.profileID,
+            sourceID: batch.sourceID,
+            remoteUserID: batch.remoteUserID,
+            snapshots: snapshots,
+            favorites: favorites,
+            playback: playback
+        )
     }
 }

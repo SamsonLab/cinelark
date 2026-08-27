@@ -51,3 +51,4 @@ writing, amendment, and verification rules.
 | 011 | [Media source platform](011-media-source-platform/000-plan.md) | 2026-08-26 | Capability-based plugins, local catalog, profiles, and standard Emby support |
 | 012 | [Cache management](012-cache-management/000-plan.md) | 2026-08-26 | Catalog/artwork usage visibility and safe recreatable-data purge |
 | 013 | [Settings information architecture](013-settings-information-architecture/000-plan.md) | 2026-08-26 | Content-only sidebar and consolidated native macOS configuration categories |
+| 014 | [Viewing identity and sync](014-viewing-identity-and-sync/000-plan.md) | 2026-08-27 | Client/Profile identity separation, CloudKit bootstrap resolution, monotonic conflicts, and independent provider state |

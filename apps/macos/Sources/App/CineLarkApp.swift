@@ -49,17 +49,19 @@ struct CineLarkApp: App {
         let sourceSecrets = KeychainSecretStore(
             service: "com.samsonlab.cinelark.source-token"
         )
-        let deviceIDKey = "cinelark.device.id"
-        let deviceID: String
-        if let stored = UserDefaults.standard.string(forKey: deviceIDKey) {
-            deviceID = stored
+        let clientIDKey = "cinelark.client.id"
+        let legacyDeviceIDKey = "cinelark.device.id"
+        let storedClientID = UserDefaults.standard.string(forKey: clientIDKey)
+            ?? UserDefaults.standard.string(forKey: legacyDeviceIDKey)
+        let clientID: ClientID
+        if let storedClientID, let value = UUID(uuidString: storedClientID) {
+            clientID = ClientID(rawValue: value)
         } else {
-            let created = UUID().uuidString
-            UserDefaults.standard.set(created, forKey: deviceIDKey)
-            deviceID = created
+            clientID = ClientID(rawValue: UUID())
         }
+        UserDefaults.standard.set(clientID.description, forKey: clientIDKey)
         let embyFactory = EmbyPluginFactory(
-            device: EmbyDeviceIdentity(id: deviceID, appVersion: "0.1.10"),
+            device: EmbyDeviceIdentity(id: clientID.description, appVersion: "0.1.10"),
             tokenVault: EmbyTokenVault(
                 load: { sourceID in
                     try await sourceSecrets.load(account: sourceID.rawValue.uuidString)
@@ -134,7 +136,7 @@ struct CineLarkApp: App {
             AppFeature()
         } withDependencies: {
             $0.mediaPlatform = .live(platform: mediaPlatform, catalog: catalog)
-            $0.profiles = .live(repository: profileRepository, deviceID: deviceID)
+            $0.profiles = .live(repository: profileRepository, clientID: clientID)
             $0.playbackEngine = .live(launcher: launcher)
             $0.remote = .live(coordinator: remote)
             $0.cache = .live(

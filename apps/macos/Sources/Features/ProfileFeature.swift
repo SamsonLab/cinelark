@@ -19,6 +19,7 @@ struct ProfileFeature {
     @ObservableState
     struct State: Equatable {
         var profiles: [Profile] = []
+        var manifests: [ProfileManifest] = []
         var sources: [PersistedMediaSource] = []
         var bindings: [ProfileSourceBinding] = []
         var activeProfileID: ProfileID?
@@ -170,6 +171,7 @@ struct ProfileFeature {
                 state.isLoading = false
                 state.failure = nil
                 state.profiles = bootstrap.profiles
+                state.manifests = bootstrap.manifests
                 state.sources = bootstrap.sources
                 state.bindings = bootstrap.bindings
                 state.activeProfileID = bootstrap.selection.profileID

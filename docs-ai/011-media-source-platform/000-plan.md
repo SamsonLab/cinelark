@@ -68,3 +68,6 @@ substantially.
   persisted source bootstrap, Emby LAN setup, complete v1 content mapping, and
   Catalog-only UI reads — see
   [`002-profile-emby-and-catalog-completion.md`](002-profile-emby-and-catalog-completion.md).
+- Updated 2026-08-27: Profile identity, first-install CloudKit resolution, and
+  conflict ordering are replaced by the personal viewing-memory model — see
+  [`../014-viewing-identity-and-sync/000-plan.md`](../014-viewing-identity-and-sync/000-plan.md).
