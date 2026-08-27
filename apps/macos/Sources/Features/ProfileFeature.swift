@@ -24,7 +24,9 @@ struct ProfileFeature {
         var bindings: [ProfileSourceBinding] = []
         var activeProfileID: ProfileID?
         var activeSourceID: SourceID?
+        var bootstrapResolution: ProfileBootstrapResolution?
         var isLoading = false
+        var needsReloadAfterCurrentLoad = false
         var isImportingRemoteState = false
         var isProcessingMirrorQueue = false
         var lastImportApplied: Bool?
@@ -47,6 +49,7 @@ struct ProfileFeature {
             case appeared
             case reload
             case createProfile(String)
+            case resolveProfile(ProfileResolutionChoice)
             case selectProfile(ProfileID)
             case selectSource(SourceID?)
             case setRemoteMirrorEnabled(Bool)
@@ -116,6 +119,21 @@ struct ProfileFeature {
                 state.isLoading = true
                 return saveDefault(profile)
 
+            case let .view(.resolveProfile(choice)):
+                guard !state.isLoading else { return .none }
+                state.isLoading = true
+                state.failure = nil
+                return .run { send in
+                    do {
+                        await send(.internal(.loaded(.success(
+                            try await profiles.resolveProfile(choice)
+                        ))))
+                    } catch {
+                        await send(.internal(.loaded(.failure(Self.normalize(error)))))
+                    }
+                }
+                .cancellable(id: CancelID.load, cancelInFlight: true)
+
             case let .view(.selectProfile(profileID)):
                 return .send(.delegate(.profileSelectionRequested(profileID)))
 
@@ -176,30 +194,20 @@ struct ProfileFeature {
                 state.bindings = bootstrap.bindings
                 state.activeProfileID = bootstrap.selection.profileID
                 state.activeSourceID = bootstrap.selection.sourceID
-                if bootstrap.profiles.isEmpty {
-                    let profile = Profile(
-                        id: ProfileID(rawValue: uuid()),
-                        name: "Default",
-                        createdAt: now,
-                        modifiedAt: now,
-                        deviceID: profiles.deviceID()
-                    )
-                    state.isLoading = true
-                    return saveDefault(profile)
-                }
-                if state.activeProfileID == nil, let first = bootstrap.profiles.first {
-                    return persistSelection(
-                        ActiveProfileSelection(
-                            profileID: first.id,
-                            sourceID: bootstrap.selection.sourceID
-                        )
-                    )
+                state.bootstrapResolution = bootstrap.resolution
+                if state.needsReloadAfterCurrentLoad {
+                    state.needsReloadAfterCurrentLoad = false
+                    return load(&state)
                 }
                 return .none
 
             case let .internal(.loaded(.failure(failure))):
                 state.isLoading = false
                 state.failure = failure
+                if state.needsReloadAfterCurrentLoad {
+                    state.needsReloadAfterCurrentLoad = false
+                    return load(&state)
+                }
                 return .none
 
             case let .internal(.defaultProfileSaved(.success(profile))):
@@ -230,12 +238,20 @@ struct ProfileFeature {
                 return persistSelection(selection)
 
             case .internal(.repositoryChanged(.mirrorQueue)):
+                if state.isLoading {
+                    state.needsReloadAfterCurrentLoad = true
+                    return .send(.view(.processMirrorQueue))
+                }
                 return .merge(
                     .send(.view(.reload)),
                     .send(.view(.processMirrorQueue))
                 )
 
             case .internal(.repositoryChanged):
+                if state.isLoading {
+                    state.needsReloadAfterCurrentLoad = true
+                    return .none
+                }
                 return .send(.view(.reload))
 
             case let .internal(.bindingSaved(.success(binding))):

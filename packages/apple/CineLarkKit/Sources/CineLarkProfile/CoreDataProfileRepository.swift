@@ -1,4 +1,5 @@
 @preconcurrency import CoreData
+@preconcurrency import CloudKit
 import Foundation
 import CineLarkPluginAPI
 
@@ -8,17 +9,20 @@ public actor CoreDataProfileRepository: ProfileRepository {
         public let localStoreURL: URL?
         public let cloudKitContainerIdentifier: String?
         public let inMemory: Bool
+        public let cloudAvailabilityOverride: CloudProfileAvailability?
 
         public init(
             cloudStoreURL: URL? = nil,
             localStoreURL: URL? = nil,
             cloudKitContainerIdentifier: String? = nil,
-            inMemory: Bool = false
+            inMemory: Bool = false,
+            cloudAvailabilityOverride: CloudProfileAvailability? = nil
         ) {
             self.cloudStoreURL = cloudStoreURL
             self.localStoreURL = localStoreURL
             self.cloudKitContainerIdentifier = cloudKitContainerIdentifier
             self.inMemory = inMemory
+            self.cloudAvailabilityOverride = cloudAvailabilityOverride
         }
     }
 
@@ -39,11 +43,19 @@ public actor CoreDataProfileRepository: ProfileRepository {
         static let activeSelection = "ActiveProfileSelection"
         static let mirrorQueue = "MirrorQueueEntry"
         static let mutationClock = "MutationClockState"
+        static let provisionalProfile = "ProvisionalProfile"
+        static let provisionalFavorite = "ProvisionalFavoriteState"
+        static let provisionalPlayback = "ProvisionalPlaybackState"
+        static let provisionalSnapshot = "ProvisionalMediaSnapshot"
+        static let provisionalImportMarker = "ProvisionalImportMarker"
     }
 
     private let container: NSPersistentCloudKitContainer
     private let context: NSManagedObjectContext
     private let changeHub: ProfileChangeHub
+    private let cloudKitContainerIdentifier: String?
+    private let inMemory: Bool
+    private let cloudAvailabilityOverride: CloudProfileAvailability?
 
     public init(configuration: Configuration) throws {
         let model = Self.makeModel()
@@ -97,7 +109,13 @@ public actor CoreDataProfileRepository: ProfileRepository {
 
         self.container = container
         self.context = context
-        self.changeHub = ProfileChangeHub(coordinator: container.persistentStoreCoordinator)
+        self.cloudKitContainerIdentifier = configuration.cloudKitContainerIdentifier
+        self.inMemory = configuration.inMemory
+        self.cloudAvailabilityOverride = configuration.cloudAvailabilityOverride
+        self.changeHub = ProfileChangeHub(
+            container: container,
+            coordinator: container.persistentStoreCoordinator
+        )
     }
 
     public func changes() async -> AsyncStream<ProfileRepositoryChange> {
@@ -118,23 +136,212 @@ public actor CoreDataProfileRepository: ProfileRepository {
         let profiles = try await profiles()
         var manifests: [ProfileManifest] = []
         for profile in profiles {
-            async let favorites = favorites(profileID: profile.id)
-            async let playback = playbackStates(profileID: profile.id)
-            let (favoriteStates, playbackStates) = try await (favorites, playback)
-            let keys = Set(favoriteStates.map(\.mediaKey) + playbackStates.map(\.mediaKey))
-            let snapshots = try await mediaSnapshots(keys: keys)
-            let stateDates = favoriteStates.map(\.modifiedAt) + playbackStates.map(\.modifiedAt)
-            manifests.append(ProfileManifest(
+            manifests.append(try await manifest(
                 profile: profile,
-                lastActivityAt: stateDates.max() ?? profile.modifiedAt,
-                lastDeviceName: nil,
-                titleCount: snapshots.count,
-                viewingSessionCount: 0,
-                favoriteCount: favoriteStates.count(where: \.isFavorite),
-                totalWatchSeconds: 0
+                favoriteEntity: Entity.favorite,
+                playbackEntity: Entity.playback,
+                snapshotEntity: Entity.snapshot
             ))
         }
         return manifests
+    }
+
+    public func cloudProfileAvailability() async -> CloudProfileAvailability {
+        if let cloudAvailabilityOverride { return cloudAvailabilityOverride }
+        if inMemory { return .available }
+        guard let cloudKitContainerIdentifier else { return .unavailable }
+
+        let accountStatus = await withCheckedContinuation { continuation in
+            CKContainer(identifier: cloudKitContainerIdentifier).accountStatus { status, _ in
+                continuation.resume(returning: status)
+            }
+        }
+        guard accountStatus == .available else { return .unavailable }
+
+        do {
+            let hasCloudProfile = try await hasVisibleCloudProfile()
+            let completedInitialImport = try await hasCompletedInitialImport()
+            if hasCloudProfile || completedInitialImport {
+                return .available
+            }
+            return .pendingInitialImport
+        } catch {
+            return .pendingInitialImport
+        }
+    }
+
+    public func provisionalProfileManifest(clientID: ClientID) async throws -> ProfileManifest? {
+        guard let profile = try await provisionalProfile(clientID: clientID) else { return nil }
+        return try await manifest(
+            profile: profile,
+            favoriteEntity: Entity.provisionalFavorite,
+            playbackEntity: Entity.provisionalPlayback,
+            snapshotEntity: Entity.provisionalSnapshot
+        )
+    }
+
+    public func saveProvisionalProfile(_ profile: Profile, clientID: ClientID) async throws {
+        try await context.perform { [context] in
+            let object = try Self.fetchOne(
+                entity: Entity.provisionalProfile,
+                key: "clientID",
+                value: clientID.description,
+                context: context
+            ) ?? NSEntityDescription.insertNewObject(
+                forEntityName: Entity.provisionalProfile,
+                into: context
+            )
+            if let existing = Self.decodeProfile(object),
+               profile.effectiveMutationStamp <= existing.effectiveMutationStamp {
+                return
+            }
+            object.setValue(clientID.description, forKey: "clientID")
+            Self.writeProfile(profile, to: object)
+            try Self.save(context)
+        }
+        changeHub.yield(.profiles)
+    }
+
+    public func promoteProvisionalProfile(
+        clientID: ClientID,
+        profileID: ProfileID
+    ) async throws {
+        try await context.perform { [context] in
+            guard let provisionalObject = try Self.provisionalProfileObject(
+                clientID: clientID,
+                profileID: profileID,
+                context: context
+            ), let profile = Self.decodeProfile(provisionalObject) else {
+                if try Self.fetchOne(
+                    entity: Entity.profile,
+                    key: "id",
+                    value: profileID.rawValue,
+                    context: context
+                ) != nil {
+                    return
+                }
+                throw ProfileRepositoryError.provisionalProfileNotFound(profileID)
+            }
+
+            let cloudProfile = try Self.fetchOne(
+                entity: Entity.profile,
+                key: "id",
+                value: profileID.rawValue,
+                context: context
+            ) ?? NSEntityDescription.insertNewObject(forEntityName: Entity.profile, into: context)
+            Self.writeProfile(profile, to: cloudProfile)
+            try Self.copyProvisionalState(
+                sourceProfileID: profileID,
+                targetProfileID: profileID,
+                context: context
+            )
+            try Self.save(context)
+            try Self.deleteProvisionalData(
+                clientID: clientID,
+                profileID: profileID,
+                context: context
+            )
+            try Self.save(context)
+        }
+        changeHub.yield(.profiles)
+        changeHub.yield(.userState(profileID))
+    }
+
+    public func discardProvisionalProfile(
+        clientID: ClientID,
+        profileID: ProfileID
+    ) async throws {
+        try await context.perform { [context] in
+            guard try Self.provisionalProfileObject(
+                clientID: clientID,
+                profileID: profileID,
+                context: context
+            ) != nil else {
+                return
+            }
+            guard try !Self.provisionalHasMeaningfulData(profileID: profileID, context: context) else {
+                throw ProfileRepositoryError.provisionalProfileHasData(profileID)
+            }
+            try Self.deleteProvisionalData(
+                clientID: clientID,
+                profileID: profileID,
+                context: context
+            )
+            try Self.save(context)
+        }
+        changeHub.yield(.profiles)
+    }
+
+    @discardableResult
+    public func mergeProvisionalProfile(
+        clientID: ClientID,
+        request: ProfileMergeRequest
+    ) async throws -> Bool {
+        guard request.sourceProfileID != request.targetProfileID else {
+            throw ProfileRepositoryError.invalidProfileMerge
+        }
+        let applied = try await context.perform { [context] in
+            if try Self.fetchOne(
+                entity: Entity.profileMergeMarker,
+                key: "operationID",
+                value: request.operationID,
+                context: context
+            ) != nil {
+                try Self.deleteProvisionalData(
+                    clientID: clientID,
+                    profileID: request.sourceProfileID,
+                    context: context
+                )
+                try Self.save(context)
+                return false
+            }
+            guard try Self.provisionalProfileObject(
+                clientID: clientID,
+                profileID: request.sourceProfileID,
+                context: context
+            ) != nil else {
+                throw ProfileRepositoryError.provisionalProfileNotFound(request.sourceProfileID)
+            }
+            guard try Self.fetchOne(
+                entity: Entity.profile,
+                key: "id",
+                value: request.targetProfileID.rawValue,
+                context: context
+            ) != nil else {
+                throw ProfileRepositoryError.profileNotFound(request.targetProfileID)
+            }
+
+            try Self.copyProvisionalState(
+                sourceProfileID: request.sourceProfileID,
+                targetProfileID: request.targetProfileID,
+                context: context
+            )
+            try Self.migrateLocalProfileReferences(
+                sourceProfileID: request.sourceProfileID,
+                targetProfileID: request.targetProfileID,
+                context: context
+            )
+            let marker = NSEntityDescription.insertNewObject(
+                forEntityName: Entity.profileMergeMarker,
+                into: context
+            )
+            marker.setValue(request.operationID, forKey: "operationID")
+            marker.setValue(request.sourceProfileID.rawValue, forKey: "sourceProfileID")
+            marker.setValue(request.targetProfileID.rawValue, forKey: "targetProfileID")
+            marker.setValue(request.mergedAt, forKey: "mergedAt")
+            marker.setValue(try JSONEncoder().encode(request), forKey: "payload")
+            try Self.save(context)
+            try Self.deleteProvisionalData(
+                clientID: clientID,
+                profileID: request.sourceProfileID,
+                context: context
+            )
+            try Self.save(context)
+            return true
+        }
+        changeHub.yield(.profiles)
+        changeHub.yield(.userState(request.targetProfileID))
+        return applied
     }
 
     public func saveProfile(_ profile: Profile) async throws {
@@ -438,40 +645,49 @@ public actor CoreDataProfileRepository: ProfileRepository {
         profileID: ProfileID,
         mediaKey: ProfileMediaKey
     ) async throws -> ProfileFavoriteState? {
-        try await state(
-            entity: Entity.favorite,
+        let entity = try await isProvisional(profileID: profileID)
+            ? Entity.provisionalFavorite
+            : Entity.favorite
+        return try await state(
+            entity: entity,
             key: Self.stateKey(profileID: profileID, mediaKey: mediaKey),
             as: ProfileFavoriteState.self
         )
     }
 
     public func favorites(profileID: ProfileID) async throws -> [ProfileFavoriteState] {
-        try await states(entity: Entity.favorite, profileID: profileID, as: ProfileFavoriteState.self)
+        let entity = try await isProvisional(profileID: profileID)
+            ? Entity.provisionalFavorite
+            : Entity.favorite
+        return try await states(entity: entity, profileID: profileID, as: ProfileFavoriteState.self)
     }
 
     public func mediaSnapshots(
         keys: Set<ProfileMediaKey>
     ) async throws -> [ProfileMediaSnapshot] {
         guard !keys.isEmpty else { return [] }
-        let rawKeys = keys.map(\.rawValue)
-        return try await context.perform { [context] in
-            let request = NSFetchRequest<NSManagedObject>(entityName: Entity.snapshot)
-            request.predicate = NSPredicate(format: "key IN %@", rawKeys)
-            let decoder = JSONDecoder()
-            return try context.fetch(request).compactMap { object in
-                guard let payload = object.value(forKey: "payload") as? Data else { return nil }
-                return try? decoder.decode(ProfileMediaSnapshot.self, from: payload)
+        let cloud = try await snapshots(keys: keys, entity: Entity.snapshot)
+        let provisional = try await snapshots(keys: keys, entity: Entity.provisionalSnapshot)
+        var newest = Dictionary(uniqueKeysWithValues: cloud.map { ($0.key, $0) })
+        for snapshot in provisional {
+            if let existing = newest[snapshot.key],
+               existing.effectiveMutationStamp >= snapshot.effectiveMutationStamp {
+                continue
             }
+            newest[snapshot.key] = snapshot
         }
+        return Array(newest.values)
     }
 
     public func saveFavorite(
         _ state: ProfileFavoriteState,
         snapshot: ProfileMediaSnapshot?
     ) async throws {
+        let provisional = try await isProvisional(profileID: state.profileID)
         try await saveVersionedState(
             state,
-            entity: Entity.favorite,
+            entity: provisional ? Entity.provisionalFavorite : Entity.favorite,
+            snapshotEntity: provisional ? Entity.provisionalSnapshot : Entity.snapshot,
             key: Self.stateKey(profileID: state.profileID, mediaKey: state.mediaKey),
             profileID: state.profileID,
             mediaKey: state.mediaKey,
@@ -486,24 +702,32 @@ public actor CoreDataProfileRepository: ProfileRepository {
         profileID: ProfileID,
         mediaKey: ProfileMediaKey
     ) async throws -> ProfilePlaybackState? {
-        try await state(
-            entity: Entity.playback,
+        let entity = try await isProvisional(profileID: profileID)
+            ? Entity.provisionalPlayback
+            : Entity.playback
+        return try await state(
+            entity: entity,
             key: Self.stateKey(profileID: profileID, mediaKey: mediaKey),
             as: ProfilePlaybackState.self
         )
     }
 
     public func playbackStates(profileID: ProfileID) async throws -> [ProfilePlaybackState] {
-        try await states(entity: Entity.playback, profileID: profileID, as: ProfilePlaybackState.self)
+        let entity = try await isProvisional(profileID: profileID)
+            ? Entity.provisionalPlayback
+            : Entity.playback
+        return try await states(entity: entity, profileID: profileID, as: ProfilePlaybackState.self)
     }
 
     public func savePlayback(
         _ state: ProfilePlaybackState,
         snapshot: ProfileMediaSnapshot?
     ) async throws {
+        let provisional = try await isProvisional(profileID: state.profileID)
         try await saveVersionedState(
             state,
-            entity: Entity.playback,
+            entity: provisional ? Entity.provisionalPlayback : Entity.playback,
+            snapshotEntity: provisional ? Entity.provisionalSnapshot : Entity.snapshot,
             key: Self.stateKey(profileID: state.profileID, mediaKey: state.mediaKey),
             profileID: state.profileID,
             mediaKey: state.mediaKey,
@@ -516,10 +740,15 @@ public actor CoreDataProfileRepository: ProfileRepository {
 
     @discardableResult
     public func importRemoteState(_ batch: RemoteStateImportBatch) async throws -> Bool {
+        let provisional = try await isProvisional(profileID: batch.profileID)
+        let snapshotEntity = provisional ? Entity.provisionalSnapshot : Entity.snapshot
+        let favoriteEntity = provisional ? Entity.provisionalFavorite : Entity.favorite
+        let playbackEntity = provisional ? Entity.provisionalPlayback : Entity.playback
+        let markerEntity = provisional ? Entity.provisionalImportMarker : Entity.importMarker
         let imported = try await context.perform { [context] in
             let markerKey = Self.importMarkerKey(batch)
             guard try Self.fetchOne(
-                entity: Entity.importMarker,
+                entity: markerEntity,
                 key: "key",
                 value: markerKey,
                 context: context
@@ -529,12 +758,17 @@ public actor CoreDataProfileRepository: ProfileRepository {
 
             let encoder = JSONEncoder()
             for snapshot in batch.snapshots {
-                try Self.upsertSnapshot(snapshot, encoder: encoder, context: context)
+                try Self.upsertSnapshot(
+                    snapshot,
+                    entity: snapshotEntity,
+                    encoder: encoder,
+                    context: context
+                )
             }
             for favorite in batch.favorites {
                 try Self.upsertVersioned(
                     favorite,
-                    entity: Entity.favorite,
+                    entity: favoriteEntity,
                     key: Self.stateKey(profileID: favorite.profileID, mediaKey: favorite.mediaKey),
                     profileID: favorite.profileID,
                     mediaKey: favorite.mediaKey,
@@ -548,7 +782,7 @@ public actor CoreDataProfileRepository: ProfileRepository {
             for playback in batch.playback {
                 try Self.upsertVersioned(
                     playback,
-                    entity: Entity.playback,
+                    entity: playbackEntity,
                     key: Self.stateKey(profileID: playback.profileID, mediaKey: playback.mediaKey),
                     profileID: playback.profileID,
                     mediaKey: playback.mediaKey,
@@ -561,7 +795,7 @@ public actor CoreDataProfileRepository: ProfileRepository {
             }
 
             let marker = NSEntityDescription.insertNewObject(
-                forEntityName: Entity.importMarker,
+                forEntityName: markerEntity,
                 into: context
             )
             marker.setValue(markerKey, forKey: "key")
@@ -654,6 +888,106 @@ public actor CoreDataProfileRepository: ProfileRepository {
         changeHub.yield(.mirrorQueue)
     }
 
+    private func provisionalProfile(clientID: ClientID) async throws -> Profile? {
+        try await context.perform { [context] in
+            guard let object = try Self.fetchOne(
+                entity: Entity.provisionalProfile,
+                key: "clientID",
+                value: clientID.description,
+                context: context
+            ) else { return nil }
+            return Self.decodeProfile(object)
+        }
+    }
+
+    private func isProvisional(profileID: ProfileID) async throws -> Bool {
+        try await context.perform { [context] in
+            try Self.fetchOne(
+                entity: Entity.provisionalProfile,
+                key: "id",
+                value: profileID.rawValue,
+                context: context
+            ) != nil
+        }
+    }
+
+    private func manifest(
+        profile: Profile,
+        favoriteEntity: String,
+        playbackEntity: String,
+        snapshotEntity: String
+    ) async throws -> ProfileManifest {
+        async let favoriteValues = states(
+            entity: favoriteEntity,
+            profileID: profile.id,
+            as: ProfileFavoriteState.self
+        )
+        async let playbackValues = states(
+            entity: playbackEntity,
+            profileID: profile.id,
+            as: ProfilePlaybackState.self
+        )
+        let (favorites, playback) = try await (favoriteValues, playbackValues)
+        let keys = Set(favorites.map(\.mediaKey) + playback.map(\.mediaKey))
+        let snapshotValues = try await snapshots(keys: keys, entity: snapshotEntity)
+        let latestState = (favorites.map { ($0.modifiedAt, $0.deviceID) }
+            + playback.map { ($0.modifiedAt, $0.deviceID) })
+            .max { $0.0 < $1.0 }
+        return ProfileManifest(
+            profile: profile,
+            lastActivityAt: latestState?.0 ?? profile.modifiedAt,
+            lastDeviceName: latestState?.1 ?? profile.deviceID,
+            titleCount: snapshotValues.count,
+            viewingSessionCount: playback.count,
+            favoriteCount: favorites.count(where: \.isFavorite),
+            totalWatchSeconds: Int64(playback.reduce(0) {
+                $0 + max($1.state.positionSeconds, 0)
+            })
+        )
+    }
+
+    private func snapshots(
+        keys: Set<ProfileMediaKey>,
+        entity: String
+    ) async throws -> [ProfileMediaSnapshot] {
+        guard !keys.isEmpty else { return [] }
+        let rawKeys = keys.map(\.rawValue)
+        return try await context.perform { [context] in
+            let request = NSFetchRequest<NSManagedObject>(entityName: entity)
+            request.predicate = NSPredicate(format: "key IN %@", rawKeys)
+            let decoder = JSONDecoder()
+            return try context.fetch(request).compactMap { object in
+                guard let payload = object.value(forKey: "payload") as? Data else { return nil }
+                return try? decoder.decode(ProfileMediaSnapshot.self, from: payload)
+            }
+        }
+    }
+
+    private func hasVisibleCloudProfile() async throws -> Bool {
+        try await context.perform { [context] in
+            let request = NSFetchRequest<NSManagedObject>(entityName: Entity.profile)
+            request.fetchLimit = 1
+            return try !context.fetch(request).isEmpty
+        }
+    }
+
+    private func hasCompletedInitialImport() async throws -> Bool {
+        try await context.perform { [context] in
+            let request = NSPersistentCloudKitContainerEventRequest.fetchEvents(
+                after: .distantPast
+            )
+            request.resultType = .events
+            guard
+                let result = try context.execute(request)
+                    as? NSPersistentCloudKitContainerEventResult,
+                let events = result.result as? [NSPersistentCloudKitContainer.Event]
+            else { return false }
+            return events.contains {
+                $0.type == .import && $0.endDate != nil && $0.succeeded
+            }
+        }
+    }
+
     private func state<Value: Decodable & Sendable>(
         entity: String,
         key: String,
@@ -695,6 +1029,7 @@ public actor CoreDataProfileRepository: ProfileRepository {
     private func saveVersionedState<Value: Encodable & Sendable>(
         _ value: Value,
         entity: String,
+        snapshotEntity: String,
         key: String,
         profileID: ProfileID,
         mediaKey: ProfileMediaKey,
@@ -717,7 +1052,12 @@ public actor CoreDataProfileRepository: ProfileRepository {
                 context: context
             )
             if let snapshot {
-                try Self.upsertSnapshot(snapshot, encoder: encoder, context: context)
+                try Self.upsertSnapshot(
+                    snapshot,
+                    entity: snapshotEntity,
+                    encoder: encoder,
+                    context: context
+                )
             }
             try Self.save(context)
         }
@@ -753,15 +1093,16 @@ public actor CoreDataProfileRepository: ProfileRepository {
 
     private static func upsertSnapshot(
         _ snapshot: ProfileMediaSnapshot,
+        entity: String = Entity.snapshot,
         encoder: JSONEncoder,
         context: NSManagedObjectContext
     ) throws {
         let object = try fetchOne(
-            entity: Entity.snapshot,
+            entity: entity,
             key: "key",
             value: snapshot.key.rawValue,
             context: context
-        ) ?? NSEntityDescription.insertNewObject(forEntityName: Entity.snapshot, into: context)
+        ) ?? NSEntityDescription.insertNewObject(forEntityName: entity, into: context)
         if let existingStamp = mutationStamp(from: object),
            snapshot.effectiveMutationStamp <= existingStamp {
             return
@@ -922,6 +1263,241 @@ public actor CoreDataProfileRepository: ProfileRepository {
         }
     }
 
+    private static func provisionalProfileObject(
+        clientID: ClientID,
+        profileID: ProfileID,
+        context: NSManagedObjectContext
+    ) throws -> NSManagedObject? {
+        let request = NSFetchRequest<NSManagedObject>(entityName: Entity.provisionalProfile)
+        request.fetchLimit = 1
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "clientID == %@", clientID.description),
+            NSPredicate(format: "id == %@", profileID.rawValue as CVarArg)
+        ])
+        return try context.fetch(request).first
+    }
+
+    private static func provisionalHasMeaningfulData(
+        profileID: ProfileID,
+        context: NSManagedObjectContext
+    ) throws -> Bool {
+        for entity in [Entity.provisionalFavorite, Entity.provisionalPlayback] {
+            let request = NSFetchRequest<NSManagedObject>(entityName: entity)
+            request.fetchLimit = 1
+            request.predicate = NSPredicate(
+                format: "profileID == %@",
+                profileID.rawValue as CVarArg
+            )
+            if try !context.fetch(request).isEmpty { return true }
+        }
+        return false
+    }
+
+    private static func copyProvisionalState(
+        sourceProfileID: ProfileID,
+        targetProfileID: ProfileID,
+        context: NSManagedObjectContext
+    ) throws {
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        var mediaKeys = Set<ProfileMediaKey>()
+
+        let favoriteRequest = NSFetchRequest<NSManagedObject>(
+            entityName: Entity.provisionalFavorite
+        )
+        favoriteRequest.predicate = NSPredicate(
+            format: "profileID == %@",
+            sourceProfileID.rawValue as CVarArg
+        )
+        for object in try context.fetch(favoriteRequest) {
+            guard
+                let payload = object.value(forKey: "payload") as? Data,
+                let value = try? decoder.decode(ProfileFavoriteState.self, from: payload)
+            else { continue }
+            let copy = value.withMutationStamp(
+                value.effectiveMutationStamp,
+                profileID: targetProfileID
+            )
+            mediaKeys.insert(copy.mediaKey)
+            try upsertVersioned(
+                copy,
+                entity: Entity.favorite,
+                key: stateKey(profileID: targetProfileID, mediaKey: copy.mediaKey),
+                profileID: targetProfileID,
+                mediaKey: copy.mediaKey,
+                modifiedAt: copy.modifiedAt,
+                deviceID: copy.deviceID,
+                mutationStamp: copy.mutationStamp,
+                encoder: encoder,
+                context: context
+            )
+        }
+
+        let playbackRequest = NSFetchRequest<NSManagedObject>(
+            entityName: Entity.provisionalPlayback
+        )
+        playbackRequest.predicate = NSPredicate(
+            format: "profileID == %@",
+            sourceProfileID.rawValue as CVarArg
+        )
+        for object in try context.fetch(playbackRequest) {
+            guard
+                let payload = object.value(forKey: "payload") as? Data,
+                let value = try? decoder.decode(ProfilePlaybackState.self, from: payload)
+            else { continue }
+            let copy = value.withMutationStamp(
+                value.effectiveMutationStamp,
+                profileID: targetProfileID
+            )
+            mediaKeys.insert(copy.mediaKey)
+            try upsertVersioned(
+                copy,
+                entity: Entity.playback,
+                key: stateKey(profileID: targetProfileID, mediaKey: copy.mediaKey),
+                profileID: targetProfileID,
+                mediaKey: copy.mediaKey,
+                modifiedAt: copy.modifiedAt,
+                deviceID: copy.deviceID,
+                mutationStamp: copy.mutationStamp,
+                encoder: encoder,
+                context: context
+            )
+        }
+
+        if !mediaKeys.isEmpty {
+            let snapshotRequest = NSFetchRequest<NSManagedObject>(
+                entityName: Entity.provisionalSnapshot
+            )
+            snapshotRequest.predicate = NSPredicate(
+                format: "key IN %@",
+                mediaKeys.map(\.rawValue)
+            )
+            for object in try context.fetch(snapshotRequest) {
+                guard
+                    let payload = object.value(forKey: "payload") as? Data,
+                    let snapshot = try? decoder.decode(ProfileMediaSnapshot.self, from: payload)
+                else { continue }
+                try upsertSnapshot(snapshot, encoder: encoder, context: context)
+            }
+        }
+
+        let markerRequest = NSFetchRequest<NSManagedObject>(
+            entityName: Entity.provisionalImportMarker
+        )
+        markerRequest.predicate = NSPredicate(
+            format: "profileID == %@",
+            sourceProfileID.rawValue as CVarArg
+        )
+        for object in try context.fetch(markerRequest) {
+            guard
+                let sourceID = object.value(forKey: "sourceID") as? UUID,
+                let remoteUserID = object.value(forKey: "remoteUserID") as? String,
+                let markerValue = object.value(forKey: "marker") as? String
+            else { continue }
+            let key = "\(targetProfileID.rawValue.uuidString):\(sourceID.uuidString):\(remoteUserID):\(markerValue)"
+            guard try fetchOne(
+                entity: Entity.importMarker,
+                key: "key",
+                value: key,
+                context: context
+            ) == nil else { continue }
+            let copy = NSEntityDescription.insertNewObject(
+                forEntityName: Entity.importMarker,
+                into: context
+            )
+            copy.setValue(key, forKey: "key")
+            copy.setValue(targetProfileID.rawValue, forKey: "profileID")
+            copy.setValue(sourceID, forKey: "sourceID")
+            copy.setValue(remoteUserID, forKey: "remoteUserID")
+            copy.setValue(markerValue, forKey: "marker")
+            copy.setValue(object.value(forKey: "importedAt") as? Date, forKey: "importedAt")
+        }
+    }
+
+    private static func migrateLocalProfileReferences(
+        sourceProfileID: ProfileID,
+        targetProfileID: ProfileID,
+        context: NSManagedObjectContext
+    ) throws {
+        let bindingRequest = NSFetchRequest<NSManagedObject>(entityName: Entity.binding)
+        bindingRequest.predicate = NSPredicate(
+            format: "profileID == %@",
+            sourceProfileID.rawValue as CVarArg
+        )
+        for object in try context.fetch(bindingRequest) {
+            guard let binding = decodeBinding(object) else { continue }
+            let targetKey = bindingKey(
+                profileID: targetProfileID,
+                sourceID: binding.sourceID
+            )
+            if try fetchOne(
+                entity: Entity.binding,
+                key: "key",
+                value: targetKey,
+                context: context
+            ) != nil {
+                context.delete(object)
+                continue
+            }
+            object.setValue(targetKey, forKey: "key")
+            object.setValue(targetProfileID.rawValue, forKey: "profileID")
+        }
+
+        let selectionRequest = NSFetchRequest<NSManagedObject>(entityName: Entity.activeSelection)
+        selectionRequest.predicate = NSPredicate(
+            format: "profileID == %@",
+            sourceProfileID.rawValue as CVarArg
+        )
+        for object in try context.fetch(selectionRequest) {
+            object.setValue(targetProfileID.rawValue, forKey: "profileID")
+        }
+    }
+
+    private static func deleteProvisionalData(
+        clientID: ClientID,
+        profileID: ProfileID,
+        context: NSManagedObjectContext
+    ) throws {
+        var mediaKeys = Set<String>()
+        for entity in [Entity.provisionalFavorite, Entity.provisionalPlayback] {
+            let request = NSFetchRequest<NSManagedObject>(entityName: entity)
+            request.predicate = NSPredicate(
+                format: "profileID == %@",
+                profileID.rawValue as CVarArg
+            )
+            for object in try context.fetch(request) {
+                if let key = object.value(forKey: "mediaKey") as? String {
+                    mediaKeys.insert(key)
+                }
+                context.delete(object)
+            }
+        }
+        if !mediaKeys.isEmpty {
+            try deleteAll(
+                entity: Entity.provisionalSnapshot,
+                predicate: NSPredicate(format: "key IN %@", Array(mediaKeys)),
+                context: context
+            )
+        }
+        try deleteAll(
+            entity: Entity.provisionalImportMarker,
+            predicate: NSPredicate(
+                format: "profileID == %@",
+                profileID.rawValue as CVarArg
+            ),
+            context: context
+        )
+        let profilePredicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "clientID == %@", clientID.description),
+            NSPredicate(format: "id == %@", profileID.rawValue as CVarArg)
+        ])
+        try deleteAll(
+            entity: Entity.provisionalProfile,
+            predicate: profilePredicate,
+            context: context
+        )
+    }
+
     private static func stateKey(profileID: ProfileID, mediaKey: ProfileMediaKey) -> String {
         "\(profileID.rawValue.uuidString):\(mediaKey.rawValue)"
     }
@@ -1034,17 +1610,61 @@ public actor CoreDataProfileRepository: ProfileRepository {
             requiredAttribute("physicalMillisecondsUTC", .integer64AttributeType),
             requiredAttribute("logicalCounter", .integer64AttributeType)
         ])
+        let provisionalProfile = entity(Entity.provisionalProfile, attributes: [
+            requiredAttribute("clientID", .stringAttributeType),
+            attribute("id", .UUIDAttributeType),
+            attribute("name", .stringAttributeType),
+            attribute("createdAt", .dateAttributeType),
+            attribute("modifiedAt", .dateAttributeType),
+            attribute("deviceID", .stringAttributeType),
+            attribute("mutationPhysicalMillisecondsUTC", .integer64AttributeType),
+            attribute("mutationLogicalCounter", .integer64AttributeType),
+            attribute("mutationClientID", .stringAttributeType),
+            attribute("deletedAt", .dateAttributeType),
+            attribute("mergedIntoProfileID", .UUIDAttributeType)
+        ])
+        let provisionalFavorite = entity(
+            Entity.provisionalFavorite,
+            attributes: stateAttributes()
+        )
+        let provisionalPlayback = entity(
+            Entity.provisionalPlayback,
+            attributes: stateAttributes()
+        )
+        let provisionalSnapshot = entity(Entity.provisionalSnapshot, attributes: [
+            attribute("key", .stringAttributeType),
+            attribute("modifiedAt", .dateAttributeType),
+            attribute("deviceID", .stringAttributeType),
+            attribute("mutationPhysicalMillisecondsUTC", .integer64AttributeType),
+            attribute("mutationLogicalCounter", .integer64AttributeType),
+            attribute("mutationClientID", .stringAttributeType),
+            attribute("payload", .binaryDataAttributeType)
+        ])
+        let provisionalImportMarker = entity(Entity.provisionalImportMarker, attributes: [
+            attribute("key", .stringAttributeType),
+            attribute("profileID", .UUIDAttributeType),
+            attribute("sourceID", .UUIDAttributeType),
+            attribute("remoteUserID", .stringAttributeType),
+            attribute("marker", .stringAttributeType),
+            attribute("importedAt", .dateAttributeType)
+        ])
 
         model.entities = [
             profile, favorite, playback, snapshot, importMarker, profileMergeMarker,
-            source, binding, active, mirror, mutationClock
+            source, binding, active, mirror, mutationClock, provisionalProfile,
+            provisionalFavorite, provisionalPlayback, provisionalSnapshot,
+            provisionalImportMarker
         ]
         model.setEntities(
             [profile, favorite, playback, snapshot, importMarker, profileMergeMarker],
             forConfigurationName: StoreConfiguration.cloud
         )
         model.setEntities(
-            [source, binding, active, mirror, mutationClock],
+            [
+                source, binding, active, mirror, mutationClock, provisionalProfile,
+                provisionalFavorite, provisionalPlayback, provisionalSnapshot,
+                provisionalImportMarker
+            ],
             forConfigurationName: StoreConfiguration.local
         )
         return model
@@ -1114,20 +1734,45 @@ private final class PersistentStoreLoadResult: @unchecked Sendable {
 private final class ProfileChangeHub: @unchecked Sendable {
     private let lock = NSLock()
     private var continuations: [UUID: AsyncStream<ProfileRepositoryChange>.Continuation] = [:]
-    private var observer: NSObjectProtocol?
+    private var observers: [NSObjectProtocol] = []
 
-    init(coordinator: NSPersistentStoreCoordinator) {
-        observer = NotificationCenter.default.addObserver(
+    init(
+        container: NSPersistentCloudKitContainer,
+        coordinator: NSPersistentStoreCoordinator
+    ) {
+        observers.append(NotificationCenter.default.addObserver(
             forName: .NSPersistentStoreRemoteChange,
             object: coordinator,
             queue: nil
         ) { [weak self] _ in
             self?.yield(.external)
-        }
+        })
+        observers.append(NotificationCenter.default.addObserver(
+            forName: NSPersistentCloudKitContainer.eventChangedNotification,
+            object: container,
+            queue: nil
+        ) { [weak self] notification in
+            guard
+                let event = notification.userInfo?[
+                    NSPersistentCloudKitContainer.eventNotificationUserInfoKey
+                ] as? NSPersistentCloudKitContainer.Event,
+                event.type == .import,
+                event.endDate != nil,
+                event.succeeded
+            else { return }
+            self?.yield(.bootstrap)
+        })
+        observers.append(NotificationCenter.default.addObserver(
+            forName: .CKAccountChanged,
+            object: nil,
+            queue: nil
+        ) { [weak self] _ in
+            self?.yield(.bootstrap)
+        })
     }
 
     deinit {
-        if let observer {
+        for observer in observers {
             NotificationCenter.default.removeObserver(observer)
         }
     }

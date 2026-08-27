@@ -37,6 +37,7 @@ struct PlaybackFeatureTests {
                 ClientID(rawValue: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!)
             },
             load: { throw ProfileClientFailure.unavailable("unused") },
+            resolveProfile: { _ in throw ProfileClientFailure.unavailable("unused") },
             saveProfile: { _ in },
             setSelection: { _ in },
             saveSource: { _, _ in },

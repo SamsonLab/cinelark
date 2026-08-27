@@ -1,6 +1,6 @@
 # Personal Viewing Memory and CloudKit Persistence
 
-- **Status:** Identity and conflict foundation implemented; CloudKit bootstrap UI pending
+- **Status:** Local-first bootstrap and Profile resolution implemented; signed multi-device validation pending
 - **CloudKit container:** `iCloud.com.samsonlab.cinelark`
 - **Normative decision:** [`../decisions/0011-personal-viewing-memory.md`](../decisions/0011-personal-viewing-memory.md)
 
@@ -33,7 +33,7 @@ client identity.
 | Configuration | Entities | Synchronization |
 | --- | --- | --- |
 | `Cloud` | `Profile`, `FavoriteState`, `PlaybackState`, `MediaSnapshot`, `ImportMarker`, `ProfileMergeMarker`; future `ViewingSession`, `PlaybackEvent`, `DeviceRecord`, `InsightSnapshot` | Private CloudKit database when signed in; in-memory in package/reducer tests |
-| `Local` | `ProfileSourceRecord`, `ProfileSourceBinding`, `ActiveProfileSelection`, `MirrorQueueEntry`, `MutationClockState`; future provisional Profile record | Device-local only |
+| `Local` | `ProfileSourceRecord`, `ProfileSourceBinding`, `ActiveProfileSelection`, `MirrorQueueEntry`, `MutationClockState`, `ProvisionalProfile`, `ProvisionalFavoriteState`, `ProvisionalPlaybackState`, `ProvisionalMediaSnapshot`, `ProvisionalImportMarker` | Device-local only |
 
 The media Catalog is a separate local Core Data store. Provider tokens and
 remote credentials remain in Keychain.
@@ -58,8 +58,10 @@ are eventually consistent presentation summaries; durable viewing facts remain
 the rebuildable source of truth.
 
 Merge is idempotent. A `ProfileMergeMarker` records the operation, source, and
-target. Facts are copied with their original mutation stamps, the source is
-marked `mergedIntoProfileID`, and destructive cleanup is deferred.
+target. Cloud-to-cloud merge retains the source as a hidden tombstone-like
+record. Provisional-to-cloud merge copies facts and import markers with their
+original mutation stamps, migrates local bindings, and removes the local
+provisional graph only after the Cloud-store save succeeds.
 
 ## Time and conflict ordering
 
@@ -119,12 +121,14 @@ Implemented and covered by package tests:
 - bootstrap resolution as a pure contract;
 - idempotent Profile merge markers and non-destructive source retention;
 - tombstoned Profile deletion.
+- Local-store provisional Profile, favorite, playback, media-snapshot, and
+  import-marker routing;
+- CloudKit account status and completed initial-import readiness checks;
+- idempotent provisional promotion and merge;
+- TCA application-readiness barrier and root Profile-resolution surface.
 
-Still required before enabling first-install resolution in production:
+Still required before treating multi-device sync as release-ready:
 
-- local provisional Profile entity and promotion transaction;
-- CloudKit account/import readiness client;
 - Device records and durable viewing sessions;
-- TCA resolution presentation and user-choice actions;
 - signed two-device tests covering offline creation, delayed initial import,
   merge, tombstones, and reinstall behavior.

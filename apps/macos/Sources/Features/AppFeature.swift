@@ -8,6 +8,7 @@ struct AppFeature {
     enum BootstrapState: Equatable {
         case idle
         case loading
+        case resolvingProfile
         case ready
     }
 
@@ -45,7 +46,6 @@ struct AppFeature {
         }
 
         enum Internal {
-            case bootstrapCompleted
             case sourceBindingSaved(ActiveProfileSelection)
             case sourceBindingFailed(ProfileClientFailure)
         }
@@ -63,8 +63,7 @@ struct AppFeature {
                     .send(.source(.view(.loadAvailablePlugins))),
                     .send(.profile(.view(.appeared))),
                     .send(.playback(.view(.appeared))),
-                    .send(.remote(.view(.appAppeared))),
-                    .send(.internal(.bootstrapCompleted))
+                    .send(.remote(.view(.appAppeared)))
                 )
 
             case .view(.confirmSelectionChange):
@@ -73,10 +72,6 @@ struct AppFeature {
 
             case .view(.cancelSelectionChange):
                 state.pendingSelection = nil
-                return .none
-
-            case .internal(.bootstrapCompleted):
-                state.bootstrap = .ready
                 return .none
 
             case let .internal(.sourceBindingSaved(selection)):
@@ -91,12 +86,22 @@ struct AppFeature {
                 return .none
 
             case let .profile(.internal(.loaded(.success(bootstrap)))):
-                state.pendingBootstrapSelection = bootstrap.selection
-                return .send(.source(.internal(.restoreSources(bootstrap.sources))))
+                switch bootstrap.resolution {
+                case .waitingForCloud, .promoteProvisional:
+                    state.bootstrap = .loading
+                    return .none
+                case .requiresChoice:
+                    state.bootstrap = .resolvingProfile
+                    return .none
+                case .localOnly, .synchronize:
+                    state.pendingBootstrapSelection = bootstrap.selection
+                    return .send(.source(.internal(.restoreSources(bootstrap.sources))))
+                }
 
             case let .source(.internal(.sourcesRestored(installedSourceIDs, _))):
                 guard let selection = state.pendingBootstrapSelection else { return .none }
                 state.pendingBootstrapSelection = nil
+                state.bootstrap = .ready
                 if let sourceID = selection.sourceID, !installedSourceIDs.contains(sourceID) {
                     return .send(.profile(.internal(.commitSelection(
                         ActiveProfileSelection(

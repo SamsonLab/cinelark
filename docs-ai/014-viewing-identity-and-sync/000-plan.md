@@ -2,7 +2,7 @@
 
 | | |
 | --- | --- |
-| **Status** | Active — identity and conflict foundation implemented; runtime bootstrap pending |
+| **Status** | Active — runtime bootstrap implemented; device/session facts and signed CloudKit validation pending |
 | **Anchor date** | 2026-08-27 |
 | **Primary refs** | Pending |
 | **Related** | [`../../docs/decisions/0011-personal-viewing-memory.md`](../../docs/decisions/0011-personal-viewing-memory.md), [`../../docs/interfaces/profile-cloudkit-schema.md`](../../docs/interfaces/profile-cloudkit-schema.md), [`../011-media-source-platform/000-plan.md`](../011-media-source-platform/000-plan.md) |
@@ -111,3 +111,8 @@ independent remote playback record.
   resolution, non-destructive merge, and tombstones. CloudKit readiness and
   provisional local data remain the next slice — see
   [`001-action.md`](001-action.md).
+- Updated 2026-08-27: Implement Local-store provisional facts, CloudKit import
+  readiness, promotion, and the TCA resolution surface — see
+  [`002-provisional-profile-bootstrap.md`](002-provisional-profile-bootstrap.md).
+- Updated 2026-08-27: The provisional bootstrap amendment is implemented and
+  validated locally — see [`003-action.md`](003-action.md).

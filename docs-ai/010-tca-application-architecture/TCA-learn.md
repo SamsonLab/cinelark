@@ -351,3 +351,68 @@ Each entry uses a stable `LNNN` identifier and contains:
 - **Version caveat:** a future requirement to deep-link to a specific Settings
   category may justify a small scene-selection value. It still should not make
   `AppFeature` the owner of whether the system Settings window exists.
+
+## L014 — Application readiness is a semantic parent-owned barrier
+
+- **Problem / context:** the first root implementation sent
+  `bootstrapCompleted` from `appeared`, so Library could render before CloudKit
+  had resolved the active Profile or Source runtimes had been restored. Elapsed
+  lifecycle time was being treated as business readiness.
+- **Pattern applied:** `ProfileFeature.State` retains the value-typed
+  `ProfileBootstrapResolution`. `AppFeature` maps `waitingForCloud` to loading,
+  `requiresChoice` to a root resolution surface, and only
+  `localOnly`/`synchronize` to Source restoration. `sourcesRestored` is the sole
+  transition to `BootstrapState.ready`.
+- **Why this boundary was chosen:** Profile owns its resolution state and Source
+  owns runtime installation. Only the parent owns the fact that both are
+  prerequisites for the application shell, so neither child mutates sibling
+  state or declares the whole app ready.
+- **Minimal CineLark example:** receiving
+  `.profile(.internal(.loaded(.requiresChoice(...))))` changes root bootstrap to
+  `.resolvingProfile` without applying Library context. After a resolution
+  action reloads `.synchronize`, the parent restores sources and then fans out
+  the selected context.
+- **Test evidence:**
+  `AppFeatureTests.bootstrapWaitsForProfileResolution` proves unresolved Profile
+  state cannot reveal Library, while
+  `AppFeatureTests.bootstrapAppliesContextAfterSourceRestore` proves Source
+  restoration is the final readiness transition.
+- **Reuse rule:** model readiness as the conjunction of named semantic
+  prerequisites in their nearest common parent. Never use a lifecycle callback
+  or an arbitrary delay as proof that dependency-backed bootstrap completed.
+- **Version caveat:** TCA 1.26.1 scopes child reducers after the parent reducer;
+  the parent may coordinate on the same child action, but tests should assert
+  the resulting parent barrier and child state together when exact ordering is
+  significant.
+
+## L015 — A dependency change stream must not cancel the write that triggered it
+
+- **Problem / context:** Profile bootstrap writes a provisional Profile,
+  selection, promotion, or merge through the repository. Those writes emit the
+  same `AsyncStream` invalidations consumed by `ProfileFeature`. Immediately
+  starting a latest-wins reload would cancel the still-running bootstrap effect
+  that caused the invalidation; merge could complete before selection and then
+  the competing reload could create a replacement provisional Profile.
+- **Pattern applied:** while `isLoading` is true, repository invalidations set
+  `needsReloadAfterCurrentLoad` instead of launching another load. The terminal
+  loaded action clears that flag and starts exactly one follow-up reload. The
+  existing feature-scoped cancellation ID still handles independent user reloads.
+- **Why this boundary was chosen:** the repository correctly reports all
+  changes without knowing which consumer caused them. The reducer owns effect
+  intent and is therefore the right place to distinguish an invalidation from
+  permission to replace the in-flight transaction orchestration.
+- **Minimal CineLark example:** `.repositoryChanged(.profiles)` received during
+  `resolveProfile(.mergeIntoCloud(...))` records a deferred reload. Only after
+  `.loaded(.success(...))` completes the selection transaction does one new
+  `profiles.load()` begin.
+- **Test evidence:**
+  `ProfileFeatureTests.repositoryInvalidationDefersReload` verifies that an
+  invalidation during load emits no competing effect and produces one reload
+  after the terminal response.
+- **Reuse rule:** if a dependency stream echoes mutations initiated by the same
+  feature, do not blindly apply `cancelInFlight` to every echo. Coalesce echoes
+  behind the active command, or tag revisions/origins when concurrent refresh
+  semantics require more precision.
+- **Version caveat:** TCA cancellation is doing exactly what it promises here;
+  changing cancellation IDs only hides the race and can allow two loads to
+  mutate state concurrently. The reducer needs an explicit coalescing policy.

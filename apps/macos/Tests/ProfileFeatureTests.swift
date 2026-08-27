@@ -172,12 +172,145 @@ struct ProfileFeatureTests {
         }
     }
 
+    @Test("Profile resolution remains semantic feature state until the user chooses")
+    func profileResolutionChoice() async {
+        let clientID = ClientID(rawValue: UUID())
+        let date = Date(timeIntervalSince1970: 100)
+        let provisional = ProfileManifest(
+            profile: Profile(
+                id: ProfileID(rawValue: UUID()),
+                name: "This Mac",
+                createdAt: date,
+                modifiedAt: date,
+                deviceID: clientID.description
+            ),
+            lastActivityAt: date,
+            lastDeviceName: "This Mac",
+            titleCount: 1,
+            viewingSessionCount: 1,
+            favoriteCount: 0,
+            totalWatchSeconds: 120
+        )
+        let cloud = ProfileManifest(
+            profile: Profile(
+                id: ProfileID(rawValue: UUID()),
+                name: "iCloud",
+                createdAt: date,
+                modifiedAt: date,
+                deviceID: "other-device"
+            ),
+            lastActivityAt: date,
+            lastDeviceName: "Other Mac",
+            titleCount: 20,
+            viewingSessionCount: 8,
+            favoriteCount: 3,
+            totalWatchSeconds: 3_600
+        )
+        let unresolved = ProfileBootstrap(
+            profiles: [provisional.profile, cloud.profile],
+            manifests: [provisional, cloud],
+            resolution: .requiresChoice(
+                provisional: provisional,
+                cloudProfiles: [cloud]
+            ),
+            sources: [],
+            selection: ActiveProfileSelection(profileID: nil, sourceID: nil)
+        )
+        let resolved = ProfileBootstrap(
+            profiles: [cloud.profile],
+            manifests: [cloud],
+            resolution: .synchronize(cloud),
+            sources: [],
+            selection: ActiveProfileSelection(profileID: cloud.id, sourceID: nil)
+        )
+        let recorder = ProfileSyncRecorder()
+        var client = Self.profileClient(recorder: recorder)
+        client.resolveProfile = { choice in
+            #expect(choice == .mergeIntoCloud(cloud.id))
+            return resolved
+        }
+        let store = TestStore(initialState: ProfileFeature.State()) {
+            ProfileFeature()
+        } withDependencies: {
+            $0.profiles = client
+        }
+
+        await store.send(.internal(.loaded(.success(unresolved)))) {
+            $0.profiles = unresolved.profiles
+            $0.manifests = unresolved.manifests
+            $0.bootstrapResolution = unresolved.resolution
+        }
+        await store.send(.view(.resolveProfile(.mergeIntoCloud(cloud.id)))) {
+            $0.isLoading = true
+        }
+        await store.receive(.internal(.loaded(.success(resolved)))) {
+            $0.isLoading = false
+            $0.profiles = resolved.profiles
+            $0.manifests = resolved.manifests
+            $0.activeProfileID = cloud.id
+            $0.bootstrapResolution = resolved.resolution
+        }
+    }
+
+    @Test("Repository invalidations coalesce behind an active bootstrap load")
+    func repositoryInvalidationDefersReload() async {
+        let date = Date(timeIntervalSince1970: 100)
+        let profile = Profile(
+            id: ProfileID(rawValue: UUID()),
+            name: "Personal",
+            createdAt: date,
+            modifiedAt: date,
+            deviceID: "client"
+        )
+        let manifest = ProfileManifest(
+            profile: profile,
+            lastActivityAt: date,
+            lastDeviceName: "Mac",
+            titleCount: 0,
+            viewingSessionCount: 0,
+            favoriteCount: 0,
+            totalWatchSeconds: 0
+        )
+        let bootstrap = ProfileBootstrap(
+            profiles: [profile],
+            manifests: [manifest],
+            resolution: .synchronize(manifest),
+            sources: [],
+            selection: ActiveProfileSelection(profileID: profile.id, sourceID: nil)
+        )
+        let recorder = ProfileSyncRecorder()
+        var client = Self.profileClient(recorder: recorder)
+        client.load = { bootstrap }
+        var state = ProfileFeature.State()
+        state.isLoading = true
+        let store = TestStore(initialState: state) {
+            ProfileFeature()
+        } withDependencies: {
+            $0.profiles = client
+        }
+
+        await store.send(.internal(.repositoryChanged(.profiles))) {
+            $0.needsReloadAfterCurrentLoad = true
+        }
+        await store.send(.internal(.loaded(.success(bootstrap)))) {
+            $0.profiles = bootstrap.profiles
+            $0.manifests = bootstrap.manifests
+            $0.activeProfileID = profile.id
+            $0.bootstrapResolution = bootstrap.resolution
+            $0.needsReloadAfterCurrentLoad = false
+        }
+        await store.receive(.internal(.loaded(.success(bootstrap)))) {
+            $0.isLoading = false
+        }
+    }
+
     private static func profileClient(recorder: ProfileSyncRecorder) -> ProfileClient {
         ProfileClient(
             clientID: {
                 ClientID(rawValue: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!)
             },
             load: { throw ProfileClientFailure.unavailable("unused") },
+            resolveProfile: { _ in throw ProfileClientFailure.unavailable("unused") },
             saveProfile: { _ in },
             setSelection: { _ in },
             saveSource: { _, _ in },

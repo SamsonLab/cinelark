@@ -211,6 +211,10 @@ public struct ProfileManifest: Codable, Hashable, Sendable, Identifiable {
         self.favoriteCount = favoriteCount
         self.totalWatchSeconds = totalWatchSeconds
     }
+
+    public var hasMeaningfulData: Bool {
+        titleCount > 0 || viewingSessionCount > 0 || favoriteCount > 0 || totalWatchSeconds > 0
+    }
 }
 
 public enum CloudProfileAvailability: Codable, Hashable, Sendable {
@@ -220,13 +224,13 @@ public enum CloudProfileAvailability: Codable, Hashable, Sendable {
 }
 
 public struct ProfileBootstrapInput: Codable, Hashable, Sendable {
-    public let provisionalProfile: ProfileManifest
+    public let provisionalProfile: ProfileManifest?
     public let cloudProfiles: [ProfileManifest]
     public let activeProfileID: ProfileID?
     public let cloudAvailability: CloudProfileAvailability
 
     public init(
-        provisionalProfile: ProfileManifest,
+        provisionalProfile: ProfileManifest?,
         cloudProfiles: [ProfileManifest],
         activeProfileID: ProfileID?,
         cloudAvailability: CloudProfileAvailability
@@ -240,7 +244,7 @@ public struct ProfileBootstrapInput: Codable, Hashable, Sendable {
 
 public enum ProfileBootstrapResolution: Codable, Hashable, Sendable {
     case localOnly(ProfileManifest)
-    case waitingForCloud(ProfileManifest)
+    case waitingForCloud(ProfileManifest?)
     case promoteProvisional(ProfileManifest)
     case synchronize(ProfileManifest)
     case requiresChoice(provisional: ProfileManifest, cloudProfiles: [ProfileManifest])
@@ -248,25 +252,47 @@ public enum ProfileBootstrapResolution: Codable, Hashable, Sendable {
 
 public enum ProfileBootstrapResolver {
     public static func resolve(_ input: ProfileBootstrapInput) -> ProfileBootstrapResolution {
+        let visibleCloudProfiles = input.cloudProfiles.filter {
+            $0.profile.deletedAt == nil && $0.profile.mergedIntoProfileID == nil
+        }
+        let activeCloudProfile = input.activeProfileID.flatMap { activeProfileID in
+            visibleCloudProfiles.first { $0.id == activeProfileID }
+        }
         switch input.cloudAvailability {
         case .unavailable:
-            return .localOnly(input.provisionalProfile)
+            if let activeCloudProfile {
+                return .localOnly(activeCloudProfile)
+            }
+            if let provisionalProfile = input.provisionalProfile {
+                return .localOnly(provisionalProfile)
+            }
+            return .waitingForCloud(nil)
         case .pendingInitialImport:
+            if let activeCloudProfile {
+                return .synchronize(activeCloudProfile)
+            }
             return .waitingForCloud(input.provisionalProfile)
         case .available:
-            let visibleCloudProfiles = input.cloudProfiles.filter {
-                $0.profile.deletedAt == nil && $0.profile.mergedIntoProfileID == nil
+            if let activeCloudProfile {
+                return .synchronize(activeCloudProfile)
             }
             if visibleCloudProfiles.isEmpty {
-                return .promoteProvisional(input.provisionalProfile)
+                if let provisionalProfile = input.provisionalProfile {
+                    return .promoteProvisional(provisionalProfile)
+                }
+                return .waitingForCloud(nil)
             }
-            if let matching = visibleCloudProfiles.first(where: {
-                $0.id == input.provisionalProfile.id || $0.id == input.activeProfileID
-            }) {
+            if let provisionalProfile = input.provisionalProfile,
+               let matching = visibleCloudProfiles.first(where: {
+                   $0.id == provisionalProfile.id
+               }) {
                 return .synchronize(matching)
             }
+            guard let provisionalProfile = input.provisionalProfile else {
+                return .waitingForCloud(nil)
+            }
             return .requiresChoice(
-                provisional: input.provisionalProfile,
+                provisional: provisionalProfile,
                 cloudProfiles: visibleCloudProfiles.sorted {
                     ($0.lastActivityAt ?? $0.profile.modifiedAt) >
                         ($1.lastActivityAt ?? $1.profile.modifiedAt)
@@ -274,6 +300,12 @@ public enum ProfileBootstrapResolver {
             )
         }
     }
+}
+
+public enum ProfileResolutionChoice: Codable, Hashable, Sendable {
+    case useCloud(ProfileID)
+    case mergeIntoCloud(ProfileID)
+    case keepSeparate
 }
 
 public struct ProfileMergeRequest: Codable, Hashable, Sendable {
@@ -554,6 +586,8 @@ public enum ProfileRepositoryChange: Equatable, Sendable {
 
 public enum ProfileRepositoryError: Error, Equatable, Sendable {
     case profileNotFound(ProfileID)
+    case provisionalProfileNotFound(ProfileID)
+    case provisionalProfileHasData(ProfileID)
     case invalidProfileMerge
     case sourceNotFound(SourceID)
     case mirrorOwnerConflict(existing: ProfileID)

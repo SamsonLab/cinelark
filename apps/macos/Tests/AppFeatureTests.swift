@@ -70,5 +70,61 @@ struct AppFeatureTests {
         #expect(store.state.playback.profileID == profileID)
         #expect(store.state.navigation.activeProfileID == profileID)
         #expect(store.state.navigation.activeSourceID == sourceID)
+        #expect(store.state.bootstrap == .ready)
+    }
+
+    @Test("App readiness waits for explicit Profile resolution")
+    func bootstrapWaitsForProfileResolution() async {
+        let date = Date(timeIntervalSince1970: 100)
+        let provisional = ProfileManifest(
+            profile: Profile(
+                id: ProfileID(rawValue: UUID()),
+                name: "This Mac",
+                createdAt: date,
+                modifiedAt: date,
+                deviceID: "this-mac"
+            ),
+            lastActivityAt: date,
+            lastDeviceName: "This Mac",
+            titleCount: 1,
+            viewingSessionCount: 1,
+            favoriteCount: 0,
+            totalWatchSeconds: 120
+        )
+        let cloud = ProfileManifest(
+            profile: Profile(
+                id: ProfileID(rawValue: UUID()),
+                name: "iCloud",
+                createdAt: date,
+                modifiedAt: date,
+                deviceID: "other-mac"
+            ),
+            lastActivityAt: date,
+            lastDeviceName: "Other Mac",
+            titleCount: 10,
+            viewingSessionCount: 4,
+            favoriteCount: 2,
+            totalWatchSeconds: 1_800
+        )
+        let bootstrap = ProfileBootstrap(
+            profiles: [provisional.profile, cloud.profile],
+            manifests: [provisional, cloud],
+            resolution: .requiresChoice(
+                provisional: provisional,
+                cloudProfiles: [cloud]
+            ),
+            sources: [],
+            selection: ActiveProfileSelection(profileID: nil, sourceID: nil)
+        )
+        var state = AppFeature.State()
+        state.bootstrap = .loading
+        let store = TestStore(initialState: state) {
+            AppFeature()
+        }
+        store.exhaustivity = .off
+
+        await store.send(.profile(.internal(.loaded(.success(bootstrap))))) {
+            $0.bootstrap = .resolvingProfile
+        }
     }
 }

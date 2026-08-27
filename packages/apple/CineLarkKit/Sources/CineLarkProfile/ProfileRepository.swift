@@ -6,7 +6,17 @@ public protocol ProfileRepository: Sendable {
 
     func profiles() async throws -> [Profile]
     func profileManifests() async throws -> [ProfileManifest]
+    func cloudProfileAvailability() async -> CloudProfileAvailability
+    func provisionalProfileManifest(clientID: ClientID) async throws -> ProfileManifest?
     func saveProfile(_ profile: Profile) async throws
+    func saveProvisionalProfile(_ profile: Profile, clientID: ClientID) async throws
+    func promoteProvisionalProfile(clientID: ClientID, profileID: ProfileID) async throws
+    func discardProvisionalProfile(clientID: ClientID, profileID: ProfileID) async throws
+    @discardableResult
+    func mergeProvisionalProfile(
+        clientID: ClientID,
+        request: ProfileMergeRequest
+    ) async throws -> Bool
     func tombstoneProfile(id: ProfileID, at date: Date, mutationStamp: MutationStamp) async throws
     @discardableResult
     func mergeProfiles(_ request: ProfileMergeRequest) async throws -> Bool

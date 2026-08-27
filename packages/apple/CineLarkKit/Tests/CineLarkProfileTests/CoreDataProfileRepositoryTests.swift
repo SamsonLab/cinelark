@@ -305,6 +305,103 @@ import CineLarkPluginAPI
     #expect(try await repository.favorite(profileID: sourceID, mediaKey: mediaKey)?.isFavorite == true)
 }
 
+@Test func provisionalStateStaysLocalUntilIdempotentPromotion() async throws {
+    let repository = try CoreDataProfileRepository(configuration: .init(
+        inMemory: true,
+        cloudAvailabilityOverride: .unavailable
+    ))
+    let clientID = ClientID(rawValue: UUID())
+    let profileID = ProfileID(rawValue: UUID())
+    let sourceID = SourceID(rawValue: UUID())
+    let locator = MediaLocatorID(sourceID: sourceID, providerItemID: "movie-1")
+    let mediaKey = ProfileMediaKey(locator: locator)
+    let date = Date(timeIntervalSince1970: 100)
+    let stamp = MutationStamp(date: date, clientID: clientID.description)
+    let profile = Profile(
+        id: profileID,
+        name: "Personal",
+        createdAt: date,
+        modifiedAt: date,
+        deviceID: clientID.description,
+        mutationStamp: stamp
+    )
+    try await repository.saveProvisionalProfile(profile, clientID: clientID)
+    try await repository.saveFavorite(ProfileFavoriteState(
+        profileID: profileID,
+        mediaKey: mediaKey,
+        isFavorite: true,
+        modifiedAt: date,
+        deviceID: clientID.description,
+        mutationStamp: stamp
+    ), snapshot: ProfileMediaSnapshot(
+        key: mediaKey,
+        locator: locator,
+        title: "Arrival",
+        kind: .movie,
+        artworkURL: nil,
+        modifiedAt: date,
+        deviceID: clientID.description,
+        mutationStamp: stamp
+    ))
+
+    #expect(try await repository.profiles().isEmpty)
+    #expect(try await repository.provisionalProfileManifest(clientID: clientID)?.titleCount == 1)
+
+    try await repository.promoteProvisionalProfile(clientID: clientID, profileID: profileID)
+    try await repository.promoteProvisionalProfile(clientID: clientID, profileID: profileID)
+
+    #expect(try await repository.provisionalProfileManifest(clientID: clientID) == nil)
+    #expect(try await repository.profiles().map(\.id) == [profileID])
+    #expect(try await repository.favorite(profileID: profileID, mediaKey: mediaKey)?.isFavorite == true)
+}
+
+@Test func provisionalMergeMovesFactsWithoutPublishingTheSourceProfile() async throws {
+    let repository = try CoreDataProfileRepository(configuration: .init(inMemory: true))
+    let clientID = ClientID(rawValue: UUID())
+    let sourceID = ProfileID(rawValue: UUID())
+    let targetID = ProfileID(rawValue: UUID())
+    let mediaKey = ProfileMediaKey(rawValue: "movie:merge-provisional")
+    let date = Date(timeIntervalSince1970: 100)
+    let stamp = MutationStamp(date: date, clientID: clientID.description)
+    try await repository.saveProvisionalProfile(Profile(
+        id: sourceID,
+        name: "This Mac",
+        createdAt: date,
+        modifiedAt: date,
+        deviceID: clientID.description,
+        mutationStamp: stamp
+    ), clientID: clientID)
+    try await repository.saveProfile(Profile(
+        id: targetID,
+        name: "iCloud",
+        createdAt: date,
+        modifiedAt: date,
+        deviceID: "other-device",
+        mutationStamp: stamp
+    ))
+    try await repository.saveFavorite(ProfileFavoriteState(
+        profileID: sourceID,
+        mediaKey: mediaKey,
+        isFavorite: true,
+        modifiedAt: date,
+        deviceID: clientID.description,
+        mutationStamp: stamp
+    ), snapshot: nil)
+    let request = ProfileMergeRequest(
+        operationID: UUID(),
+        sourceProfileID: sourceID,
+        targetProfileID: targetID,
+        mergedAt: date,
+        mutationStamp: stamp
+    )
+
+    #expect(try await repository.mergeProvisionalProfile(clientID: clientID, request: request))
+    #expect(try await !repository.mergeProvisionalProfile(clientID: clientID, request: request))
+    #expect(try await repository.profiles().map(\.id) == [targetID])
+    #expect(try await repository.provisionalProfileManifest(clientID: clientID) == nil)
+    #expect(try await repository.favorite(profileID: targetID, mediaKey: mediaKey)?.isFavorite == true)
+}
+
 private func manifest(id: String, name: String) -> ProfileManifest {
     let date = Date(timeIntervalSince1970: 100)
     return ProfileManifest(
