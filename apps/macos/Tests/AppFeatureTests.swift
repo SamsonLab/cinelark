@@ -1,6 +1,7 @@
 import ComposableArchitecture
 import Foundation
 import Testing
+import CineLarkInsights
 import CineLarkProfile
 import CineLarkPluginAPI
 
@@ -15,10 +16,17 @@ struct AppFeatureTests {
         var state = AppFeature.State()
         state.library.profileID = profileID
         state.library.sourceID = sourceID
+        state.navigation.selection = .insights
+        state.insights.activeProfileID = profileID
+        state.insights.isPresented = true
         let refreshes = LockIsolated(0)
+        let insightRefreshes = LockIsolated(0)
+        let referenceDate = Date(timeIntervalSince1970: 1_800_000_000)
         let store = TestStore(initialState: state) {
             AppFeature()
         } withDependencies: {
+            $0.date.now = referenceDate
+            $0.uuid = .constant(UUID())
             $0.mediaPlatform.cachedPage = { _ in
                 MediaPage(items: [], nextCursor: nil, total: 0)
             }
@@ -32,6 +40,24 @@ struct AppFeatureTests {
             $0.profiles.state = { _ in
                 ProfileStateSnapshot(states: [:], snapshots: [:])
             }
+            $0.insights.load = { loadedProfileID, _, date in
+                insightRefreshes.withValue { $0 += 1 }
+                return ViewingInsightsSnapshot(
+                    profileID: loadedProfileID,
+                    range: ViewingInsightRange(period: .month, start: date, end: date),
+                    totalWatchSeconds: 0,
+                    sessionCount: 0,
+                    completedSessionCount: 0,
+                    distinctTitleCount: 0,
+                    activeDayCount: 0,
+                    longestStreakDays: 0,
+                    activity: [],
+                    topTitles: [],
+                    topGenres: [],
+                    topDirectors: [],
+                    topActors: []
+                )
+            }
         }
         store.exhaustivity = .off
 
@@ -39,6 +65,7 @@ struct AppFeatureTests {
         await store.skipReceivedActions(strict: false)
 
         #expect(refreshes.value == 1)
+        #expect(insightRefreshes.value == 1)
     }
 
     @Test("Bootstrap applies persisted context after source runtimes are restored")
@@ -67,6 +94,7 @@ struct AppFeatureTests {
         #expect(store.state.library.profileID == profileID)
         #expect(store.state.library.sourceID == sourceID)
         #expect(store.state.search.sourceID == sourceID)
+        #expect(store.state.insights.activeProfileID == profileID)
         #expect(store.state.playback.profileID == profileID)
         #expect(store.state.navigation.activeProfileID == profileID)
         #expect(store.state.navigation.activeSourceID == sourceID)

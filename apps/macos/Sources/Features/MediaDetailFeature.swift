@@ -55,6 +55,8 @@ struct MediaDetailFeature {
                 locator: MediaLocatorID,
                 title: String,
                 kind: MediaKind,
+                artworkURL: URL?,
+                metadata: ProfileMediaMetadataSnapshot?,
                 startPositionSeconds: Double
             )
         }
@@ -209,6 +211,7 @@ struct MediaDetailFeature {
                     title: state.item.title,
                     kind: state.item.kind,
                     artworkURL: state.item.posterURL,
+                    metadata: profileMetadata(state),
                     modifiedAt: now,
                     deviceID: profiles.deviceID()
                 )
@@ -250,6 +253,8 @@ struct MediaDetailFeature {
                     locator: state.locator,
                     title: state.item.title,
                     kind: state.item.kind,
+                    artworkURL: state.item.posterURL,
+                    metadata: profileMetadata(state),
                     startPositionSeconds: state.item.userState.played
                         ? 0
                         : state.item.userState.positionSeconds
@@ -263,6 +268,8 @@ struct MediaDetailFeature {
                     ),
                     title: episode.title,
                     kind: .series,
+                    artworkURL: episode.thumbnailURL ?? state.item.posterURL,
+                    metadata: profileMetadata(state),
                     startPositionSeconds: episode.userState.played
                         ? 0
                         : episode.userState.positionSeconds
@@ -277,6 +284,29 @@ struct MediaDetailFeature {
     private static func normalize(_ error: Error) -> MediaSourceFailure {
         if let failure = error as? MediaSourceFailure { return failure }
         return .transport(String(describing: error))
+    }
+
+    private func profileMetadata(_ state: State) -> ProfileMediaMetadataSnapshot? {
+        let summary = state.detail?.summary ?? state.initialItem
+        let genres = summary.genres.map {
+            ProfileGenreSnapshot(
+                providerID: String($0.id),
+                name: $0.name,
+                slug: $0.slug
+            )
+        }
+        let directors = state.detail?.directors.map {
+            ProfilePersonSnapshot(providerID: $0.id, name: $0.name)
+        } ?? []
+        let cast = state.detail?.cast.map {
+            ProfilePersonSnapshot(providerID: $0.id, name: $0.name)
+        } ?? []
+        guard !genres.isEmpty || !directors.isEmpty || !cast.isEmpty else { return nil }
+        return ProfileMediaMetadataSnapshot(
+            genres: genres,
+            directors: directors,
+            cast: cast
+        )
     }
 
     private func applyingLocalState(

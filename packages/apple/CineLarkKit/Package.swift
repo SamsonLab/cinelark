@@ -12,6 +12,7 @@ let package = Package(
         .library(name: "CineLarkPluginAPI", targets: ["CineLarkPluginAPI"]),
         .library(name: "CineLarkCatalog", targets: ["CineLarkCatalog"]),
         .library(name: "CineLarkProfile", targets: ["CineLarkProfile"]),
+        .library(name: "CineLarkInsights", targets: ["CineLarkInsights"]),
         .library(name: "CineLarkEmby", targets: ["CineLarkEmby"]),
         .library(name: "CineLarkUHDNow", targets: ["CineLarkUHDNow"]),
         .library(name: "CineLarkPersistence", targets: ["CineLarkPersistence"]),
@@ -32,6 +33,10 @@ let package = Package(
         .target(
             name: "CineLarkProfile",
             dependencies: ["CineLarkDomain", "CineLarkPluginAPI"]
+        ),
+        .target(
+            name: "CineLarkInsights",
+            dependencies: ["CineLarkDomain", "CineLarkProfile"]
         ),
         .target(
             name: "CineLarkEmby",
@@ -69,6 +74,13 @@ let package = Package(
         .testTarget(
             name: "CineLarkProfileTests",
             dependencies: ["CineLarkDomain", "CineLarkPluginAPI", "CineLarkProfile"]
+        ),
+        .testTarget(
+            name: "CineLarkInsightsTests",
+            dependencies: [
+                "CineLarkDomain", "CineLarkPluginAPI", "CineLarkProfile",
+                "CineLarkInsights"
+            ]
         ),
         .testTarget(
             name: "CineLarkEmbyTests",

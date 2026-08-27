@@ -122,6 +122,8 @@ targets:
       - package: CineLarkKit
         product: CineLarkProfile
       - package: CineLarkKit
+        product: CineLarkInsights
+      - package: CineLarkKit
         product: CineLarkEmby
       - package: CineLarkKit
         product: CineLarkUHDNow

@@ -10,6 +10,7 @@ enum LibrarySelection: Hashable, Sendable {
     case series
     case favorites
     case search
+    case insights
 }
 
 @Reducer
@@ -136,6 +137,8 @@ struct NavigationFeature {
                 locator: MediaLocatorID,
                 title: String,
                 kind: MediaKind,
+                artworkURL: URL?,
+                metadata: ProfileMediaMetadataSnapshot?,
                 startPositionSeconds: Double
             )
         }
@@ -148,12 +151,16 @@ struct NavigationFeature {
                 locator,
                 title,
                 kind,
+                artworkURL,
+                metadata,
                 startPositionSeconds
             )))))):
                 return .send(.delegate(.play(
                     locator: locator,
                     title: title,
                     kind: kind,
+                    artworkURL: artworkURL,
+                    metadata: metadata,
                     startPositionSeconds: startPositionSeconds
                 )))
 

@@ -447,3 +447,35 @@ Each entry uses a stable `LNNN` identifier and contains:
 - **Version caveat:** effect ordering in TCA 1.26.1 is causal only inside the
   same `.run` operation with explicit `await`. Separate merged effects do not
   establish local-before-remote ordering.
+
+## L017 — Keep rebuildable fact volume below TCA state
+
+- **Problem / context:** viewing insights need all durable sessions plus related
+  metadata, but putting those repository rows in Store state would duplicate
+  ownership, increase observation/equality cost, and expose calendar-dependent
+  derivation to SwiftUI.
+- **Pattern applied:** `InsightsClient` accepts explicit Profile, period, and
+  reference-date query identity. A pure service loads repository facts and
+  returns one compact `ViewingInsightsSnapshot`; `InsightsFeature` stores only
+  that snapshot and loading/query state. Each response carries request, Profile,
+  and period identity in addition to feature-scoped cancellation.
+- **Why this boundary was chosen:** the repository owns fact volume, the pure
+  projector owns calendar and ranking semantics, TCA owns latest-wins effect
+  orchestration, and SwiftUI owns only presentation. No layer needs a second
+  mutable copy of sessions.
+- **Minimal CineLark example:** selecting `.quarter` cancels the current Insights
+  load. A late `.month` result is ignored unless its request ID, Profile ID, and
+  period all still match state.
+- **Test evidence:** `ViewingInsightsProjectorTests` verifies deterministic
+  time-zone-aware ranges and compact rankings. `InsightsFeatureTests` verifies
+  initial load, period/Profile replacement, and stale-response rejection.
+  `AppFeatureTests.externalProfileChangeRefreshesLibrary` verifies that a
+  repository invalidation refreshes the visible projection.
+- **Reuse rule:** when UI needs a rebuildable summary over potentially large
+  durable facts, inject a query-shaped dependency that returns a compact value.
+  Combine cancellation with semantic response identity whenever context can
+  change before an effect finishes.
+- **Version caveat:** in TCA 1.26.1, `cancelInFlight` prevents cooperative old
+  effects from continuing, but it does not prove that an external dependency
+  stopped work or that a response cannot arrive. Reducer guards remain the
+  correctness boundary.

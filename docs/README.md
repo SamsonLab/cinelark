@@ -18,6 +18,7 @@ Documents use the following status labels:
 | Document | Status | Purpose |
 | --- | --- | --- |
 | [Product specification](product-spec.md) | Draft | MVP scope, UX principles, and acceptance criteria |
+| [Viewing insights](product/viewing-insights.md) | Implemented local projection | Period summaries, affinity semantics, ownership, and refresh rules |
 | [Architecture](architecture.md) | Accepted direction | Component boundaries and data ownership |
 | [Implementation plan](implementation-plan.md) | Draft | Swift/SwiftUI, Flutter, module, testing, and delivery plan |
 | [ADR-0001](decisions/0001-product-monorepo.md) | Accepted | Product monorepo and external IINA policy |

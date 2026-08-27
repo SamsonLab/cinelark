@@ -8,6 +8,7 @@ struct LibraryView: View {
     @Bindable var store: StoreOf<NavigationFeature>
     @Bindable var libraryStore: StoreOf<LibraryFeature>
     @Bindable var searchStore: StoreOf<SearchFeature>
+    @Bindable var insightsStore: StoreOf<InsightsFeature>
     @Bindable var profileStore: StoreOf<ProfileFeature>
     @State private var actualColumnVisibility: NavigationSplitViewVisibility
     @Namespace private var mediaTransitionNamespace
@@ -16,11 +17,13 @@ struct LibraryView: View {
         store: StoreOf<NavigationFeature>,
         libraryStore: StoreOf<LibraryFeature>,
         searchStore: StoreOf<SearchFeature>,
+        insightsStore: StoreOf<InsightsFeature>,
         profileStore: StoreOf<ProfileFeature>
     ) {
         self.store = store
         self.libraryStore = libraryStore
         self.searchStore = searchStore
+        self.insightsStore = insightsStore
         self.profileStore = profileStore
         _actualColumnVisibility = State(
             initialValue: store.sidebarVisible ? .all : .detailOnly
@@ -37,6 +40,7 @@ struct LibraryView: View {
                         navigationLink(.series, titleKey: "nav.series", symbol: "tv", shortcut: 3)
                         navigationLink(.favorites, titleKey: "nav.favorites", symbol: "heart", shortcut: 4)
                         navigationLink(.search, titleKey: "nav.search", symbol: "magnifyingglass", shortcut: 5)
+                        navigationLink(.insights, titleKey: "nav.insights", symbol: "chart.bar.xaxis", shortcut: 6)
                     }
                 }
                 .listStyle(.sidebar)
@@ -95,7 +99,11 @@ struct LibraryView: View {
             }
             ToolbarItem(placement: .primaryAction) {
                 Button {
-                    libraryStore.send(.view(.reload))
+                    if store.selection == .insights {
+                        insightsStore.send(.view(.reload))
+                    } else {
+                        libraryStore.send(.view(.reload))
+                    }
                 } label: {
                     Label(
                         language.localized("general.refresh"),
@@ -103,7 +111,11 @@ struct LibraryView: View {
                     )
                 }
                 .help(language.localized("general.refresh"))
-                .disabled(libraryStore.isLoadingOverview || libraryStore.isRefreshing)
+                .disabled(
+                    store.selection == .insights
+                        ? insightsStore.isLoading
+                        : libraryStore.isLoadingOverview || libraryStore.isRefreshing
+                )
             }
         }
         .ignoresSafeArea(.container, edges: .top)
@@ -148,6 +160,10 @@ struct LibraryView: View {
                 store.send(.view(.sectionSelected(.search)))
                 return true
             }
+            shortcuts.setFixedAction(.navigation(6)) {
+                store.send(.view(.sectionSelected(.insights)))
+                return true
+            }
             shortcuts.setSectionAction(.home) {
                 store.send(.view(.sectionSelected(.home)))
                 return true
@@ -168,6 +184,10 @@ struct LibraryView: View {
                 store.send(.view(.sectionSelected(.search)))
                 return true
             }
+            shortcuts.setSectionAction(.insights) {
+                store.send(.view(.sectionSelected(.insights)))
+                return true
+            }
             shortcuts.setFixedAction(.refresh) {
                 libraryStore.send(.view(.reload))
                 return true
@@ -178,7 +198,7 @@ struct LibraryView: View {
             shortcuts.setOpenMediaAction(nil)
             shortcuts.setOpenCollectionAction(nil)
             shortcuts.setOpenPersonAction(nil)
-            for number in 1...5 {
+            for number in 1...6 {
                 shortcuts.setFixedAction(.navigation(number), action: nil)
             }
             for section in CineLarkSection.allCases {
@@ -193,6 +213,7 @@ struct LibraryView: View {
             case .series: shortcuts.reportSection(.series)
             case .favorites: shortcuts.reportSection(.favorites)
             case .search: shortcuts.reportSection(.search)
+            case .insights: shortcuts.reportSection(.insights)
             }
         }
         .onChange(of: store.sidebarVisible) {
@@ -245,6 +266,8 @@ struct LibraryView: View {
             CatalogFavoritesView(store: libraryStore)
         case .search:
             SearchView(store: searchStore)
+        case .insights:
+            InsightsView(store: insightsStore)
         }
     }
 }

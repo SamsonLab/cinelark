@@ -53,6 +53,7 @@ struct RootView: View {
                     store: store.scope(state: \.navigation, action: \.navigation),
                     libraryStore: store.scope(state: \.library, action: \.library),
                     searchStore: store.scope(state: \.search, action: \.search),
+                    insightsStore: store.scope(state: \.insights, action: \.insights),
                     profileStore: store.scope(state: \.profile, action: \.profile)
                 )
             }

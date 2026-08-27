@@ -4,6 +4,28 @@ import CineLarkDomain
 import CineLarkPluginAPI
 @testable import CineLarkProfile
 
+@Test func legacyMediaSnapshotDecodesWithoutInsightMetadata() throws {
+    let snapshot = ProfileMediaSnapshot(
+        key: ProfileMediaKey(rawValue: "legacy:movie"),
+        locator: MediaLocatorID(
+            sourceID: SourceID(rawValue: UUID()),
+            providerItemID: "movie"
+        ),
+        title: "Legacy Movie",
+        kind: .movie,
+        artworkURL: nil,
+        modifiedAt: Date(timeIntervalSince1970: 100),
+        deviceID: "legacy-device"
+    )
+    let data = try JSONEncoder().encode(snapshot)
+    let json = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    #expect(json["metadata"] == nil)
+
+    let decoded = try JSONDecoder().decode(ProfileMediaSnapshot.self, from: data)
+    #expect(decoded == snapshot)
+    #expect(decoded.metadata == nil)
+}
+
 @Test func mediaStateIsIsolatedBetweenProfiles() async throws {
     let repository = try CoreDataProfileRepository(
         configuration: .init(inMemory: true)

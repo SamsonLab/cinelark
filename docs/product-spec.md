@@ -128,6 +128,7 @@ follow without changing the architecture.
 | Sync | Periodic progress and terminal stopped reporting | P0 |
 | Favorites | Read, add, and remove movie/TV favorites | P1 |
 | People | Person detail, credits, and person favorites | P1 |
+| Insights | Month, quarter, year, and all-time local viewing summaries | P1 |
 | Remote | QR pairing, remote login, navigation, search text entry, and complete contextual IINA controls on iOS/Android | P1 |
 
 ## 7. Reliability and performance requirements

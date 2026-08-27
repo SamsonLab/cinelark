@@ -22,6 +22,7 @@ struct AppFeature {
         var source = SourceFeature.State()
         var library = LibraryFeature.State()
         var search = SearchFeature.State()
+        var insights = InsightsFeature.State()
         var playback = PlaybackFeature.State()
         var remote = RemoteFeature.State()
         var cache = CacheFeature.State()
@@ -35,6 +36,7 @@ struct AppFeature {
         case source(SourceFeature.Action)
         case library(LibraryFeature.Action)
         case search(SearchFeature.Action)
+        case insights(InsightsFeature.Action)
         case playback(PlaybackFeature.Action)
         case remote(RemoteFeature.Action)
         case cache(CacheFeature.Action)
@@ -140,16 +142,37 @@ struct AppFeature {
 
             case let .profile(.internal(.repositoryChanged(.userState(profileID)))):
                 guard state.profile.activeProfileID == profileID else { return .none }
-                return .send(.library(.view(.loadOverview)))
+                var effects: [Effect<Action>] = [
+                    .send(.library(.view(.loadOverview)))
+                ]
+                if state.navigation.selection == .insights {
+                    effects.append(.send(.insights(.view(.reload))))
+                }
+                return .merge(effects)
 
             case .profile(.internal(.repositoryChanged(.external))):
-                return .send(.library(.view(.loadOverview)))
+                var effects: [Effect<Action>] = [
+                    .send(.library(.view(.loadOverview)))
+                ]
+                if state.navigation.selection == .insights {
+                    effects.append(.send(.insights(.view(.reload))))
+                }
+                return .merge(effects)
 
-            case let .navigation(.delegate(.play(locator, title, kind, startPosition))):
+            case let .navigation(.delegate(.play(
+                locator,
+                title,
+                kind,
+                artworkURL,
+                metadata,
+                startPosition
+            ))):
                 return .send(.playback(.view(.play(
                     locator: locator,
                     title: title,
                     kind: kind,
+                    artworkURL: artworkURL,
+                    metadata: metadata,
                     startPositionSeconds: startPosition
                 ))))
 
@@ -193,7 +216,8 @@ struct AppFeature {
             case .cache(.delegate(.didClear)):
                 return .none
 
-            case .navigation, .profile, .source, .library, .search, .playback, .remote, .cache:
+            case .navigation, .profile, .source, .library, .search, .insights,
+                 .playback, .remote, .cache:
                 return .none
             }
         }
@@ -211,6 +235,9 @@ struct AppFeature {
         }
         Scope(state: \.search, action: \.search) {
             SearchFeature()
+        }
+        Scope(state: \.insights, action: \.insights) {
+            InsightsFeature()
         }
         Scope(state: \.playback, action: \.playback) {
             PlaybackFeature()
@@ -230,6 +257,7 @@ struct AppFeature {
                 sourceID: selection.sourceID
             )))),
             .send(.search(.view(.sourceChanged(selection.sourceID)))),
+            .send(.insights(.view(.contextChanged(selection.profileID)))),
             .send(.playback(.view(.contextChanged(selection.profileID)))),
             .send(.navigation(.view(.contextChanged(
                 profileID: selection.profileID,

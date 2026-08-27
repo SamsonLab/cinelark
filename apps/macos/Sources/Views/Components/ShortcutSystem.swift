@@ -42,6 +42,7 @@ enum CineLarkFixedCommand: Hashable {
         case .navigation(3): 20
         case .navigation(4): 21
         case .navigation(5): 23
+        case .navigation(6): 22
         case .refresh: 15
         case .focusSearch: 3
         default: nil
@@ -62,6 +63,7 @@ enum CineLarkSection: String, CaseIterable {
     case series
     case favorites
     case search
+    case insights
 }
 
 enum CineLarkInputModality: Equatable {

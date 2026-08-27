@@ -362,12 +362,60 @@ public struct ProfileMediaKey: RawRepresentable, Codable, Hashable, Sendable {
     }
 }
 
+public struct ProfileGenreSnapshot: Codable, Hashable, Sendable {
+    public let providerID: String?
+    public let name: String
+    public let slug: String?
+
+    public init(providerID: String? = nil, name: String, slug: String? = nil) {
+        self.providerID = providerID
+        self.name = name
+        self.slug = slug
+    }
+}
+
+public struct ProfilePersonSnapshot: Codable, Hashable, Sendable {
+    public let providerID: String?
+    public let name: String
+    public let tmdbID: String?
+    public let imdbID: String?
+
+    public init(
+        providerID: String? = nil,
+        name: String,
+        tmdbID: String? = nil,
+        imdbID: String? = nil
+    ) {
+        self.providerID = providerID
+        self.name = name
+        self.tmdbID = tmdbID
+        self.imdbID = imdbID
+    }
+}
+
+public struct ProfileMediaMetadataSnapshot: Codable, Hashable, Sendable {
+    public let genres: [ProfileGenreSnapshot]
+    public let directors: [ProfilePersonSnapshot]
+    public let cast: [ProfilePersonSnapshot]
+
+    public init(
+        genres: [ProfileGenreSnapshot] = [],
+        directors: [ProfilePersonSnapshot] = [],
+        cast: [ProfilePersonSnapshot] = []
+    ) {
+        self.genres = genres
+        self.directors = directors
+        self.cast = cast
+    }
+}
+
 public struct ProfileMediaSnapshot: Codable, Hashable, Sendable {
     public let key: ProfileMediaKey
     public let locator: MediaLocatorID
     public let title: String
     public let kind: MediaKind
     public let artworkURL: URL?
+    public let metadata: ProfileMediaMetadataSnapshot?
     public let modifiedAt: Date
     public let deviceID: String
     public let mutationStamp: MutationStamp?
@@ -378,6 +426,7 @@ public struct ProfileMediaSnapshot: Codable, Hashable, Sendable {
         title: String,
         kind: MediaKind,
         artworkURL: URL?,
+        metadata: ProfileMediaMetadataSnapshot? = nil,
         modifiedAt: Date,
         deviceID: String,
         mutationStamp: MutationStamp? = nil
@@ -387,6 +436,7 @@ public struct ProfileMediaSnapshot: Codable, Hashable, Sendable {
         self.title = title
         self.kind = kind
         self.artworkURL = artworkURL
+        self.metadata = metadata
         self.modifiedAt = modifiedAt
         self.deviceID = deviceID
         self.mutationStamp = mutationStamp
@@ -403,6 +453,7 @@ public struct ProfileMediaSnapshot: Codable, Hashable, Sendable {
             title: title,
             kind: kind,
             artworkURL: artworkURL,
+            metadata: metadata,
             modifiedAt: modifiedAt,
             deviceID: deviceID,
             mutationStamp: stamp

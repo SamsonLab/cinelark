@@ -135,6 +135,10 @@ Implemented and covered by package tests:
   preservation through provisional promotion and Profile merge;
 - Profile manifest session/watch-time summaries and friendly last-device
   projection from durable facts.
+- optional genre/director/cast evidence in media snapshots with legacy payload
+  compatibility;
+- rebuildable month, quarter, year, and all-time Insights projections over
+  Profile-owned facts. Derived snapshots remain outside Core Data and CloudKit.
 
 Still required before treating multi-device sync as release-ready:
 

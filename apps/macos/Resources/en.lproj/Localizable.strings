@@ -19,6 +19,7 @@
 "nav.series" = "TV Series";
 "nav.favorites" = "Favorites";
 "nav.search" = "Search";
+"nav.insights" = "Insights";
 "nav.collections" = "Collections";
 "nav.sign_out" = "Sign Out";
 "nav.collection_unavailable" = "Collection unavailable";
@@ -30,6 +31,32 @@
 "home.continue_watching" = "Continue Watching";
 "home.continue_playback" = "Continue playing %@";
 "home.open_details" = "Open title details";
+
+"insights.title" = "Viewing Insights";
+"insights.subtitle" = "Your personal viewing memory, kept by CineLark.";
+"insights.period" = "Period";
+"insights.period.month" = "Month";
+"insights.period.quarter" = "Quarter";
+"insights.period.year" = "Year";
+"insights.period.all_time" = "All Time";
+"insights.watch_time" = "Watch Time";
+"insights.sessions" = "Sessions";
+"insights.completed" = "Completed";
+"insights.titles" = "Titles";
+"insights.active_days" = "Active Days";
+"insights.longest_streak" = "Longest Streak";
+"insights.days_value" = "%@ days";
+"insights.activity" = "Viewing Activity";
+"insights.top_titles" = "Top Titles";
+"insights.genres" = "Favorite Genres";
+"insights.directors" = "Top Directors";
+"insights.actors" = "Top Actors";
+"insights.session_count" = "%@ sessions";
+"insights.loading" = "Building your insights…";
+"insights.unavailable" = "Insights unavailable";
+"insights.empty" = "No viewing history yet";
+"insights.empty_description" = "Watch something with CineLark and your personal summary will appear here.";
+"insights.metadata_empty" = "Genre and contributor insights will appear as newly watched titles capture richer metadata.";
 
 "login.tagline" = "Your library, ready for the big screen.";
 "login.username" = "UHDNow username";

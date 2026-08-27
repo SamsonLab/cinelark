@@ -5,6 +5,7 @@ import CineLarkDomain
 import CineLarkCatalog
 import CineLarkEmby
 import CineLarkGateway
+import CineLarkInsights
 import CineLarkPersistence
 import CineLarkPlayback
 import CineLarkPluginAPI
@@ -137,6 +138,9 @@ struct CineLarkApp: App {
         } withDependencies: {
             $0.mediaPlatform = .live(platform: mediaPlatform, catalog: catalog)
             $0.profiles = .live(repository: profileRepository, clientID: clientID)
+            $0.insights = .live(
+                service: ViewingInsightsService(repository: profileRepository)
+            )
             $0.playbackEngine = .live(launcher: launcher)
             $0.remote = .live(coordinator: remote)
             $0.cache = .live(

@@ -13,6 +13,8 @@ struct PlaybackFeature {
         let mediaKey: ProfileMediaKey
         let title: String
         let kind: MediaKind
+        var artworkURL: URL? = nil
+        var metadata: ProfileMediaMetadataSnapshot? = nil
         var positionSeconds: Double
         var durationSeconds: Double
         var isPaused: Bool
@@ -54,6 +56,8 @@ struct PlaybackFeature {
                 locator: MediaLocatorID,
                 title: String,
                 kind: MediaKind,
+                artworkURL: URL?,
+                metadata: ProfileMediaMetadataSnapshot?,
                 startPositionSeconds: Double
             )
             case control(PlaybackControlCommand)
@@ -66,6 +70,8 @@ struct PlaybackFeature {
                 locator: MediaLocatorID,
                 title: String,
                 kind: MediaKind,
+                artworkURL: URL?,
+                metadata: ProfileMediaMetadataSnapshot?,
                 startPositionSeconds: Double,
                 Result<SourcePlaybackDescriptor, Failure>
             )
@@ -108,7 +114,7 @@ struct PlaybackFeature {
                 state.profileID = profileID
                 return .none
 
-            case let .view(.play(locator, title, kind, startPosition)):
+            case let .view(.play(locator, title, kind, artworkURL, metadata, startPosition)):
                 state.isStarting = true
                 state.failure = nil
                 let requestID = uuid()
@@ -121,6 +127,8 @@ struct PlaybackFeature {
                             locator: locator,
                             title: title,
                             kind: kind,
+                            artworkURL: artworkURL,
+                            metadata: metadata,
                             startPositionSeconds: startPosition,
                             .success(descriptor)
                         )))
@@ -130,6 +138,8 @@ struct PlaybackFeature {
                             locator: locator,
                             title: title,
                             kind: kind,
+                            artworkURL: artworkURL,
+                            metadata: metadata,
                             startPositionSeconds: startPosition,
                             .failure(Self.normalize(error))
                         )))
@@ -137,7 +147,16 @@ struct PlaybackFeature {
                 }
                 .cancellable(id: CancelID.resolution, cancelInFlight: true)
 
-            case let .internal(.descriptorResolved(requestID, locator, title, kind, start, .success(descriptor))):
+            case let .internal(.descriptorResolved(
+                requestID,
+                locator,
+                title,
+                kind,
+                artworkURL,
+                metadata,
+                start,
+                .success(descriptor)
+            )):
                 guard state.pendingRequestID == requestID else { return .none }
                 state.pendingRequestID = nil
                 let playbackID = uuid()
@@ -147,6 +166,8 @@ struct PlaybackFeature {
                     mediaKey: ProfileMediaKey(locator: locator),
                     title: title,
                     kind: kind,
+                    artworkURL: artworkURL,
+                    metadata: metadata,
                     positionSeconds: start,
                     durationSeconds: 0,
                     isPaused: false
@@ -163,7 +184,7 @@ struct PlaybackFeature {
                     }
                 }
 
-            case let .internal(.descriptorResolved(requestID, _, _, _, _, .failure(failure))):
+            case let .internal(.descriptorResolved(requestID, _, _, _, _, _, _, .failure(failure))):
                 guard state.pendingRequestID == requestID else { return .none }
                 state.pendingRequestID = nil
                 state.isStarting = false
@@ -443,7 +464,8 @@ struct PlaybackFeature {
             locator: active.locator,
             title: active.title,
             kind: active.kind,
-            artworkURL: nil,
+            artworkURL: active.artworkURL,
+            metadata: active.metadata,
             modifiedAt: timestamp,
             deviceID: deviceID
         )

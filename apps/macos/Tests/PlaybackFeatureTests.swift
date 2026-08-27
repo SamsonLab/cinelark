@@ -30,6 +30,7 @@ struct PlaybackFeatureTests {
         let profileID = ProfileID(rawValue: UUID())
         let sourceID = SourceID(rawValue: UUID())
         let locator = MediaLocatorID(sourceID: sourceID, providerItemID: "movie")
+        let artworkURL = URL(string: "https://example.test/poster.jpg")!
         let playbackID = UUID()
         let recorder = PlaybackReportRecorder()
         let profileClient = ProfileClient(
@@ -53,12 +54,18 @@ struct PlaybackFeatureTests {
             changes: { AsyncStream { $0.finish() } }
         )
         var initialState = PlaybackFeature.State(profileID: profileID)
+        let metadata = ProfileMediaMetadataSnapshot(
+            genres: [ProfileGenreSnapshot(name: "Drama")],
+            directors: [ProfilePersonSnapshot(name: "Director", tmdbID: "42")]
+        )
         initialState.active = PlaybackFeature.Active(
             id: playbackID,
             locator: locator,
             mediaKey: ProfileMediaKey(locator: locator),
             title: "Movie",
             kind: .movie,
+            artworkURL: artworkURL,
+            metadata: metadata,
             positionSeconds: 12,
             durationSeconds: 120,
             isPaused: false
@@ -128,6 +135,8 @@ struct PlaybackFeatureTests {
         #expect(localWrites.last?.state.state.positionSeconds == 0)
         #expect(localWrites.last?.session?.status == .completed)
         #expect(localWrites.last?.session?.watchedSeconds == 10)
+        #expect(localWrites.last?.snapshot?.artworkURL == artworkURL)
+        #expect(localWrites.last?.snapshot?.metadata == metadata)
     }
 
     @Test("Paused time and seeks do not inflate watched seconds")

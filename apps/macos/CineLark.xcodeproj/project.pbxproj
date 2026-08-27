@@ -9,13 +9,13 @@
 /* Begin PBXBuildFile section */
 		0B8F19BA2F6DD3B705F36AE4 /* SourceManagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 048719A6C3814E70ECE16FB8 /* SourceManagerView.swift */; };
 		0B93F6D1056AE1362FE8965C /* ShortcutSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04957063F0E0AEF64D673B82 /* ShortcutSystem.swift */; };
-		0F085182EF603949A0DA55FB /* CineLarkPersistence in Frameworks */ = {isa = PBXBuildFile; productRef = 0DF4E3AD538E0D86CCDBFF48 /* CineLarkPersistence */; };
+		0F085182EF603949A0DA55FB /* CineLarkUHDNow in Frameworks */ = {isa = PBXBuildFile; productRef = 04837E25759D13DE17309CDB /* CineLarkUHDNow */; };
 		0FBA55BD2D5A9E90186B12A9 /* ImagePipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = E446DFF475AB6BE1AC655007 /* ImagePipeline.swift */; };
 		11E3F99E5967705FE89E49D9 /* CatalogMediaDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 232C8DC8AA17A67BDA99EA74 /* CatalogMediaDetailView.swift */; };
 		13630BBC29C3C492B4654364 /* ProfileClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2DDA761914179739FB3EA96 /* ProfileClient.swift */; };
 		1B7F01EBA86DBED26D6882EA /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B054FB68231FF0E76CF25C1B /* LibraryView.swift */; };
 		1B92BA3171C2C64DEBDD3F98 /* ProfileFeature.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27DE827C3BAFCA579A7111CA /* ProfileFeature.swift */; };
-		1CBF7EEB637D29A2147ADDB0 /* CineLarkGateway in Frameworks */ = {isa = PBXBuildFile; productRef = D41B1256FCBEC65488513032 /* CineLarkGateway */; };
+		1CBF7EEB637D29A2147ADDB0 /* CineLarkRemote in Frameworks */ = {isa = PBXBuildFile; productRef = DA39EA08D22C8CAC956A0432 /* CineLarkRemote */; };
 		1DDACF1A31BC94722C7EC0A0 /* ProfileFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CE0F5D5A43ED4E4F1771BBB /* ProfileFeatureTests.swift */; };
 		2018937F5ABAD73AF2A1A1D7 /* CacheFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44E630295E91495671DCDF26 /* CacheFeatureTests.swift */; };
 		2463788D3183E8D22727C692 /* MediaFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11E72F191AE8AB81C1DD9B26 /* MediaFormatting.swift */; };
@@ -35,9 +35,11 @@
 		60E87CBD296DBB0002DBE6AF /* CatalogLibraryViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 965C389DF3862C0DB2CBA4E0 /* CatalogLibraryViews.swift */; };
 		6117EFABC0800D3F9BF6EE20 /* RemoteFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8600FB58205A364EA54AD224 /* RemoteFeatureTests.swift */; };
 		6BBD5F518C903329BDE07471 /* SearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 395BB40B27A65E50568ACD66 /* SearchView.swift */; };
-		70C14D59345F72DEB66B532A /* ComposableArchitecture in Frameworks */ = {isa = PBXBuildFile; productRef = E2A406AD72EA115EBB7078DF /* ComposableArchitecture */; };
+		70C14D59345F72DEB66B532A /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 8EA55C2C2EAB1572004F61D1 /* Sparkle */; };
+		72B21307E5B42A9A9CE3E3E7 /* ComposableArchitecture in Frameworks */ = {isa = PBXBuildFile; productRef = E2A406AD72EA115EBB7078DF /* ComposableArchitecture */; };
 		7650F3757844A96D543171D3 /* CineLarkSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB47DF5FBB63F7B997DE32D6 /* CineLarkSettingsView.swift */; };
 		7FD6FC460F299A30B2CF86E3 /* PlaybackEngineClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 483EBAF59527918EC755E9DB /* PlaybackEngineClient.swift */; };
+		8DFAB7061F5A026730AE9BE7 /* InsightsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0655AD5F6065C2C7D3995483 /* InsightsView.swift */; };
 		960EB8C065B6371FC7BE7795 /* CatalogPersonDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA2B841298AED234E26DF707 /* CatalogPersonDetailView.swift */; };
 		9E77C3A3A69B22DCE4090CC1 /* CineLarkDomain in Frameworks */ = {isa = PBXBuildFile; productRef = A749D953D7ACF6BC4D462B11 /* CineLarkDomain */; };
 		9F58F9BAE526FBA7C72D2E66 /* SparkleUpdateViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0D1C3B91534B390EFC9F800 /* SparkleUpdateViews.swift */; };
@@ -47,10 +49,10 @@
 		AFDA797DE940F64692C23F6C /* RemoteTextInputCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = E765B55C29005B0C9C68A0A9 /* RemoteTextInputCoordinator.swift */; };
 		B05299F38635BB6EA6EBF3E8 /* CineLarkProfile in Frameworks */ = {isa = PBXBuildFile; productRef = 522AA628FF213923A1A29558 /* CineLarkProfile */; };
 		B3AE41D5BF04A4DEE93A0AF9 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = FA9FAFAB2F795541DE7F6F3C /* AppIcon.icon */; };
-		B489F5A60889975CD929D5D1 /* CineLarkEmby in Frameworks */ = {isa = PBXBuildFile; productRef = 76C30DEFEA4BD9573ED5ACE2 /* CineLarkEmby */; };
+		B489F5A60889975CD929D5D1 /* CineLarkInsights in Frameworks */ = {isa = PBXBuildFile; productRef = A5F41B63B64DD1A1C43C5065 /* CineLarkInsights */; };
 		B4998074AD9C965119C43208 /* PlaybackFeature.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7257ED47B2CE73E1F0F7DD03 /* PlaybackFeature.swift */; };
 		B66DCBFC161D52E2F3E105B2 /* CacheClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFC11B6AFF2F9EBF0DB232C7 /* CacheClient.swift */; };
-		BACE446FC6892B1913D8E6C3 /* CineLarkUHDNow in Frameworks */ = {isa = PBXBuildFile; productRef = 04837E25759D13DE17309CDB /* CineLarkUHDNow */; };
+		BACE446FC6892B1913D8E6C3 /* CineLarkEmby in Frameworks */ = {isa = PBXBuildFile; productRef = 76C30DEFEA4BD9573ED5ACE2 /* CineLarkEmby */; };
 		BB6D0C0DE61F072000488C29 /* RemotePanelDismissalRegistryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 408BF65EDA243EF9A542F05A /* RemotePanelDismissalRegistryTests.swift */; };
 		BD2B0437A28E2E7431E58D04 /* CineLarkBrandMark.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCF7F76F1708A2B088F76C39 /* CineLarkBrandMark.swift */; };
 		BE316598EA15FDB3B0142452 /* MediaContextEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCDEE95A952E66534D116C0F /* MediaContextEnvironment.swift */; };
@@ -61,21 +63,24 @@
 		CDA4EFDF1922935BB54F169E /* NavigationFeature.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC8129EC82C531D382AA1497 /* NavigationFeature.swift */; };
 		D449539E42C6AAB50207B561 /* AppFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3ABABA128E2A0D311D6A7F7D /* AppFeatureTests.swift */; };
 		D4A3375820C95BFF5B7AA2F7 /* AppLanguage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3E20D588912F0D88C2F56C8 /* AppLanguage.swift */; };
+		D6801076D0A0DB015F0E3D44 /* InsightsFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A871399EF1660889251D88E /* InsightsFeatureTests.swift */; };
+		D87EA7C5E146B8CC38BA3CE0 /* InsightsClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 857DD9E06E6144872C3D90BE /* InsightsClient.swift */; };
 		D9A6D26E54F24FD83C78A2CB /* InteractiveStyles.swift in Sources */ = {isa = PBXBuildFile; fileRef = F130F10368D8C9CE780999BB /* InteractiveStyles.swift */; };
-		DBC0D6DCB854131AB19D1E30 /* CineLarkRemote in Frameworks */ = {isa = PBXBuildFile; productRef = DA39EA08D22C8CAC956A0432 /* CineLarkRemote */; };
-		DE9522F74D309469302B2E22 /* Kingfisher in Frameworks */ = {isa = PBXBuildFile; productRef = E6C9969F909E6E89FA05FD2C /* Kingfisher */; };
+		DBC0D6DCB854131AB19D1E30 /* CineLarkPlayback in Frameworks */ = {isa = PBXBuildFile; productRef = AA501AC6C8C7D61D9DA24810 /* CineLarkPlayback */; };
+		DE9522F74D309469302B2E22 /* CineLarkGateway in Frameworks */ = {isa = PBXBuildFile; productRef = D41B1256FCBEC65488513032 /* CineLarkGateway */; };
 		DF00A4DFAE78797CF8121F51 /* RemoteClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 360AD552BCFF1067195D57F8 /* RemoteClient.swift */; };
 		E0FD14EF20191C638ADD81B9 /* MediaCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A02668E828AF3DF47ADD782D /* MediaCard.swift */; };
 		E4CE3CB8193DD43DDAB5A5C8 /* SourceFeature.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97BE8DB4F32948DCCBD3C259 /* SourceFeature.swift */; };
-		E86B837DE97F89B64955FEB4 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 8EA55C2C2EAB1572004F61D1 /* Sparkle */; };
+		E86B837DE97F89B64955FEB4 /* Kingfisher in Frameworks */ = {isa = PBXBuildFile; productRef = E6C9969F909E6E89FA05FD2C /* Kingfisher */; };
 		EF43F60C5072DADF24BA1C45 /* AppFeature.swift in Sources */ = {isa = PBXBuildFile; fileRef = A570156F083A81A915DF2815 /* AppFeature.swift */; };
 		EF4E62F26D7A69E13E8531B9 /* CineLarkAppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B08A8B1D616822F23271FF8A /* CineLarkAppDelegate.swift */; };
 		F2C14971F92D729F13D53F3C /* RemoteNetworkAddressTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B532E84E86C995C4C7436EB0 /* RemoteNetworkAddressTests.swift */; };
 		F331C69F1CE8A81083D7126B /* CacheSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90723D0B7D689218047E2149 /* CacheSettingsView.swift */; };
 		F572ACAB3B95DE4822E99C94 /* RemoteCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D346A47A7846ACCD319604CE /* RemoteCoordinator.swift */; };
-		F6FA9B86D4977FD3DDEE9100 /* CineLarkPlayback in Frameworks */ = {isa = PBXBuildFile; productRef = AA501AC6C8C7D61D9DA24810 /* CineLarkPlayback */; };
+		F6FA9B86D4977FD3DDEE9100 /* CineLarkPersistence in Frameworks */ = {isa = PBXBuildFile; productRef = 0DF4E3AD538E0D86CCDBFF48 /* CineLarkPersistence */; };
 		FB38130CCDF118323233623C /* CineLarkApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF1BEAD272C89D962C8DB178 /* CineLarkApp.swift */; };
 		FB650FF02184DCAD4CB1DED2 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7645BC2B798D0AEDE94D2340 /* RootView.swift */; };
+		FDBDFC4BE924330ACA55681F /* InsightsFeature.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3E16B6ECC6BBC298875433F /* InsightsFeature.swift */; };
 		FEF442E4AE9C6B9B723AF707 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = E717D917BD15FA54CE607D7F /* Localizable.strings */; };
 /* End PBXBuildFile section */
 
@@ -93,8 +98,10 @@
 		048719A6C3814E70ECE16FB8 /* SourceManagerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceManagerView.swift; sourceTree = "<group>"; };
 		04957063F0E0AEF64D673B82 /* ShortcutSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutSystem.swift; sourceTree = "<group>"; };
 		0654E9CA1587D965FE7FF5C5 /* LibraryFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryFeatureTests.swift; sourceTree = "<group>"; };
+		0655AD5F6065C2C7D3995483 /* InsightsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightsView.swift; sourceTree = "<group>"; };
 		07A58D0EF3507067E08D62E4 /* CacheFeature.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheFeature.swift; sourceTree = "<group>"; };
 		11E72F191AE8AB81C1DD9B26 /* MediaFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaFormatting.swift; sourceTree = "<group>"; };
+		1A871399EF1660889251D88E /* InsightsFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightsFeatureTests.swift; sourceTree = "<group>"; };
 		232C8DC8AA17A67BDA99EA74 /* CatalogMediaDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogMediaDetailView.swift; sourceTree = "<group>"; };
 		245182FAC942098C02AE2A42 /* maskAppIcon.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = maskAppIcon.png; sourceTree = "<group>"; };
 		27DE827C3BAFCA579A7111CA /* ProfileFeature.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileFeature.swift; sourceTree = "<group>"; };
@@ -118,6 +125,7 @@
 		75AEA47F2E7143E470FB5199 /* NavigationFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationFeatureTests.swift; sourceTree = "<group>"; };
 		7645BC2B798D0AEDE94D2340 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		83FAAB742010ABD4505B99A7 /* LibraryFeature.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryFeature.swift; sourceTree = "<group>"; };
+		857DD9E06E6144872C3D90BE /* InsightsClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightsClient.swift; sourceTree = "<group>"; };
 		8600FB58205A364EA54AD224 /* RemoteFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteFeatureTests.swift; sourceTree = "<group>"; };
 		883B64BCA708D6239E86FF3B /* ArtworkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkView.swift; sourceTree = "<group>"; };
 		90723D0B7D689218047E2149 /* CacheSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheSettingsView.swift; sourceTree = "<group>"; };
@@ -142,6 +150,7 @@
 		DC8129EC82C531D382AA1497 /* NavigationFeature.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationFeature.swift; sourceTree = "<group>"; };
 		DF1BEAD272C89D962C8DB178 /* CineLarkApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CineLarkApp.swift; sourceTree = "<group>"; };
 		E2CB659FDF0605362B13268C /* PersonDetailFeature.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonDetailFeature.swift; sourceTree = "<group>"; };
+		E3E16B6ECC6BBC298875433F /* InsightsFeature.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightsFeature.swift; sourceTree = "<group>"; };
 		E446DFF475AB6BE1AC655007 /* ImagePipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagePipeline.swift; sourceTree = "<group>"; };
 		E480A05496A727D1021673B6 /* CineLarkTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CineLarkTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E765B55C29005B0C9C68A0A9 /* RemoteTextInputCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteTextInputCoordinator.swift; sourceTree = "<group>"; };
@@ -163,15 +172,16 @@
 				4D75A4806B42544A311B772D /* CineLarkPluginAPI in Frameworks */,
 				33A2489883DF240055FA80B1 /* CineLarkCatalog in Frameworks */,
 				B05299F38635BB6EA6EBF3E8 /* CineLarkProfile in Frameworks */,
-				B489F5A60889975CD929D5D1 /* CineLarkEmby in Frameworks */,
-				BACE446FC6892B1913D8E6C3 /* CineLarkUHDNow in Frameworks */,
-				0F085182EF603949A0DA55FB /* CineLarkPersistence in Frameworks */,
-				F6FA9B86D4977FD3DDEE9100 /* CineLarkPlayback in Frameworks */,
-				DBC0D6DCB854131AB19D1E30 /* CineLarkRemote in Frameworks */,
-				1CBF7EEB637D29A2147ADDB0 /* CineLarkGateway in Frameworks */,
-				DE9522F74D309469302B2E22 /* Kingfisher in Frameworks */,
-				E86B837DE97F89B64955FEB4 /* Sparkle in Frameworks */,
-				70C14D59345F72DEB66B532A /* ComposableArchitecture in Frameworks */,
+				B489F5A60889975CD929D5D1 /* CineLarkInsights in Frameworks */,
+				BACE446FC6892B1913D8E6C3 /* CineLarkEmby in Frameworks */,
+				0F085182EF603949A0DA55FB /* CineLarkUHDNow in Frameworks */,
+				F6FA9B86D4977FD3DDEE9100 /* CineLarkPersistence in Frameworks */,
+				DBC0D6DCB854131AB19D1E30 /* CineLarkPlayback in Frameworks */,
+				1CBF7EEB637D29A2147ADDB0 /* CineLarkRemote in Frameworks */,
+				DE9522F74D309469302B2E22 /* CineLarkGateway in Frameworks */,
+				E86B837DE97F89B64955FEB4 /* Kingfisher in Frameworks */,
+				70C14D59345F72DEB66B532A /* Sparkle in Frameworks */,
+				72B21307E5B42A9A9CE3E3E7 /* ComposableArchitecture in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -183,6 +193,7 @@
 			children = (
 				3ABABA128E2A0D311D6A7F7D /* AppFeatureTests.swift */,
 				44E630295E91495671DCDF26 /* CacheFeatureTests.swift */,
+				1A871399EF1660889251D88E /* InsightsFeatureTests.swift */,
 				0654E9CA1587D965FE7FF5C5 /* LibraryFeatureTests.swift */,
 				75AEA47F2E7143E470FB5199 /* NavigationFeatureTests.swift */,
 				56BD51FDFEAEB3627F3035A2 /* PersonDetailFeatureTests.swift */,
@@ -218,6 +229,7 @@
 				232C8DC8AA17A67BDA99EA74 /* CatalogMediaDetailView.swift */,
 				AA2B841298AED234E26DF707 /* CatalogPersonDetailView.swift */,
 				CB47DF5FBB63F7B997DE32D6 /* CineLarkSettingsView.swift */,
+				0655AD5F6065C2C7D3995483 /* InsightsView.swift */,
 				B054FB68231FF0E76CF25C1B /* LibraryView.swift */,
 				FCDEE95A952E66534D116C0F /* MediaContextEnvironment.swift */,
 				6E4518583C6B1C7C8033319D /* RemoteSettingsView.swift */,
@@ -308,6 +320,8 @@
 				A570156F083A81A915DF2815 /* AppFeature.swift */,
 				AFC11B6AFF2F9EBF0DB232C7 /* CacheClient.swift */,
 				07A58D0EF3507067E08D62E4 /* CacheFeature.swift */,
+				857DD9E06E6144872C3D90BE /* InsightsClient.swift */,
+				E3E16B6ECC6BBC298875433F /* InsightsFeature.swift */,
 				83FAAB742010ABD4505B99A7 /* LibraryFeature.swift */,
 				B045701A3B4DC2A4B1127098 /* MediaDetailFeature.swift */,
 				F8D9163E7743A6F7896464B2 /* MediaPlatformClient.swift */,
@@ -365,6 +379,7 @@
 				61FCA7C23186B524EDA5D2A3 /* CineLarkPluginAPI */,
 				ED44BD808BB494C9D11A6443 /* CineLarkCatalog */,
 				522AA628FF213923A1A29558 /* CineLarkProfile */,
+				A5F41B63B64DD1A1C43C5065 /* CineLarkInsights */,
 				76C30DEFEA4BD9573ED5ACE2 /* CineLarkEmby */,
 				04837E25759D13DE17309CDB /* CineLarkUHDNow */,
 				0DF4E3AD538E0D86CCDBFF48 /* CineLarkPersistence */,
@@ -393,6 +408,7 @@
 						ProvisioningStyle = Automatic;
 					};
 					B2701EC98C811CAD1D5C76B6 = {
+						DevelopmentTeam = 4B8LRMN347;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -478,6 +494,9 @@
 				BD2B0437A28E2E7431E58D04 /* CineLarkBrandMark.swift in Sources */,
 				7650F3757844A96D543171D3 /* CineLarkSettingsView.swift in Sources */,
 				0FBA55BD2D5A9E90186B12A9 /* ImagePipeline.swift in Sources */,
+				D87EA7C5E146B8CC38BA3CE0 /* InsightsClient.swift in Sources */,
+				FDBDFC4BE924330ACA55681F /* InsightsFeature.swift in Sources */,
+				8DFAB7061F5A026730AE9BE7 /* InsightsView.swift in Sources */,
 				D9A6D26E54F24FD83C78A2CB /* InteractiveStyles.swift in Sources */,
 				AB1FA9650C4D01D6B3062FCA /* LibraryFeature.swift in Sources */,
 				1B7F01EBA86DBED26D6882EA /* LibraryView.swift in Sources */,
@@ -515,6 +534,7 @@
 			files = (
 				D449539E42C6AAB50207B561 /* AppFeatureTests.swift in Sources */,
 				2018937F5ABAD73AF2A1A1D7 /* CacheFeatureTests.swift in Sources */,
+				D6801076D0A0DB015F0E3D44 /* InsightsFeatureTests.swift in Sources */,
 				45E2048B8A2A19D95ED13C04 /* LibraryFeatureTests.swift in Sources */,
 				45EDA20FCB91403283F022C5 /* NavigationFeatureTests.swift in Sources */,
 				37831B90F652ABEDC3B9AD6E /* PersonDetailFeatureTests.swift in Sources */,
@@ -636,7 +656,6 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = CineLark.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = WJGKG7YX2B;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Resources/Info.plist;
@@ -742,7 +761,6 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = CineLark.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = WJGKG7YX2B;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Resources/Info.plist;
@@ -847,6 +865,10 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 1E1B1739F43B06B77FCE51C6 /* XCRemoteSwiftPackageReference "Sparkle" */;
 			productName = Sparkle;
+		};
+		A5F41B63B64DD1A1C43C5065 /* CineLarkInsights */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = CineLarkInsights;
 		};
 		A749D953D7ACF6BC4D462B11 /* CineLarkDomain */ = {
 			isa = XCSwiftPackageProductDependency;
