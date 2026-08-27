@@ -59,8 +59,9 @@
 
 ## Open questions
 
-- Map optional real-response metadata such as original title, genres, series
-  counts, and last-played timestamps in a separate metadata-fidelity milestone.
+- Original title, genres, series counts, and last-played timestamps are now
+  implemented by the separate
+  [metadata-fidelity milestone](../018-emby-metadata-fidelity/001-action.md).
 - If a future Emby server requires a trusted cross-origin CDN, introduce an
   explicit origin-scoped playback credential contract instead of relaxing the
   same-origin authorization-header invariant.

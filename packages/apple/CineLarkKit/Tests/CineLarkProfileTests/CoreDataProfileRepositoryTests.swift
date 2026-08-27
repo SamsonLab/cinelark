@@ -69,6 +69,69 @@ import CineLarkPluginAPI
     #expect(try await repository.playback(profileID: second, mediaKey: mediaKey)?.state.positionSeconds == 50)
 }
 
+@Test func partialSnapshotMetadataRetainsExistingDimensions() async throws {
+    let repository = try CoreDataProfileRepository(configuration: .init(inMemory: true))
+    let profileID = ProfileID(rawValue: UUID())
+    let sourceID = SourceID(rawValue: UUID())
+    let locator = MediaLocatorID(sourceID: sourceID, providerItemID: "movie-1")
+    let mediaKey = ProfileMediaKey(locator: locator)
+    let firstDate = Date(timeIntervalSince1970: 100)
+    let secondDate = Date(timeIntervalSince1970: 200)
+    let firstSnapshot = ProfileMediaSnapshot(
+        key: mediaKey,
+        locator: locator,
+        title: "Synthetic Movie",
+        kind: .movie,
+        artworkURL: nil,
+        metadata: ProfileMediaMetadataSnapshot(
+            genres: [ProfileGenreSnapshot(name: "Drama", slug: "drama")],
+            directors: [ProfilePersonSnapshot(providerID: "director-1", name: "Director")],
+            cast: [ProfilePersonSnapshot(providerID: "actor-1", name: "Actor")]
+        ),
+        modifiedAt: firstDate,
+        deviceID: "device-a"
+    )
+    try await repository.saveFavorite(
+        ProfileFavoriteState(
+            profileID: profileID,
+            mediaKey: mediaKey,
+            isFavorite: true,
+            modifiedAt: firstDate,
+            deviceID: "device-a"
+        ),
+        snapshot: firstSnapshot
+    )
+    let importedSnapshot = ProfileMediaSnapshot(
+        key: mediaKey,
+        locator: locator,
+        title: "Synthetic Movie",
+        kind: .movie,
+        artworkURL: nil,
+        metadata: ProfileMediaMetadataSnapshot(
+            genres: [ProfileGenreSnapshot(name: "Science Fiction", slug: "science-fiction")]
+        ),
+        modifiedAt: secondDate,
+        deviceID: "device-b"
+    )
+    try await repository.saveFavorite(
+        ProfileFavoriteState(
+            profileID: profileID,
+            mediaKey: mediaKey,
+            isFavorite: true,
+            modifiedAt: secondDate,
+            deviceID: "device-b"
+        ),
+        snapshot: importedSnapshot
+    )
+
+    let stored = try #require(
+        try await repository.mediaSnapshots(keys: [mediaKey]).first
+    )
+    #expect(stored.metadata?.genres.map(\.name) == ["Science Fiction"])
+    #expect(stored.metadata?.directors.map(\.name) == ["Director"])
+    #expect(stored.metadata?.cast.map(\.name) == ["Actor"])
+}
+
 @Test func viewingFactsAreIdempotentAndDriveProfileManifest() async throws {
     let repository = try CoreDataProfileRepository(configuration: .init(inMemory: true))
     let clientID = ClientID(rawValue: UUID())

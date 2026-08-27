@@ -73,6 +73,42 @@ import CineLarkPluginAPI
     #expect(pageA.items.first?.catalogID == pageB.items.first?.catalogID)
 }
 
+@Test func enrichedSummaryMetadataSurvivesCatalogPersistence() async throws {
+    let store = try CoreDataCatalogStore(inMemory: true)
+    let source = SourceID(rawValue: UUID())
+    let locator = MediaLocatorID(sourceID: source, providerItemID: "series-1")
+    let lastPlayedAt = Date(timeIntervalSince1970: 1_787_753_106)
+    let summary = MediaSummary(
+        id: locator.providerItemID,
+        kind: .series,
+        title: "Synthetic Series",
+        originalTitle: "Synthetic Original Series",
+        totalSeasons: 4,
+        genres: [Genre(id: 1, name: "Drama", slug: "drama")],
+        userState: UserPlaybackState(
+            played: false,
+            positionSeconds: 120,
+            progress: 0.1,
+            lastPlayedAt: lastPlayedAt
+        )
+    )
+
+    try await store.upsert(
+        [LocatedMediaItem(locator: locator, summary: summary)],
+        refreshedAt: Date(timeIntervalSince1970: 1)
+    )
+    let restored = try #require(
+        try await store.cachedPage(
+            for: MediaQuery(scope: SourceScope(sourceID: source))
+        ).items.first?.summary
+    )
+
+    #expect(restored.originalTitle == summary.originalTitle)
+    #expect(restored.totalSeasons == summary.totalSeasons)
+    #expect(restored.genres == summary.genres)
+    #expect(restored.userState.lastPlayedAt == lastPlayedAt)
+}
+
 @Test func matchingContentKeysDoNotMergeWithoutExplicitCatalogIdentity() async throws {
     let store = try CoreDataCatalogStore(inMemory: true)
     let source = SourceID(rawValue: UUID())

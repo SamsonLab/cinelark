@@ -488,6 +488,15 @@ struct LibraryFeature {
                 kind: snapshot.kind,
                 title: snapshot.title,
                 posterURL: snapshot.artworkURL,
+                genres: (snapshot.metadata?.genres ?? []).compactMap {
+                    let normalized = Genre.normalized(name: $0.name)
+                    guard let normalized else { return nil }
+                    return Genre(
+                        id: $0.providerID.flatMap(Int.init) ?? normalized.id,
+                        name: normalized.name,
+                        slug: $0.slug ?? normalized.slug
+                    )
+                },
                 userState: state.userState
             )
         )

@@ -44,6 +44,18 @@ children of series in navigation, but resume import keeps each episode's exact
 provider item identity so local Profile facts and insights are not attributed
 to the containing series.
 
+Summary requests explicitly include original title and genres. Genre names are
+trimmed and deduplicated in provider order, with a deterministic local slug and
+presentation ID; that derived ID is not an Emby genre identity and is never
+used for cross-source matching. `ChildCount` becomes a season count only for a
+series. `UserData.LastPlayedDate` accepts whole- or fractional-second ISO-8601
+instants.
+
+Provider playback timestamps remain non-authoritative during ordinary browsing.
+Only the explicit remote-import action copies last-played state and genre
+evidence into the active CineLark Profile. A genre-only import retains any
+director or cast dimensions already captured from detail or playback.
+
 Emby pagination advances `StartIndex` by the number of raw provider items
 consumed, not by the number of normalized items emitted. An empty page before
 `TotalRecordCount` or a repeated cursor is treated as an invalid response. This
@@ -73,12 +85,13 @@ the session; only a natural EOF produces local played state automatically.
 
 Synthetic real-shape fixture tests cover reverse-proxy URL preservation, UDP
 response parsing and deduplication, raw offset cursor mapping, episode resume
-identity, content/detail hierarchy, image metadata, secret-free same-origin
-playback URLs, remote import/mirror endpoints, exact-user enforcement, and
-direct playback headers. Registry and TCA tests additionally cover legacy alias
-ownership, explicit reconnect state, identity preservation, successful cleanup,
-and non-destructive validation failure. Private Postman responses and live
-account data are never repository fixtures.
+identity, metadata normalization, series counts, content/detail hierarchy,
+image metadata, secret-free same-origin playback URLs, remote import/mirror
+endpoints, exact-user enforcement, and direct playback headers. Registry and
+TCA tests additionally cover legacy alias ownership, explicit reconnect state,
+identity preservation, successful cleanup, non-destructive validation failure,
+explicit Profile import, and episode playback identity. Private Postman
+responses and live account data are never repository fixtures.
 
 The [`CineLark Emby Postman kit`](../../tools/postman/README.md) provides the
 same implemented surface as an importable collection, real-server environment

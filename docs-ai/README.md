@@ -55,3 +55,4 @@ writing, amendment, and verification rules.
 | 015 | [Viewing insights](015-viewing-insights/000-plan.md) | 2026-08-27 | Local-first monthly, quarterly, annual, and affinity projections from durable viewing facts |
 | 016 | [Emby source unification](016-emby-source-unification/000-plan.md) | 2026-08-27 | One user-visible Emby plugin with explicit reconnect migration from the retired UHDNow private runtime |
 | 017 | [Emby real-contract hardening](017-emby-real-contract-hardening/000-plan.md) | 2026-08-27 | Episode identity, provider-correct pagination, and secret-free direct-stream URL resolution |
+| 018 | [Emby metadata fidelity](018-emby-metadata-fidelity/000-plan.md) | 2026-08-27 | Original titles, genres, series counts, and explicit-import playback timestamps across Catalog and Profile |

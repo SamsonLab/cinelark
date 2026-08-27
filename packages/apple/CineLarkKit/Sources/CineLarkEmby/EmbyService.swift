@@ -3,6 +3,15 @@ import CineLarkDomain
 import CineLarkPluginAPI
 
 actor EmbyService {
+    private static let summaryFields = [
+        "Overview",
+        "ProviderIds",
+        "UserData",
+        "RunTimeTicks",
+        "OriginalTitle",
+        "Genres"
+    ]
+
     let configuration: SourceConfiguration
     private let device: EmbyDeviceIdentity
     private let http: EmbyHTTPClient
@@ -57,7 +66,7 @@ actor EmbyService {
             URLQueryItem(name: "Recursive", value: "true"),
             URLQueryItem(name: "StartIndex", value: String(offset)),
             URLQueryItem(name: "Limit", value: String(query.limit)),
-            URLQueryItem(name: "Fields", value: "Overview,ProviderIds,UserData,RunTimeTicks")
+            URLQueryItem(name: "Fields", value: Self.summaryFields.joined(separator: ","))
         ]
         if !query.kinds.isEmpty {
             items.append(
@@ -137,7 +146,10 @@ actor EmbyService {
         }
         var queryItems = [
             URLQueryItem(name: "Limit", value: String(query.limit)),
-            URLQueryItem(name: "Fields", value: "Overview,ProviderIds,UserData,RunTimeTicks,People")
+            URLQueryItem(
+                name: "Fields",
+                value: (Self.summaryFields + ["People"]).joined(separator: ",")
+            )
         ]
         if let parent = query.parent {
             queryItems.append(URLQueryItem(name: "ParentId", value: parent.providerItemID))
@@ -481,6 +493,10 @@ actor EmbyService {
         }
         let request = try builder.request(
             path: "Users/\(userID)/Items/\(id)",
+            query: [URLQueryItem(
+                name: "Fields",
+                value: (Self.summaryFields + ["People"]).joined(separator: ",")
+            )],
             token: token
         )
         return try await response(for: request)
@@ -499,7 +515,10 @@ actor EmbyService {
         var items = [
             URLQueryItem(name: "StartIndex", value: String(offset)),
             URLQueryItem(name: "Limit", value: String(query.limit)),
-            URLQueryItem(name: "Fields", value: "Overview,ProviderIds,UserData,RunTimeTicks,People")
+            URLQueryItem(
+                name: "Fields",
+                value: (Self.summaryFields + ["People"]).joined(separator: ",")
+            )
         ] + additional
         if !query.kinds.isEmpty {
             items.append(URLQueryItem(
@@ -616,6 +635,7 @@ actor EmbyService {
             id: item.id,
             kind: kind,
             title: item.name,
+            originalTitle: Self.nonEmpty(item.originalTitle),
             synopsis: item.overview,
             releaseYear: item.productionYear,
             rating: item.communityRating,
@@ -629,6 +649,8 @@ actor EmbyService {
             logoURL: item.imageTags?["Logo"] == nil
                 ? nil
                 : imageURL(itemID: item.id, path: "Logo"),
+            totalSeasons: kind == .series ? item.childCount : nil,
+            genres: Self.genres(item.genres),
             userState: Self.userState(item)
         )
         var keys = Set<ContentKey>()
@@ -652,8 +674,30 @@ actor EmbyService {
             played: item.userData?.played ?? false,
             favorite: item.userData?.isFavorite,
             positionSeconds: position,
-            progress: progress
+            progress: progress,
+            lastPlayedAt: Self.date(item.userData?.lastPlayedDate)
         )
+    }
+
+    private static func nonEmpty(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return normalized.isEmpty ? nil : normalized
+    }
+
+    private static func genres(_ values: [String]?) -> [Genre] {
+        var seen = Set<String>()
+        return (values ?? []).compactMap { value in
+            guard let genre = Genre.normalized(name: value) else { return nil }
+            return seen.insert(genre.slug).inserted ? genre : nil
+        }
+    }
+
+    private static func date(_ value: String?) -> Date? {
+        guard let value else { return nil }
+        return try? Date.ISO8601FormatStyle(
+            includingFractionalSeconds: value.contains(".")
+        ).parse(value)
     }
 
     private func imageURL(itemID: String, path: String) -> URL {

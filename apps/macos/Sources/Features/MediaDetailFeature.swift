@@ -267,7 +267,7 @@ struct MediaDetailFeature {
                         providerItemID: episode.id
                     ),
                     title: episode.title,
-                    kind: .series,
+                    kind: .episode,
                     artworkURL: episode.thumbnailURL ?? state.item.posterURL,
                     metadata: profileMetadata(state),
                     startPositionSeconds: episode.userState.played
@@ -290,7 +290,6 @@ struct MediaDetailFeature {
         let summary = state.detail?.summary ?? state.initialItem
         let genres = summary.genres.map {
             ProfileGenreSnapshot(
-                providerID: String($0.id),
                 name: $0.name,
                 slug: $0.slug
             )

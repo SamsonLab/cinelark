@@ -45,6 +45,7 @@ struct ProfileFeatureTests {
         let sourceID = SourceID(rawValue: UUID())
         let locator = MediaLocatorID(sourceID: sourceID, providerItemID: "movie-1")
         let timestamp = Date(timeIntervalSince1970: 1_800_000_000)
+        let remoteLastPlayedAt = Date(timeIntervalSince1970: 1_787_753_106)
         let recorder = ProfileSyncRecorder()
         var state = ProfileFeature.State()
         state.activeProfileID = profileID
@@ -68,13 +69,19 @@ struct ProfileFeatureTests {
                                 summary: MediaSummary(
                                     id: "movie-1",
                                     kind: .movie,
-                                    title: "Arrival"
+                                    title: "Arrival",
+                                    genres: [Genre(
+                                        id: 2_122_445_355,
+                                        name: "Science Fiction",
+                                        slug: "science-fiction"
+                                    )]
                                 ),
                                 isFavorite: true,
                                 playback: UserPlaybackState(
                                     played: false,
                                     positionSeconds: 25,
-                                    progress: 0.25
+                                    progress: 0.25,
+                                    lastPlayedAt: remoteLastPlayedAt
                                 )
                             )
                         ]
@@ -95,7 +102,14 @@ struct ProfileFeatureTests {
         #expect(batch?.marker == "remote-v1")
         #expect(batch?.favorites.first?.isFavorite == true)
         #expect(batch?.playback.first?.state.positionSeconds == 25)
+        #expect(batch?.playback.first?.state.lastPlayedAt == remoteLastPlayedAt)
         #expect(batch?.snapshots.first?.locator == locator)
+        #expect(batch?.snapshots.first?.metadata?.genres == [
+            ProfileGenreSnapshot(
+                name: "Science Fiction",
+                slug: "science-fiction"
+            )
+        ])
     }
 
     @Test("Mirror failures reschedule with TestClock backoff before retrying the queue")

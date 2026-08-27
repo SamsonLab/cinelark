@@ -1300,7 +1300,7 @@ public actor CoreDataProfileRepository: ProfileRepository {
     }
 
     private static func upsertSnapshot(
-        _ snapshot: ProfileMediaSnapshot,
+        _ incoming: ProfileMediaSnapshot,
         entity: String = Entity.snapshot,
         encoder: JSONEncoder,
         context: NSManagedObjectContext
@@ -1308,18 +1308,58 @@ public actor CoreDataProfileRepository: ProfileRepository {
         let object = try fetchOne(
             entity: entity,
             key: "key",
-            value: snapshot.key.rawValue,
+            value: incoming.key.rawValue,
             context: context
         ) ?? NSEntityDescription.insertNewObject(forEntityName: entity, into: context)
         if let existingStamp = mutationStamp(from: object),
-           snapshot.effectiveMutationStamp <= existingStamp {
+           incoming.effectiveMutationStamp <= existingStamp {
             return
         }
+        let snapshot = mergingSnapshotMetadata(in: incoming, with: object)
         object.setValue(snapshot.key.rawValue, forKey: "key")
         object.setValue(snapshot.modifiedAt, forKey: "modifiedAt")
         object.setValue(snapshot.deviceID, forKey: "deviceID")
         setMutationStamp(snapshot.effectiveMutationStamp, on: object)
         object.setValue(try encoder.encode(snapshot), forKey: "payload")
+    }
+
+    private static func mergingSnapshotMetadata(
+        in incoming: ProfileMediaSnapshot,
+        with existingObject: NSManagedObject
+    ) -> ProfileMediaSnapshot {
+        guard
+            let payload = existingObject.value(forKey: "payload") as? Data,
+            let existing = try? JSONDecoder().decode(ProfileMediaSnapshot.self, from: payload),
+            let existingMetadata = existing.metadata
+        else { return incoming }
+
+        let metadata: ProfileMediaMetadataSnapshot
+        if let incomingMetadata = incoming.metadata {
+            metadata = ProfileMediaMetadataSnapshot(
+                genres: incomingMetadata.genres.isEmpty
+                    ? existingMetadata.genres
+                    : incomingMetadata.genres,
+                directors: incomingMetadata.directors.isEmpty
+                    ? existingMetadata.directors
+                    : incomingMetadata.directors,
+                cast: incomingMetadata.cast.isEmpty
+                    ? existingMetadata.cast
+                    : incomingMetadata.cast
+            )
+        } else {
+            metadata = existingMetadata
+        }
+        return ProfileMediaSnapshot(
+            key: incoming.key,
+            locator: incoming.locator,
+            title: incoming.title,
+            kind: incoming.kind,
+            artworkURL: incoming.artworkURL,
+            metadata: metadata,
+            modifiedAt: incoming.modifiedAt,
+            deviceID: incoming.deviceID,
+            mutationStamp: incoming.mutationStamp
+        )
     }
 
     @discardableResult

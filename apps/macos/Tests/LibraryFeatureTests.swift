@@ -29,6 +29,13 @@ struct LibraryFeatureTests {
             title: "Local Title",
             kind: .movie,
             artworkURL: nil,
+            metadata: ProfileMediaMetadataSnapshot(
+                genres: [ProfileGenreSnapshot(
+                    providerID: "1",
+                    name: "Drama",
+                    slug: "drama"
+                )]
+            ),
             modifiedAt: Date(timeIntervalSince1970: 1_800_000_000),
             deviceID: "device"
         )
@@ -77,6 +84,9 @@ struct LibraryFeatureTests {
 
         #expect(store.state.orderedItems.first?.summary.userState == localState.userState)
         #expect(store.state.favorites.first?.locator == locator)
+        #expect(store.state.favorites.first?.summary.genres == [
+            Genre(id: 1, name: "Drama", slug: "drama")
+        ])
         #expect(store.state.resumeItems.first?.summary.userState == localState.userState)
     }
 

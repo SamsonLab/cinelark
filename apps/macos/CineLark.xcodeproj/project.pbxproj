@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0986FCB7B6B4372C26941C34 /* MediaDetailFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FBCEEFE3043C91636C69E3C /* MediaDetailFeatureTests.swift */; };
 		0B8F19BA2F6DD3B705F36AE4 /* SourceManagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 048719A6C3814E70ECE16FB8 /* SourceManagerView.swift */; };
 		0B93F6D1056AE1362FE8965C /* ShortcutSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04957063F0E0AEF64D673B82 /* ShortcutSystem.swift */; };
 		0F085182EF603949A0DA55FB /* CineLarkPersistence in Frameworks */ = {isa = PBXBuildFile; productRef = 0DF4E3AD538E0D86CCDBFF48 /* CineLarkPersistence */; };
@@ -118,6 +119,7 @@
 		5548670FC4361CEC3CFA4299 /* PlaybackFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackFeatureTests.swift; sourceTree = "<group>"; };
 		56BD51FDFEAEB3627F3035A2 /* PersonDetailFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonDetailFeatureTests.swift; sourceTree = "<group>"; };
 		5A2B52C7CCEA6A44B30EEBF8 /* CineLark.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CineLark.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		5FBCEEFE3043C91636C69E3C /* MediaDetailFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaDetailFeatureTests.swift; sourceTree = "<group>"; };
 		68E5C0F6A5282B15131E40D3 /* RemoteFeature.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteFeature.swift; sourceTree = "<group>"; };
 		6E4518583C6B1C7C8033319D /* RemoteSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteSettingsView.swift; sourceTree = "<group>"; };
 		6EB4E7379D1569F779BAF6CF /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
@@ -195,6 +197,7 @@
 				44E630295E91495671DCDF26 /* CacheFeatureTests.swift */,
 				1A871399EF1660889251D88E /* InsightsFeatureTests.swift */,
 				0654E9CA1587D965FE7FF5C5 /* LibraryFeatureTests.swift */,
+				5FBCEEFE3043C91636C69E3C /* MediaDetailFeatureTests.swift */,
 				75AEA47F2E7143E470FB5199 /* NavigationFeatureTests.swift */,
 				56BD51FDFEAEB3627F3035A2 /* PersonDetailFeatureTests.swift */,
 				5548670FC4361CEC3CFA4299 /* PlaybackFeatureTests.swift */,
@@ -536,6 +539,7 @@
 				2018937F5ABAD73AF2A1A1D7 /* CacheFeatureTests.swift in Sources */,
 				D6801076D0A0DB015F0E3D44 /* InsightsFeatureTests.swift in Sources */,
 				45E2048B8A2A19D95ED13C04 /* LibraryFeatureTests.swift in Sources */,
+				0986FCB7B6B4372C26941C34 /* MediaDetailFeatureTests.swift in Sources */,
 				45EDA20FCB91403283F022C5 /* NavigationFeatureTests.swift in Sources */,
 				37831B90F652ABEDC3B9AD6E /* PersonDetailFeatureTests.swift in Sources */,
 				50C2E4C621EE14A3F8FC8F8C /* PlaybackFeatureTests.swift in Sources */,

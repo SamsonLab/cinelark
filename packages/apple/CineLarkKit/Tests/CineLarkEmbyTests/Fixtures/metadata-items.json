@@ -1,0 +1,31 @@
+{
+  "Items": [
+    {
+      "Id": "series-synthetic-1",
+      "Name": "Synthetic Series",
+      "OriginalTitle": " Synthetic Original Series ",
+      "Type": "Series",
+      "Genres": [" Drama ", "Science Fiction", "drama", ""],
+      "ChildCount": 4,
+      "UserData": {
+        "Played": false,
+        "PlaybackPositionTicks": 1200000000,
+        "LastPlayedDate": "2026-08-26T14:05:06.1234567Z"
+      }
+    },
+    {
+      "Id": "movie-synthetic-1",
+      "Name": "Synthetic Movie",
+      "OriginalTitle": "Synthetic Original Movie",
+      "Type": "Movie",
+      "Genres": ["Drama"],
+      "ChildCount": 9,
+      "UserData": {
+        "Played": true,
+        "PlaybackPositionTicks": 0,
+        "LastPlayedDate": "2026-08-25T03:04:05Z"
+      }
+    }
+  ],
+  "TotalRecordCount": 2
+}

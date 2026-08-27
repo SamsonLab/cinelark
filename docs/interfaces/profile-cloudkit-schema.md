@@ -86,8 +86,8 @@ to `{modifiedAt, deviceID}` during migration.
 | `ProfilePlaybackEvent` | Immutable union by stable event ID |
 | `PlaybackState` | Materialized projection; higher mutation stamp wins until event rebuilding is implemented |
 | `FavoriteState`, `RatingState` | Explicit value/tombstone with higher mutation stamp |
-| Profile metadata | Field-level mutation in the eventual schema; record-level stamp in the current slice |
-| `MediaSnapshot` | Preserve historical value; latest snapshot is a presentation projection |
+| Profile media metadata | The snapshot stamp selects the incoming record; each non-empty incoming genre/director/cast dimension replaces that dimension, while missing or empty dimensions retain existing evidence |
+| `MediaSnapshot` | Preserve historical identity; the latest stamped snapshot is the presentation projection |
 | Deletion | Tombstone first; physical cleanup only after a validated retention boundary |
 
 CloudKit record change tags and server `modificationDate` remain transport
@@ -137,7 +137,7 @@ Implemented and covered by package tests:
 - Profile manifest session/watch-time summaries and friendly last-device
   projection from durable facts.
 - optional genre/director/cast evidence in media snapshots with legacy payload
-  compatibility;
+  compatibility and dimension-complete merging for partial imports;
 - rebuildable month, quarter, year, and all-time Insights projections over
   Profile-owned facts. Derived snapshots remain outside Core Data and CloudKit.
 

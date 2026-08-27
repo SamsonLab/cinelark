@@ -113,4 +113,5 @@ verbatim from the private response collection.
 
 ## Amendments
 
-- None.
+- Updated 2026-08-27: the optional metadata work deferred here was completed in
+  [Emby metadata fidelity](../018-emby-metadata-fidelity/000-plan.md).

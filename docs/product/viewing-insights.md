@@ -44,6 +44,11 @@ The Profile repository owns durable sessions and media snapshots. Optional
 snapshot metadata retains genre and contributor evidence captured while a
 detail is available. Provider IDs are source-local; optional TMDB/IMDb IDs are
 preferred future cross-source evidence but never replace a media locator.
+Explicit Emby import can add genre evidence without making provider playback
+state authoritative during browsing. Snapshot updates merge metadata by
+dimension: a non-empty incoming genre/director/cast dimension replaces that
+dimension, while a missing or empty dimension retains existing evidence. The
+current schema does not interpret absence as metadata deletion.
 
 Insights are rebuildable and therefore are not currently persisted in Core
 Data or CloudKit. TCA receives only the selected period, request identity, and

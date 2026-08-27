@@ -511,3 +511,29 @@ Each entry uses a stable `LNNN` identifier and contains:
 - **Version caveat:** TCA 1.26.1 gives the reducer deterministic action/effect
   ordering, but it cannot make two external stores atomic. Keep cleanup
   idempotent and order repository persistence before best-effort secret removal.
+
+## L019 — Child delegates must carry leaf semantic identity
+
+- **Problem / context:** `MediaDetailFeature` displays a series route and emits
+  playback delegates for selected episodes. The first implementation inherited
+  the surrounding series kind, so Profile playback facts could classify the
+  exact episode locator as a series even though the domain supported episodes.
+- **TCA pattern applied:** the child action that owns the selected leaf constructs
+  a complete delegate payload with the episode locator and `.episode` kind. The
+  parent coordinates playback without re-deriving identity from route context.
+- **Why this boundary was chosen:** the detail child knows which hierarchy item
+  the user selected, while the parent owns cross-feature orchestration. Moving
+  identity inference downstream would couple Playback and Profile to navigation
+  shape and permit the locator and kind to disagree.
+- **Minimal CineLark example:** `.view(.episodeSelected(episode))` emits
+  `.delegate(.play(locator: episodeLocator, kind: .episode, ...))` even though
+  the feature's root item is a series.
+- **Test evidence:** `MediaDetailFeatureTests.episodePlaybackIdentity` asserts
+  the exact delegate payload, including leaf locator, episode kind, and Profile
+  metadata. The full unsigned macOS test command passes with the correction.
+- **Reuse rule:** when a child selection crosses a feature boundary, send the
+  exact semantic identity of the selected leaf. Never make a parent or sibling
+  infer it from the route, collection, or container that presented the child.
+- **Version caveat:** TCA 1.26.1 enum actions guarantee payload shape, not
+  semantic agreement between fields. Use `TestStore` to assert the complete
+  delegate payload for heterogeneous hierarchies.

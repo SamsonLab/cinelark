@@ -43,8 +43,10 @@ struct ItemPageDTO: Decodable {
 struct ItemDTO: Decodable {
     let id: String
     let name: String
+    let originalTitle: String?
     let type: String
     let overview: String?
+    let genres: [String]?
     let productionYear: Int?
     let communityRating: Double?
     let runTimeTicks: Int64?
@@ -66,19 +68,23 @@ struct ItemDTO: Decodable {
         let isFavorite: Bool?
         let played: Bool?
         let playbackPositionTicks: Int64?
+        let lastPlayedDate: String?
 
         enum CodingKeys: String, CodingKey {
             case isFavorite = "IsFavorite"
             case played = "Played"
             case playbackPositionTicks = "PlaybackPositionTicks"
+            case lastPlayedDate = "LastPlayedDate"
         }
     }
 
     enum CodingKeys: String, CodingKey {
         case id = "Id"
         case name = "Name"
+        case originalTitle = "OriginalTitle"
         case type = "Type"
         case overview = "Overview"
+        case genres = "Genres"
         case productionYear = "ProductionYear"
         case communityRating = "CommunityRating"
         case runTimeTicks = "RunTimeTicks"

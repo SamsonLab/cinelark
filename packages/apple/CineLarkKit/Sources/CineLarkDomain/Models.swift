@@ -97,6 +97,27 @@ public struct Genre: Codable, Sendable, Hashable, Identifiable {
         self.name = name
         self.slug = slug
     }
+
+    public static func normalized(name rawName: String) -> Self? {
+        let name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return nil }
+        let locale = Locale(identifier: "en_US_POSIX")
+        let folded = name
+            .folding(options: [.diacriticInsensitive, .widthInsensitive], locale: locale)
+            .lowercased(with: locale)
+        let components = folded
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+        let slug = components.isEmpty ? folded : components.joined(separator: "-")
+        guard !slug.isEmpty else { return nil }
+
+        var hash: UInt32 = 2_166_136_261
+        for byte in slug.utf8 {
+            hash ^= UInt32(byte)
+            hash &*= 16_777_619
+        }
+        return Self(id: Int(hash), name: name, slug: slug)
+    }
 }
 
 public struct MediaSummary: Codable, Sendable, Hashable, Identifiable {

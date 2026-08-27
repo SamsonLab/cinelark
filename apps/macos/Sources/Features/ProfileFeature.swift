@@ -369,6 +369,7 @@ struct ProfileFeature {
                         title: $0.summary.title,
                         kind: $0.summary.kind,
                         artworkURL: $0.summary.posterURL,
+                        metadata: Self.profileMetadata($0.summary),
                         modifiedAt: timestamp,
                         deviceID: deviceID
                     )
@@ -410,6 +411,18 @@ struct ProfileFeature {
             }
         }
         .cancellable(id: CancelID.importRemoteState, cancelInFlight: true)
+    }
+
+    private static func profileMetadata(
+        _ summary: MediaSummary
+    ) -> ProfileMediaMetadataSnapshot? {
+        let genres = summary.genres.map {
+            ProfileGenreSnapshot(
+                name: $0.name,
+                slug: $0.slug
+            )
+        }
+        return genres.isEmpty ? nil : ProfileMediaMetadataSnapshot(genres: genres)
     }
 
     private func mirrorPass() -> Effect<Action> {

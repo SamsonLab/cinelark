@@ -149,6 +149,43 @@ private func response(for request: URLRequest, status: Int = 200) -> HTTPURLResp
     #expect(page.total == 7)
 }
 
+@Test func metadataFixtureNormalizesSummaryFieldsAndRequestsThemExplicitly() async throws {
+    let sourceID = SourceID(rawValue: UUID())
+    let recorder = RequestRecorder()
+    let data = try fixtureData("metadata-items")
+    let http = EmbyHTTPClient { request in
+        await recorder.append(request)
+        return HTTPResponse(data: data, response: response(for: request))
+    }
+    let runtime = try await makeRuntime(sourceID: sourceID, http: http)
+
+    let page = try await runtime.browse!.page(
+        MediaQuery(scope: SourceScope(sourceID: sourceID), limit: 20)
+    )
+    let series = try #require(page.items.first?.summary)
+    let movie = try #require(page.items.last?.summary)
+
+    #expect(series.originalTitle == "Synthetic Original Series")
+    #expect(series.totalSeasons == 4)
+    #expect(series.genres.map(\.name) == ["Drama", "Science Fiction"])
+    #expect(series.genres.map(\.slug) == ["drama", "science-fiction"])
+    #expect(series.userState.lastPlayedAt?.timeIntervalSince1970 == 1_787_753_106.1234567)
+    #expect(movie.originalTitle == "Synthetic Original Movie")
+    #expect(movie.totalSeasons == nil)
+    #expect(movie.genres.first?.id == series.genres.first?.id)
+    #expect(movie.userState.lastPlayedAt == Date(timeIntervalSince1970: 1_787_627_045))
+
+    let request = try #require(await recorder.requests.first)
+    let fields = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?
+        .queryItems?
+        .first(where: { $0.name == "Fields" })?
+        .value?
+        .split(separator: ",")
+        .map(String.init) ?? []
+    #expect(fields.contains("OriginalTitle"))
+    #expect(fields.contains("Genres"))
+}
+
 @Test func remoteImportRejectsAProviderThatCannotAdvanceItsCursor() async throws {
     let sourceID = SourceID(rawValue: UUID())
     let attempts = AttemptCounter()

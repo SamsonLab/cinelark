@@ -21,7 +21,19 @@ struct CatalogMediaDetailView: View {
                         Text(store.item.title)
                             .font(.system(size: 38, weight: .bold))
 
-                        MediaFacts(item: store.item)
+                        if let originalTitle {
+                            Text(originalTitle)
+                                .font(.title3)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        MediaFacts(item: store.item, fields: .extended)
+
+                        if !store.item.genres.isEmpty {
+                            Text(store.item.genres.map(\.name).joined(separator: " · "))
+                                .font(.callout.weight(.medium))
+                                .foregroundStyle(.secondary)
+                        }
 
                         if let synopsis = store.item.synopsis, !synopsis.isEmpty {
                             Text(synopsis)
@@ -118,6 +130,14 @@ struct CatalogMediaDetailView: View {
             get: { store.selectedSeasonID },
             set: { if let value = $0 { store.send(.view(.seasonSelected(value))) } }
         )
+    }
+
+    private var originalTitle: String? {
+        guard let originalTitle = store.item.originalTitle,
+              !originalTitle.isEmpty,
+              originalTitle.caseInsensitiveCompare(store.item.title) != .orderedSame
+        else { return nil }
+        return originalTitle
     }
 
     private func peopleSection(_ title: String, people: [PersonCredit]) -> some View {
