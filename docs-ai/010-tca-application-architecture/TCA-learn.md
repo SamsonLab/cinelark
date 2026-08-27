@@ -215,7 +215,7 @@ Each entry uses a stable `LNNN` identifier and contains:
 
 ## L009 — Local-first means replacing remote user data at projection time
 
-- **Problem / context:** Emby/UHDNow media DTOs include favorite and playback
+- **Problem / context:** media-source DTOs can include favorite and playback
   fields. Persisting local Profile state is insufficient if Catalog or detail
   views can still render those provider fields as a fallback.
 - **Pattern applied:** `ProfileClient` returns a value snapshot keyed by
@@ -479,3 +479,35 @@ Each entry uses a stable `LNNN` identifier and contains:
   effects from continuing, but it does not prove that an external dependency
   stopped work or that a response cannot arrive. Reducer guards remain the
   correctness boundary.
+
+## L018 — Model legacy dependency identity as recoverable feature state
+
+- **Problem / context:** a retired media-source plugin ID can still exist in
+  local persistence, but silently coercing its URL and credentials into a new
+  runtime risks data loss, invalid authentication, and invisible bootstrap
+  failure.
+- **TCA pattern applied:** the pure plugin layer returns a value-typed
+  `SourceMigrationProposal`. `SourceFeature` converts it into semantic
+  `migrationProposals` state, presents an explicit reconnect intent, and runs
+  standard validation/authentication through dependency clients. The old
+  persisted row remains authoritative until the replacement save succeeds.
+- **Why this boundary was chosen:** the plugin registry knows identity
+  compatibility, the reducer owns user-visible recovery state and effect
+  sequencing, and the repository owns atomic replacement. Neither the registry
+  nor bootstrap code is allowed to infer user consent.
+- **Minimal CineLark example:** a persisted
+  `com.samsonlab.cinelark.uhdnow` source becomes **Reconnect as Emby**. The setup
+  reuses its `SourceID`, treats the stripped `/api/v1` URL only as an editable
+  suggestion, and removes the old Keychain session only after the canonical
+  Emby configuration is saved.
+- **Test evidence:** `SourceFeatureTests` verifies proposal restoration without
+  runtime installation, preserved identity and post-save cleanup on success,
+  and retention of the legacy source after failed validation. Registry and Emby
+  package tests verify unique alias ownership and pure proposal construction.
+- **Reuse rule:** when persisted dependency identity outlives its implementation,
+  represent recovery as explicit feature state. Preserve the durable record
+  until a verified replacement transaction completes; cleanup follows the
+  commit and must not be the transaction's authority.
+- **Version caveat:** TCA 1.26.1 gives the reducer deterministic action/effect
+  ordering, but it cannot make two external stores atomic. Keep cleanup
+  idempotent and order repository persistence before best-effort secret removal.

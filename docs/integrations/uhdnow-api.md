@@ -1,6 +1,6 @@
-# Observed UHDNow API
+# Archived Observed UHDNow API
 
-- **Status:** Observed, unofficial, and subject to change
+- **Status:** Archived research evidence; not used by the CineLark runtime
 - **Evidence date:** 2026-08-20
 - **API origin:** `https://www.uhdnow.com/api/v1`
 - **Machine-readable draft:** [`specs/uhdnow/openapi.yaml`](../../specs/uhdnow/openapi.yaml)
@@ -8,6 +8,8 @@
 This document is a sanitized capability inventory derived from two authenticated
 browser captures. It contains no captured values, account data, tokens, or real
 media IDs. It is not UHDNow documentation or a compatibility guarantee.
+CineLark now connects UHDNow subscriptions through the standard Emby plugin;
+the private adapter and its `/api/v1` production target were removed.
 
 ## 1. Common conventions
 

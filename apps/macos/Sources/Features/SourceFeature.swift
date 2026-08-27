@@ -7,6 +7,8 @@ import CineLarkPluginAPI
 struct SourceFeature {
     struct SetupState: Equatable {
         let pluginID: PluginID
+        let sourceID: SourceID?
+        let legacyPluginID: PluginID?
         var discovered: [DiscoveredSource] = []
         var baseURL = ""
         var displayName = ""
@@ -15,6 +17,32 @@ struct SourceFeature {
         var isValidating = false
         var isAuthenticating = false
         var failure: MediaSourceFailure?
+
+        init(
+            pluginID: PluginID,
+            sourceID: SourceID? = nil,
+            legacyPluginID: PluginID? = nil,
+            discovered: [DiscoveredSource] = [],
+            baseURL: String = "",
+            displayName: String = "",
+            validatedConfiguration: SourceConfiguration? = nil,
+            isDiscovering: Bool = false,
+            isValidating: Bool = false,
+            isAuthenticating: Bool = false,
+            failure: MediaSourceFailure? = nil
+        ) {
+            self.pluginID = pluginID
+            self.sourceID = sourceID
+            self.legacyPluginID = legacyPluginID
+            self.discovered = discovered
+            self.baseURL = baseURL
+            self.displayName = displayName
+            self.validatedConfiguration = validatedConfiguration
+            self.isDiscovering = isDiscovering
+            self.isValidating = isValidating
+            self.isAuthenticating = isAuthenticating
+            self.failure = failure
+        }
     }
 
     @ObservableState
@@ -22,6 +50,7 @@ struct SourceFeature {
         var availablePlugins: [CineLarkPluginDescriptor] = []
         var persistedSources: [PersistedMediaSource] = []
         var installedSourceIDs: Set<SourceID> = []
+        var migrationProposals: [SourceID: SourceMigrationProposal] = [:]
         var setup: SetupState?
         var isLoading = false
         var failure: MediaSourceFailure?
@@ -35,6 +64,7 @@ struct SourceFeature {
         enum View: Equatable {
             case loadAvailablePlugins
             case beginSetup(PluginID)
+            case beginMigration(SourceID)
             case discover
             case chooseDiscovered(DiscoveredSource)
             case updateBaseURL(String)
@@ -47,7 +77,11 @@ struct SourceFeature {
         enum Internal: Equatable {
             case pluginsLoaded([CineLarkPluginDescriptor])
             case restoreSources([PersistedMediaSource])
-            case sourcesRestored(Set<SourceID>, MediaSourceFailure?)
+            case sourcesRestored(
+                Set<SourceID>,
+                [SourceID: SourceMigrationProposal],
+                MediaSourceFailure?
+            )
             case discoveryCompleted(Result<[DiscoveredSource], MediaSourceFailure>)
             case validationCompleted(Result<SourceConfiguration, MediaSourceFailure>)
             case authenticationCompleted(Result<PersistedMediaSource, MediaSourceFailure>)
@@ -88,9 +122,17 @@ struct SourceFeature {
                 state.isLoading = true
                 return .run { send in
                     var installed = Set<SourceID>()
+                    var migrations: [SourceID: SourceMigrationProposal] = [:]
                     var firstFailure: MediaSourceFailure?
                     for source in sources {
                         do {
+                            if let proposal = try await mediaPlatform.migrationProposal(
+                                source.pluginID,
+                                source.configuration
+                            ) {
+                                migrations[source.id] = proposal
+                                continue
+                            }
                             try await mediaPlatform.install(source.pluginID, source.configuration)
                             installed.insert(source.id)
                         } catch is CancellationError {
@@ -99,18 +141,30 @@ struct SourceFeature {
                             firstFailure = firstFailure ?? Self.normalize(error)
                         }
                     }
-                    await send(.internal(.sourcesRestored(installed, firstFailure)))
+                    await send(.internal(.sourcesRestored(installed, migrations, firstFailure)))
                 }
                 .cancellable(id: CancelID.restore, cancelInFlight: true)
 
-            case let .internal(.sourcesRestored(ids, failure)):
+            case let .internal(.sourcesRestored(ids, migrations, failure)):
                 state.isLoading = false
                 state.installedSourceIDs = ids
+                state.migrationProposals = migrations
                 state.failure = failure
                 return .none
 
             case let .view(.beginSetup(pluginID)):
                 state.setup = SetupState(pluginID: pluginID)
+                return .none
+
+            case let .view(.beginMigration(sourceID)):
+                guard let proposal = state.migrationProposals[sourceID] else { return .none }
+                state.setup = SetupState(
+                    pluginID: proposal.targetPluginID,
+                    sourceID: proposal.sourceID,
+                    legacyPluginID: proposal.legacyPluginID,
+                    baseURL: proposal.suggestedBaseURL.absoluteString,
+                    displayName: proposal.displayName
+                )
                 return .none
 
             case .view(.discover):
@@ -154,7 +208,7 @@ struct SourceFeature {
                 setup.isValidating = true
                 setup.failure = nil
                 state.setup = setup
-                let sourceID = SourceID(rawValue: uuid())
+                let sourceID = setup.sourceID ?? SourceID(rawValue: uuid())
                 let displayName = setup.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
                 return .run { [pluginID = setup.pluginID] send in
                     do {
@@ -184,7 +238,11 @@ struct SourceFeature {
                 setup.failure = nil
                 state.setup = setup
                 let credentials = SourceCredentials(username: username, password: password)
-                return .run { [pluginID = setup.pluginID] send in
+                return .run {
+                    [
+                        pluginID = setup.pluginID,
+                        legacyPluginID = setup.legacyPluginID
+                    ] send in
                     do {
                         let authenticated = try await mediaPlatform.authenticate(
                             pluginID,
@@ -192,6 +250,12 @@ struct SourceFeature {
                             credentials
                         )
                         try await profiles.saveSource(pluginID, authenticated)
+                        if let legacyPluginID {
+                            await mediaPlatform.cleanupLegacyCredentials(
+                                legacyPluginID,
+                                authenticated.sourceID
+                            )
+                        }
                         await send(.internal(.authenticationCompleted(.success(
                             PersistedMediaSource(
                                 pluginID: pluginID,
@@ -237,6 +301,7 @@ struct SourceFeature {
                 state.persistedSources.removeAll { $0.id == source.id }
                 state.persistedSources.append(source)
                 state.installedSourceIDs.insert(source.id)
+                state.migrationProposals[source.id] = nil
                 return .send(.delegate(.sourceSaved(source)))
 
             case let .internal(.authenticationCompleted(.failure(failure))):

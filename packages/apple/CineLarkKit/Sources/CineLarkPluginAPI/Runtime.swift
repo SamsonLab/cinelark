@@ -269,11 +269,21 @@ public struct MediaSourceRuntime: Sendable {
 
 public protocol MediaSourcePluginFactory: Sendable {
     var descriptor: CineLarkPluginDescriptor { get }
+    var legacyPluginIDs: Set<PluginID> { get }
     func discover() async throws -> [DiscoveredSource]
     func validate(baseURL: URL) async throws -> SourceInstanceIdentity
     func makeRuntime(configuration: SourceConfiguration) async throws -> MediaSourceRuntime
+    func migrationProposal(
+        from legacyPluginID: PluginID,
+        configuration: SourceConfiguration
+    ) -> SourceMigrationProposal?
 }
 
 public extension MediaSourcePluginFactory {
+    var legacyPluginIDs: Set<PluginID> { [] }
     func discover() async throws -> [DiscoveredSource] { [] }
+    func migrationProposal(
+        from legacyPluginID: PluginID,
+        configuration: SourceConfiguration
+    ) -> SourceMigrationProposal? { nil }
 }

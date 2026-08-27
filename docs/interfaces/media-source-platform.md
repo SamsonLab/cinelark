@@ -27,14 +27,18 @@ object.
 
 ## Implemented providers
 
-UHDNow is adapted behind the same capability runtime as Emby. The macOS UI reads
-Catalog-backed TCA projections and does not depend on either concrete provider.
-
 Emby v1 implements manual/reverse-proxy setup, UDP discovery, authentication,
 Views/Items/Latest/Resume, detail hierarchy, people, artwork descriptors,
 direct-play/direct-stream resolution, playback check-ins, explicit user-state
 import, and optional outbound mirror. See
 [`../integrations/emby.md`](../integrations/emby.md).
+
+UHDNow is not a separate runtime or user-visible source type. Subscribers add
+the service through standard Emby setup. The canonical Emby factory owns the
+retired `com.samsonlab.cinelark.uhdnow` plugin ID only as a migration alias:
+legacy sources become explicit reconnect proposals, reuse their `SourceID`, and
+are replaced only after standard server validation, authentication, and local
+persistence succeed.
 
 ## Profile state boundary
 

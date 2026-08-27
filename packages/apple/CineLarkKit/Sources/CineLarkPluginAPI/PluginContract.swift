@@ -114,6 +114,28 @@ public struct SourceConfiguration: Codable, Hashable, Sendable {
     }
 }
 
+public struct SourceMigrationProposal: Codable, Hashable, Sendable {
+    public let sourceID: SourceID
+    public let legacyPluginID: PluginID
+    public let targetPluginID: PluginID
+    public let suggestedBaseURL: URL
+    public let displayName: String
+
+    public init(
+        sourceID: SourceID,
+        legacyPluginID: PluginID,
+        targetPluginID: PluginID,
+        suggestedBaseURL: URL,
+        displayName: String
+    ) {
+        self.sourceID = sourceID
+        self.legacyPluginID = legacyPluginID
+        self.targetPluginID = targetPluginID
+        self.suggestedBaseURL = suggestedBaseURL
+        self.displayName = displayName
+    }
+}
+
 public struct SourceCredentials: Sendable, Equatable {
     public let username: String?
     public let password: String?

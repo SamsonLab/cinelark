@@ -1,6 +1,6 @@
 # Media Library Provider Interface
 
-- **Status:** Draft
+- **Status:** Legacy internal compatibility contract; no application UI consumer
 - **Audience:** domain, provider, and application implementers
 
 This contract isolates CineLark from provider-specific APIs. Names below express
@@ -34,8 +34,9 @@ struct ProviderCapabilities: OptionSet, Sendable {
 }
 ```
 
-The UHDNow observations support every capability above except downloads, which
-is exposed by the API but outside the CineLark MVP.
+This former boolean capability surface is retained only for cache compatibility
+tests. New source integrations use the structured capability descriptors in
+[`media-source-platform.md`](media-source-platform.md).
 
 ## 3. Conceptual protocol
 
@@ -104,8 +105,7 @@ enum MediaKind: String, Sendable {
 }
 ```
 
-Provider adapters map external values such as UHDNow `tv` to the domain
-`series` case.
+Legacy adapters mapped external provider values into the domain `series` case.
 
 ### 4.2 Summary and detail
 

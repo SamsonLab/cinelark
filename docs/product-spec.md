@@ -64,7 +64,7 @@ A thin plugin that owns only:
 - receiving transport commands
 - emitting playback and lifecycle events
 
-It must not authenticate to UHDNow or know provider-specific item models.
+It must not authenticate to a media provider or know provider-specific item models.
 
 ### 4.3 CineLark Remote
 
@@ -114,14 +114,14 @@ follow without changing the architecture.
 
 | Area | Requirement | Priority |
 | --- | --- | --- |
-| Account | Login with username/password and optional TOTP | P0 |
+| Account | Discover or manually configure a standard Emby server and sign in | P0 |
 | Account | Persist only issued tokens and metadata in Keychain | P0 |
 | Home | Continue Watching, collections, and hot items | P0 |
 | Browse | Paginated collection browsing and search | P0 |
 | Movie | Detail, cast, versions, favorite state, play/resume | P0 |
 | TV | Detail, seasons, episodes, next-up, play/resume | P0 |
 | Assets | Show resolution, codec, HDR-relevant color metadata, bitrate, audio, and subtitles | P0 |
-| Playback | Open tokenized URL through IINA Bridge | P0 |
+| Playback | Open an ephemeral URL with separate authorization headers through IINA Bridge | P0 |
 | Playback | Play/pause, seek, stop, duration, position, and state | P0 |
 | Playback | Audio and subtitle track inventory/selection | P0 |
 | Playback | Detail-level resume and automatic next episode after natural completion | P0 |
@@ -136,7 +136,7 @@ follow without changing the architecture.
 - Show cached structure immediately when safe, then refresh provider data.
 - Cancel obsolete image and page requests as focus/navigation changes.
 - Deduplicate concurrent requests for the same resource.
-- Bound artwork memory and disk caches; never cache tokenized playback URLs.
+- Bound artwork memory and disk caches; never cache playback capability URLs or headers.
 - Provider requests are cancellable and use explicit timeouts.
 - Progress writes are coalesced; a slow provider must not create an unbounded
   queue.
@@ -158,13 +158,13 @@ prototype is measurable.
 
 A build is MVP-complete when a fresh install can:
 
-1. Authenticate to UHDNow, restore its issued session securely, and log out.
+1. Configure a standard Emby source, restore its issued token securely, and reconnect a legacy UHDNow source explicitly when present.
 2. Browse home sections and collections entirely with directional controls.
 3. Search and open movie and TV detail pages.
 4. Select an episode or movie version and choose Resume or Start Over.
-5. Launch stock IINA with the CineLark plugin and play the tokenized URL.
+5. Launch stock IINA with the CineLark plugin and play the selected media descriptor.
 6. Reflect pause, position, duration, end, and close events in the Mac app.
-7. Persist progress through the UHDNow progress/stopped endpoints.
+7. Persist local viewing facts and report Started/Progress/Stopped through standard Emby endpoints.
 8. Recover gracefully when the provider, IINA, or bridge is unavailable.
 9. Pass a repository secret scan with only synthetic fixtures present.
 

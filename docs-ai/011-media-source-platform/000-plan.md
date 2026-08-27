@@ -64,6 +64,10 @@ substantially.
 
 ## Amendments
 
+- Updated 2026-08-27: the separate UHDNow runtime is being retired in favor of
+  one standard Emby source plus explicit legacy reconnect migration — see
+  [`../016-emby-source-unification/000-plan.md`](../016-emby-source-unification/000-plan.md).
+
 - Updated 2026-08-26: Continue through the Cloud/Local profile repository,
   persisted source bootstrap, Emby LAN setup, complete v1 content mapping, and
   Catalog-only UI reads — see

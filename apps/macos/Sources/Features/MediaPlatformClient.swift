@@ -6,6 +6,10 @@ import CineLarkPluginAPI
 
 struct MediaPlatformClient: Sendable {
     var descriptors: @Sendable () async -> [CineLarkPluginDescriptor]
+    var migrationProposal: @Sendable (
+        PluginID,
+        SourceConfiguration
+    ) async throws -> SourceMigrationProposal?
     var discover: @Sendable (PluginID) async throws -> [DiscoveredSource]
     var validate: @Sendable (PluginID, URL) async throws -> SourceInstanceIdentity
     var install: @Sendable (PluginID, SourceConfiguration) async throws -> Void
@@ -14,6 +18,7 @@ struct MediaPlatformClient: Sendable {
         SourceConfiguration,
         SourceCredentials
     ) async throws -> SourceConfiguration
+    var cleanupLegacyCredentials: @Sendable (PluginID, SourceID) async -> Void
     var remove: @Sendable (SourceID) async -> Void
     var cachedPage: @Sendable (MediaQuery) async throws -> MediaPage
     var refreshPage: @Sendable (MediaQuery) async throws -> MediaPage
@@ -33,6 +38,10 @@ struct MediaPlatformClient: Sendable {
 
     init(
         descriptors: @escaping @Sendable () async -> [CineLarkPluginDescriptor],
+        migrationProposal: @escaping @Sendable (
+            PluginID,
+            SourceConfiguration
+        ) async throws -> SourceMigrationProposal? = { _, _ in nil },
         discover: @escaping @Sendable (PluginID) async throws -> [DiscoveredSource] = { _ in [] },
         validate: @escaping @Sendable (PluginID, URL) async throws -> SourceInstanceIdentity = { _, _ in
             throw MediaSourceFailure.unavailable
@@ -47,6 +56,7 @@ struct MediaPlatformClient: Sendable {
         ) async throws -> SourceConfiguration = { _, _, _ in
             throw MediaSourceFailure.unavailable
         },
+        cleanupLegacyCredentials: @escaping @Sendable (PluginID, SourceID) async -> Void = { _, _ in },
         remove: @escaping @Sendable (SourceID) async -> Void = { _ in },
         cachedPage: @escaping @Sendable (MediaQuery) async throws -> MediaPage,
         refreshPage: @escaping @Sendable (MediaQuery) async throws -> MediaPage,
@@ -89,10 +99,12 @@ struct MediaPlatformClient: Sendable {
         }
     ) {
         self.descriptors = descriptors
+        self.migrationProposal = migrationProposal
         self.discover = discover
         self.validate = validate
         self.install = install
         self.authenticate = authenticate
+        self.cleanupLegacyCredentials = cleanupLegacyCredentials
         self.remove = remove
         self.cachedPage = cachedPage
         self.refreshPage = refreshPage
@@ -132,10 +144,14 @@ extension DependencyValues {
 extension MediaPlatformClient {
     static func live(
         platform: MediaSourcePlatform,
-        catalog: any CatalogRepository
+        catalog: any CatalogRepository,
+        cleanupLegacyCredentials: @escaping @Sendable (PluginID, SourceID) async -> Void = { _, _ in }
     ) -> Self {
         Self(
             descriptors: { await platform.descriptors() },
+            migrationProposal: {
+                await platform.migrationProposal(pluginID: $0, configuration: $1)
+            },
             discover: { try await platform.discover(pluginID: $0) },
             validate: { try await platform.validate(pluginID: $0, baseURL: $1) },
             install: { pluginID, configuration in
@@ -151,6 +167,7 @@ extension MediaPlatformClient {
                     credentials: credentials
                 )
             },
+            cleanupLegacyCredentials: cleanupLegacyCredentials,
             remove: { await platform.remove(sourceID: $0) },
             cachedPage: { query in try await catalog.cachedPage(for: query) },
             refreshPage: { query in

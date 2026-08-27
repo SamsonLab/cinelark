@@ -49,8 +49,11 @@ apps/macos/CineLarkApp
           │
           ▼
 packages/apple/CineLarkKit
-  ├── CineLarkApplication ──▶ CineLarkDomain
-  ├── CineLarkUHDNow ───────▶ CineLarkDomain
+  ├── CineLarkPluginAPI ───▶ CineLarkDomain
+  ├── CineLarkCatalog ─────▶ CineLarkPluginAPI
+  ├── CineLarkProfile ─────▶ CineLarkPluginAPI
+  ├── CineLarkInsights ────▶ CineLarkProfile
+  ├── CineLarkEmby ────────▶ CineLarkPluginAPI
   ├── CineLarkPlayback ──────▶ CineLarkDomain
   ├── CineLarkRemote ────────────▶ Foundation / Security
   ├── CineLarkGateway ───────▶ CineLarkPlayback + CineLarkRemote
@@ -143,7 +146,7 @@ apps/remote/
 
 Rules:
 
-- No UHDNow/provider DTO or credential enters the Flutter project.
+- No provider DTO or credential enters the Flutter project.
 - UI state is derived from sanitized Mac snapshots and local connection state.
 - Bonjour, certificate pinning, and background lifecycle APIs remain behind
   interfaces; use a platform channel only if maintained Flutter packages cannot
@@ -301,7 +304,7 @@ the same vectors.
   negotiation explicitly.
 - IDs are opaque UUID/string values. Playback time is finite seconds at all
   internal wire boundaries.
-- Provider units such as UHDNow ticks never appear in shared protocols.
+- Provider-specific time units never appear in shared protocols.
 
 ## 6. Remote discovery and security
 
@@ -361,11 +364,13 @@ A shared protocol compatibility matrix is published with each release.
 - Build one home row, detail page, focus restoration, and fake playback flow.
 - Establish design tokens and snapshot/focus tests.
 
-### Phase 2 — UHDNow integration
+### Phase 2 — standard Emby integration
 
-- Implement authentication, DTO mapping, collections/search/details/assets.
+- Implement discovery, authentication, DTO mapping, collections/search/details/assets.
 - Add Keychain session restoration and complete redaction tests.
-- Add resume/progress behavior against sanitized contract fixtures.
+- Add resume/progress behavior against standard Emby contract fixtures.
+- Route UHDNow subscriptions through Emby and offer an explicit reconnect path
+  for the retired private-adapter source identity.
 
 ### Phase 3 — IINA playback
 

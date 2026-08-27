@@ -126,8 +126,6 @@ targets:
       - package: CineLarkKit
         product: CineLarkEmby
       - package: CineLarkKit
-        product: CineLarkUHDNow
-      - package: CineLarkKit
         product: CineLarkPersistence
       - package: CineLarkKit
         product: CineLarkPlayback

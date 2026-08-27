@@ -26,6 +26,16 @@ public actor MediaSourcePlatform {
         try await registry.factory(for: pluginID).validate(baseURL: baseURL)
     }
 
+    public func migrationProposal(
+        pluginID: PluginID,
+        configuration: SourceConfiguration
+    ) async -> SourceMigrationProposal? {
+        await registry.migrationProposal(
+            pluginID: pluginID,
+            configuration: configuration
+        )
+    }
+
     @discardableResult
     public func install(
         pluginID: PluginID,

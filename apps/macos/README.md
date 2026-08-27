@@ -1,12 +1,13 @@
 # CineLark for Mac
 
-Native Swift 6 / SwiftUI client for the observed UHDNow API.
+Native Swift 6 / SwiftUI personal viewing-memory client with a standard Emby
+media-source plugin and an IINA/mpv playback engine.
 
 ## Current vertical slice
 
 - macOS 26-native Liquid Glass navigation and cinematic TV-first browsing
-- username/password and optional TOTP login
-- issued-token persistence in Keychain
+- manual/reverse-proxy Emby setup and UDP 7359 LAN discovery
+- Emby username/password authentication with token persistence in Keychain
 - hot and Continue Watching shelves
 - provider collections and search
 - dedicated Movies, TV Series, and Favorites navigation
@@ -22,7 +23,7 @@ Native Swift 6 / SwiftUI client for the observed UHDNow API.
 - native Icon Composer app icon in `Resources/AppIcon.icon`
 - persistent bounded metadata cache with stale outage fallback
 - Kingfisher artwork pipeline with bounded memory/disk caches and downsampling
-- tokenized playback URL construction through the bundled Rust/IINA bridge
+- ephemeral playback URL and authorization-header delivery through the bundled Rust/IINA bridge
 - guided IINA plugin installation and Keychain-provisioned bridge pairing
 - post-load resume, transport/state/track telemetry, immediate item activation sync, coalesced progress, and terminal stopped reporting
 
@@ -31,8 +32,8 @@ composition root uses the managed bridge path by default.
 
 Metadata is persisted under `Application Support/CineLark/MetadataCache` and is
 cleared on account transitions. Artwork uses Kingfisher's separate cache under
-the system cache directory. Credentials, provider tokens, and tokenized playback or
-download URLs are excluded from both stores.
+the system cache directory. Credentials, provider tokens, and ephemeral playback
+or download descriptors are excluded from both stores.
 
 ## Install
 
@@ -95,5 +96,5 @@ scripts/publish_macos_release.sh build/release
 ## Security
 
 The app never persists account passwords. Provider tokens are stored in
-Keychain, and tokenized playback URLs must not be logged, copied into fixtures,
-or included in diagnostics.
+Keychain, and playback capability URLs or headers must not be logged, copied
+into fixtures, or included in diagnostics.

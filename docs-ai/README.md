@@ -53,3 +53,4 @@ writing, amendment, and verification rules.
 | 013 | [Settings information architecture](013-settings-information-architecture/000-plan.md) | 2026-08-26 | Content-only sidebar and consolidated native macOS configuration categories |
 | 014 | [Viewing identity and sync](014-viewing-identity-and-sync/000-plan.md) | 2026-08-27 | Client/Profile identity separation, CloudKit bootstrap resolution, monotonic conflicts, and independent provider state |
 | 015 | [Viewing insights](015-viewing-insights/000-plan.md) | 2026-08-27 | Local-first monthly, quarterly, annual, and affinity projections from durable viewing facts |
+| 016 | [Emby source unification](016-emby-source-unification/000-plan.md) | 2026-08-27 | One user-visible Emby plugin with explicit reconnect migration from the retired UHDNow private runtime |

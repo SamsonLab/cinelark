@@ -19,7 +19,7 @@
                                  ▼
 ┌────────────────┐      ┌───────────────────────────────┐
 │ Media Sources  │◀────▶│ CineLark for Mac             │
-│ UHDNow / Emby  │      │ SwiftUI + TCA application     │
+│ Emby / future  │      │ SwiftUI + TCA application     │
 └────────────────┘      │ Catalog + Profile projection  │
                         │ PlaybackFeature + IINA client │
                         └───────────────┬───────────────┘
@@ -76,7 +76,7 @@ Provider-neutral value types and use cases:
 - media assets, audio/subtitle tracks, and playback descriptors
 - pagination, sorting, favorites, and provider errors
 
-It contains no networking, UI framework, UHDNow JSON, or IINA API types.
+It contains no networking, UI framework, provider DTO, or IINA API types.
 
 ### 3.2 `CineLarkPluginAPI` and `CineLarkCatalog`
 
@@ -86,15 +86,15 @@ catalog with exact source isolation and one-to-many locator support. TCA sees
 both only through `MediaPlatformClient`; provider adapters translate unstable
 external contracts into stable value models.
 
-### 3.3 `UHDNowProvider`
+### 3.3 `CineLarkEmby`
 
 Owns:
 
-- authentication and raw `Authorization` token transport
-- `/api/v1` request/response models
-- line/domain resolution and tokenized playback URL construction
-- tick/second conversion
-- UHDNow-specific paging, sorting, and item-type mapping
+- UDP discovery and public server verification
+- standard Emby authentication and Keychain token bridging
+- Emby request/response models and offset-cursor translation
+- hierarchy, artwork, playback, import, mirror, and check-in capability clients
+- legacy UHDNow plugin-ID migration proposals without private endpoint calls
 
 Raw DTOs stay internal to this package.
 
@@ -242,13 +242,8 @@ episode is about to open.
 
 ### 4.3 Progress
 
-Bridge telemetry uses seconds. Provider adapters convert at their boundary.
-UHDNow uses 10,000,000 ticks per second:
-
-```text
-positionTicks = round(positionSeconds × 10,000,000)
-positionSeconds = positionTicks ÷ 10,000,000
-```
+Bridge telemetry uses seconds. Provider adapters convert to their wire units at
+the boundary; standard Emby check-ins use ticks where required.
 
 The playback feature uploads one immutable snapshot when an item becomes active and
 periodically coalesces later position changes. Timers are playback-ID scoped,
@@ -358,7 +353,6 @@ flowchart LR
     Features --> Dependencies[Dependency Clients]
     Dependencies --> Catalog[Local Catalog]
     Dependencies --> Platform[Media Source Platform]
-    Platform --> UHD[UHDNow Plugin]
     Platform --> Emby[Emby Plugin]
     Platform --> Future[Future Protocol Plugins]
     Features --> Playback[Playback Engine Client]

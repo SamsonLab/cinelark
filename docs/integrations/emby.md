@@ -16,6 +16,14 @@ remote user ID is stored in `SourceConfiguration`; the access token is stored
 under the Source ID in Keychain. Tokens are never appended to metadata,
 artwork, or playback URLs.
 
+UHDNow subscriptions use this same setup and protocol surface; there is no
+separate UHDNow plugin. Persisted sources created by the retired private adapter
+are shown as **Reconnect as Emby**. CineLark suggests the old URL with a trailing
+`/api/v1` removed, but `System/Info/Public` verification and a fresh Emby login
+are mandatory. A successful reconnect preserves `SourceID` and local Profile
+history, then removes the legacy Keychain session. Provider item IDs are not
+guessed or remapped if the old facade and Emby expose different identities.
+
 ## Implemented mapping
 
 | CineLark capability | Emby surface |
@@ -53,7 +61,9 @@ the session; only a natural EOF produces local played state automatically.
 Fixture tests cover reverse-proxy URL preservation, UDP response parsing and
 deduplication, offset cursor mapping, content/detail hierarchy, image metadata,
 secret-free URLs, remote import/mirror endpoints, exact-user enforcement, and
-direct playback headers.
+direct playback headers. Registry and TCA tests additionally cover legacy alias
+ownership, explicit reconnect state, identity preservation, successful cleanup,
+and non-destructive validation failure.
 
 The [`CineLark Emby Postman kit`](../../tools/postman/README.md) provides the
 same implemented surface as an importable collection, real-server environment

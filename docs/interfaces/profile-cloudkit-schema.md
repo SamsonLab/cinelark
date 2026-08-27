@@ -103,9 +103,10 @@ Every playback lifecycle has two independent outputs:
 
 Local persistence is mandatory for product continuity. Provider reporting is
 ordered and best-effort; failure never rolls back local state. Emby reporting
-uses `Started`, periodic/interactive `Progress`, and `Stopped`. UHDNow does not
-own a separate Profile model. Its transitional custom adapter remains until the
-standard Emby setup path is compatibility-tested against that deployment.
+uses `Started`, periodic/interactive `Progress`, and `Stopped`. UHDNow
+subscriptions use that standard Emby path and do not own a separate plugin or
+Profile model. Legacy private-adapter sources require explicit reconnect while
+preserving their existing local `SourceID`.
 
 Remote import remains explicit and idempotent. Outbound favorite/playback mirror
 remains opt-in per binding, with at most one local Profile owning a given

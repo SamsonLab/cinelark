@@ -37,7 +37,7 @@ Documents use the following status labels:
 
 | Document | Status | Purpose |
 | --- | --- | --- |
-| [Media library provider](interfaces/media-library-provider.md) | Legacy internal adapter | Previous provider boundary retained below the UHDNow plugin only |
+| [Media library provider](interfaces/media-library-provider.md) | Legacy internal adapter | Compatibility-only provider/cache boundary with no UI ownership |
 | [Media source platform](interfaces/media-source-platform.md) | Implemented v1 | Capability-based plugin, identity, query, and runtime contracts |
 | [Personal viewing memory and CloudKit](interfaces/profile-cloudkit-schema.md) | Foundation implemented; bootstrap UI pending | Identity, Cloud/local placement, bootstrap, conflict, merge, import, and mirror rules |
 | [Cache management](interfaces/metadata-cache.md) | Accepted implementation | Catalog/artwork accounting, purge, and user-data boundaries |
@@ -51,9 +51,9 @@ Documents use the following status labels:
 
 | Document | Status | Purpose |
 | --- | --- | --- |
-| [UHDNow API](integrations/uhdnow-api.md) | Observed | Sanitized endpoint and model inventory |
+| [UHDNow API](integrations/uhdnow-api.md) | Archived evidence | Sanitized inventory retained for historical reference, not runtime behavior |
 | [Emby integration](integrations/emby.md) | Implemented v1 | Discovery, authentication, content mapping, playback, import, and mirror |
-| [`specs/uhdnow/openapi.yaml`](../specs/uhdnow/openapi.yaml) | Observed, partial | Machine-readable endpoint contract |
+| [`specs/uhdnow/openapi.yaml`](../specs/uhdnow/openapi.yaml) | Archived evidence | Historical machine-readable private endpoint inventory |
 | [IINA plugin API](integrations/iina-plugin-api.md) | Verified snapshot | Available playback/plugin capabilities and gaps |
 
 External APIs documented here may change without notice. Provider adapters must

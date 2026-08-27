@@ -40,6 +40,35 @@ private func response(for request: URLRequest, status: Int = 200) -> HTTPURLResp
     #expect(requests.first?.value(forHTTPHeaderField: "X-Emby-Authorization")?.contains("DeviceId=\"stable-device\"") == true)
 }
 
+@Test func legacyUHDNowSourceProducesAnExplicitCanonicalReconnectProposal() {
+    let sourceID = SourceID(rawValue: UUID())
+    let legacyID = EmbyPluginFactory.legacyUHDNowPluginID
+    let factory = EmbyPluginFactory(
+        device: EmbyDeviceIdentity(id: "stable-device", appVersion: "1.0")
+    )
+    let configuration = SourceConfiguration(
+        sourceID: sourceID,
+        baseURL: URL(string: "https://www.uhdnow.com/api/v1")!,
+        serverIdentity: SourceInstanceIdentity(
+            pluginID: legacyID,
+            serverID: "www.uhdnow.com/api/v1"
+        ),
+        displayName: "Living Room"
+    )
+
+    let proposal = factory.migrationProposal(
+        from: legacyID,
+        configuration: configuration
+    )
+
+    #expect(factory.legacyPluginIDs == [legacyID])
+    #expect(proposal?.sourceID == sourceID)
+    #expect(proposal?.legacyPluginID == legacyID)
+    #expect(proposal?.targetPluginID == EmbyPluginFactory.pluginID)
+    #expect(proposal?.suggestedBaseURL.absoluteString == "https://www.uhdnow.com")
+    #expect(proposal?.displayName == "Living Room")
+}
+
 @Test func offsetCursorMapsToEmbyStartIndexWithoutPuttingTokenInURL() async throws {
     let sourceID = SourceID(rawValue: UUID())
     let recorder = RequestRecorder()

@@ -10,7 +10,6 @@ import CineLarkPersistence
 import CineLarkPlayback
 import CineLarkPluginAPI
 import CineLarkProfile
-import CineLarkUHDNow
 
 @main
 @MainActor
@@ -75,20 +74,9 @@ struct CineLarkApp: App {
                 }
             )
         )
-        let uhdNowFactory = UHDNowPluginFactory { configuration in
-            UHDNowProvider(
-                configuration: UHDNowConfiguration(
-                    apiBaseURL: configuration.baseURL,
-                    webBaseURL: configuration.baseURL
-                ),
-                sessionStore: KeychainSessionStore(
-                    account: "uhdnow-\(configuration.sourceID.rawValue.uuidString)"
-                )
-            )
-        }
         let registry: PluginRegistry
         do {
-            registry = try PluginRegistry(factories: [uhdNowFactory, embyFactory])
+            registry = try PluginRegistry(factories: [embyFactory])
         } catch {
             preconditionFailure("Invalid built-in plugin registry: \(error)")
         }
@@ -136,7 +124,16 @@ struct CineLarkApp: App {
         let appStore = Store(initialState: AppFeature.State()) {
             AppFeature()
         } withDependencies: {
-            $0.mediaPlatform = .live(platform: mediaPlatform, catalog: catalog)
+            $0.mediaPlatform = .live(
+                platform: mediaPlatform,
+                catalog: catalog,
+                cleanupLegacyCredentials: { pluginID, sourceID in
+                    guard pluginID == EmbyPluginFactory.legacyUHDNowPluginID else { return }
+                    try? await KeychainSessionStore(
+                        account: "uhdnow-\(sourceID.rawValue.uuidString)"
+                    ).clear()
+                }
+            )
             $0.profiles = .live(repository: profileRepository, clientID: clientID)
             $0.insights = .live(
                 service: ViewingInsightsService(repository: profileRepository)

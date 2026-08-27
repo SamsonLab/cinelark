@@ -4,6 +4,9 @@ import CineLarkPluginAPI
 
 public struct EmbyPluginFactory: MediaSourcePluginFactory {
     public static let pluginID: PluginID = "com.samsonlab.cinelark.emby"
+    public static let legacyUHDNowPluginID: PluginID = "com.samsonlab.cinelark.uhdnow"
+
+    public let legacyPluginIDs: Set<PluginID> = [Self.legacyUHDNowPluginID]
 
     public let descriptor = CineLarkPluginDescriptor(
         id: Self.pluginID,
@@ -41,6 +44,20 @@ public struct EmbyPluginFactory: MediaSourcePluginFactory {
 
     public func discover() async throws -> [DiscoveredSource] {
         try await discovery.discover(.seconds(2))
+    }
+
+    public func migrationProposal(
+        from legacyPluginID: PluginID,
+        configuration: SourceConfiguration
+    ) -> SourceMigrationProposal? {
+        guard legacyPluginIDs.contains(legacyPluginID) else { return nil }
+        return SourceMigrationProposal(
+            sourceID: configuration.sourceID,
+            legacyPluginID: legacyPluginID,
+            targetPluginID: Self.pluginID,
+            suggestedBaseURL: Self.suggestedEmbyURL(from: configuration.baseURL),
+            displayName: configuration.displayName
+        )
     }
 
     public func validate(baseURL: URL) async throws -> SourceInstanceIdentity {
@@ -109,5 +126,24 @@ public struct EmbyPluginFactory: MediaSourcePluginFactory {
                 mirrorState: { try await service.mirrorRemoteState(userID: $0, mutation: $1) }
             )
         )
+    }
+
+    private static func suggestedEmbyURL(from legacyURL: URL) -> URL {
+        guard var components = URLComponents(
+            url: legacyURL,
+            resolvingAgainstBaseURL: false
+        ) else { return legacyURL }
+        var segments = components.percentEncodedPath
+            .split(separator: "/")
+            .map(String.init)
+        if segments.count >= 2,
+           segments[segments.count - 2].lowercased() == "api",
+           segments[segments.count - 1].lowercased() == "v1" {
+            segments.removeLast(2)
+        }
+        components.percentEncodedPath = segments.isEmpty ? "" : "/" + segments.joined(separator: "/")
+        components.query = nil
+        components.fragment = nil
+        return components.url ?? legacyURL
     }
 }

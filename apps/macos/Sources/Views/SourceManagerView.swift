@@ -65,8 +65,13 @@ struct SourceManagerView: View {
                     emptySources
                 } else {
                     ForEach(sourceStore.persistedSources) { source in
+                        let migration = sourceStore.migrationProposals[source.id]
                         Button {
-                            profileStore.send(.view(.selectSource(source.id)))
+                            if migration != nil {
+                                sourceStore.send(.view(.beginMigration(source.id)))
+                            } else {
+                                profileStore.send(.view(.selectSource(source.id)))
+                            }
                         } label: {
                             HStack {
                                 VStack(alignment: .leading) {
@@ -76,7 +81,11 @@ struct SourceManagerView: View {
                                         .foregroundStyle(.secondary)
                                 }
                                 Spacer()
-                                if profileStore.activeSourceID == source.id {
+                                if migration != nil {
+                                    Label("Reconnect as Emby", systemImage: "exclamationmark.triangle.fill")
+                                        .font(.caption)
+                                        .foregroundStyle(.orange)
+                                } else if profileStore.activeSourceID == source.id {
                                     Image(systemName: "checkmark.circle.fill")
                                         .foregroundStyle(.green)
                                 }
@@ -154,7 +163,19 @@ struct SourceManagerView: View {
 
     @ViewBuilder
     private func setupSection(_ setup: SourceFeature.SetupState) -> some View {
-        Section("Set Up \(pluginName(setup.pluginID))") {
+        Section(setup.legacyPluginID == nil
+            ? "Set Up \(pluginName(setup.pluginID))"
+            : "Reconnect \(setup.displayName) as \(pluginName(setup.pluginID))"
+        ) {
+            if setup.legacyPluginID != nil {
+                Text(
+                    "Verify the standard Emby server address and sign in again. "
+                        + "CineLark keeps this source's local profile history and identity."
+                )
+                .font(.callout)
+                .foregroundStyle(.secondary)
+            }
+
             if supportsDiscovery(setup.pluginID) {
                 Button {
                     sourceStore.send(.view(.discover))

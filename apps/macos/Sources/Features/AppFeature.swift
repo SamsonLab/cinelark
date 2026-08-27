@@ -100,7 +100,7 @@ struct AppFeature {
                     return .send(.source(.internal(.restoreSources(bootstrap.sources))))
                 }
 
-            case let .source(.internal(.sourcesRestored(installedSourceIDs, _))):
+            case let .source(.internal(.sourcesRestored(installedSourceIDs, _, _))):
                 guard let selection = state.pendingBootstrapSelection else { return .none }
                 state.pendingBootstrapSelection = nil
                 state.bootstrap = .ready
@@ -184,11 +184,14 @@ struct AppFeature {
                 guard let profileID = selection.profileID else {
                     return .send(.profile(.internal(.commitSelection(selection))))
                 }
+                let existingBinding = state.profile.bindings.first {
+                    $0.profileID == profileID && $0.sourceID == source.id
+                }
                 let binding = ProfileSourceBinding(
                     profileID: profileID,
                     sourceID: source.id,
                     remoteUserID: source.configuration.remoteUserID,
-                    mirrorsRemoteState: false
+                    mirrorsRemoteState: existingBinding?.mirrorsRemoteState ?? false
                 )
                 return .run { send in
                     do {

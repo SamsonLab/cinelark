@@ -84,7 +84,7 @@ struct AppFeatureTests {
         }
         store.exhaustivity = .off
 
-        await store.send(.source(.internal(.sourcesRestored([sourceID], nil)))) {
+        await store.send(.source(.internal(.sourcesRestored([sourceID], [:], nil)))) {
             $0.pendingBootstrapSelection = nil
             $0.source.isLoading = false
             $0.source.installedSourceIDs = [sourceID]
@@ -154,5 +154,53 @@ struct AppFeatureTests {
         await store.send(.profile(.internal(.loaded(.success(bootstrap))))) {
             $0.bootstrap = .resolvingProfile
         }
+    }
+
+    @Test("Source reconnect preserves the existing Profile binding policy")
+    func sourceReconnectPreservesBindingPolicy() async {
+        let profileID = ProfileID(rawValue: UUID())
+        let sourceID = SourceID(rawValue: UUID())
+        var state = AppFeature.State()
+        state.profile.activeProfileID = profileID
+        state.profile.activeSourceID = sourceID
+        state.profile.bindings = [
+            ProfileSourceBinding(
+                profileID: profileID,
+                sourceID: sourceID,
+                remoteUserID: "legacy-user",
+                mirrorsRemoteState: true
+            )
+        ]
+        let savedBinding = LockIsolated<ProfileSourceBinding?>(nil)
+        let store = TestStore(initialState: state) {
+            AppFeature()
+        } withDependencies: {
+            $0.profiles.saveBinding = { savedBinding.setValue($0) }
+            $0.profiles.setSelection = { _ in }
+        }
+        store.exhaustivity = .off
+        let source = PersistedMediaSource(
+            pluginID: "com.samsonlab.cinelark.emby",
+            configuration: SourceConfiguration(
+                sourceID: sourceID,
+                baseURL: URL(string: "https://emby.example.com")!,
+                serverIdentity: SourceInstanceIdentity(
+                    pluginID: "com.samsonlab.cinelark.emby",
+                    serverID: "server"
+                ),
+                displayName: "Emby",
+                remoteUserID: "emby-user"
+            )
+        )
+
+        await store.send(.source(.delegate(.sourceSaved(source))))
+        await store.skipReceivedActions(strict: false)
+
+        #expect(savedBinding.value == ProfileSourceBinding(
+            profileID: profileID,
+            sourceID: sourceID,
+            remoteUserID: "emby-user",
+            mirrorsRemoteState: true
+        ))
     }
 }
