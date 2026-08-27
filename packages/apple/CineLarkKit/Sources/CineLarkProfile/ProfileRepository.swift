@@ -39,7 +39,11 @@ public protocol ProfileRepository: Sendable {
 
     func playback(profileID: ProfileID, mediaKey: ProfileMediaKey) async throws -> ProfilePlaybackState?
     func playbackStates(profileID: ProfileID) async throws -> [ProfilePlaybackState]
-    func savePlayback(_ state: ProfilePlaybackState, snapshot: ProfileMediaSnapshot?) async throws
+    func viewingSessions(profileID: ProfileID) async throws -> [ViewingSession]
+    func playbackEvents(profileID: ProfileID) async throws -> [ProfilePlaybackEvent]
+    func deviceRecords() async throws -> [DeviceRecord]
+    func saveDeviceRecord(_ record: DeviceRecord, profileID: ProfileID) async throws
+    func savePlayback(_ write: ProfilePlaybackWrite) async throws
 
     @discardableResult
     func importRemoteState(_ batch: RemoteStateImportBatch) async throws -> Bool

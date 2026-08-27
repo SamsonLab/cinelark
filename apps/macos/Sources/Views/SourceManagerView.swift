@@ -38,8 +38,14 @@ struct SourceManagerView: View {
                                 .foregroundStyle(.secondary)
                             Text(
                                 "\(manifest.titleCount) titles · "
+                                    + "\(manifest.viewingSessionCount) sessions · "
                                     + "\(manifest.favoriteCount) favorites"
                             )
+                        }
+                        GridRow {
+                            Text("Watch time")
+                                .foregroundStyle(.secondary)
+                            Text(formattedWatchTime(manifest.totalWatchSeconds))
                         }
                     }
                     .font(.caption)
@@ -247,5 +253,15 @@ struct SourceManagerView: View {
         guard let sourceID = profileStore.activeSourceID else { return false }
         return profileStore.sources.first(where: { $0.id == sourceID })?
             .configuration.remoteUserID != nil
+    }
+
+    private func formattedWatchTime(_ seconds: Int64) -> String {
+        let minutes = max(seconds, 0) / 60
+        let hours = minutes / 60
+        let remainder = minutes % 60
+        if hours > 0 {
+            return "\(hours)h \(remainder)m"
+        }
+        return "\(remainder)m"
     }
 }

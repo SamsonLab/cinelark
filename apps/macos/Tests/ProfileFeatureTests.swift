@@ -315,7 +315,7 @@ struct ProfileFeatureTests {
             setSelection: { _ in },
             saveSource: { _, _ in },
             saveBinding: { _ in },
-            savePlayback: { _, _ in },
+            savePlayback: { _ in },
             saveFavorite: { _, _ in },
             state: { _ in ProfileStateSnapshot(states: [:], snapshots: [:]) },
             enqueueMirror: { _ in },

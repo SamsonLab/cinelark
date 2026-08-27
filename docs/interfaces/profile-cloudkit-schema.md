@@ -32,8 +32,8 @@ client identity.
 
 | Configuration | Entities | Synchronization |
 | --- | --- | --- |
-| `Cloud` | `Profile`, `FavoriteState`, `PlaybackState`, `MediaSnapshot`, `ImportMarker`, `ProfileMergeMarker`; future `ViewingSession`, `PlaybackEvent`, `DeviceRecord`, `InsightSnapshot` | Private CloudKit database when signed in; in-memory in package/reducer tests |
-| `Local` | `ProfileSourceRecord`, `ProfileSourceBinding`, `ActiveProfileSelection`, `MirrorQueueEntry`, `MutationClockState`, `ProvisionalProfile`, `ProvisionalFavoriteState`, `ProvisionalPlaybackState`, `ProvisionalMediaSnapshot`, `ProvisionalImportMarker` | Device-local only |
+| `Cloud` | `Profile`, `FavoriteState`, `PlaybackState`, `MediaSnapshot`, `ImportMarker`, `ProfileMergeMarker`, `DeviceRecord`, `ViewingSession`, `ProfilePlaybackEvent`; future `InsightSnapshot` | Private CloudKit database when signed in; in-memory in package/reducer tests |
+| `Local` | `ProfileSourceRecord`, `ProfileSourceBinding`, `ActiveProfileSelection`, `MirrorQueueEntry`, `MutationClockState`, `ProvisionalProfile`, `ProvisionalFavoriteState`, `ProvisionalPlaybackState`, `ProvisionalMediaSnapshot`, `ProvisionalImportMarker`, `ProvisionalDeviceRecord`, `ProvisionalViewingSession`, `ProvisionalPlaybackEvent` | Device-local only |
 
 The media Catalog is a separate local Core Data store. Provider tokens and
 remote credentials remain in Keychain.
@@ -82,7 +82,8 @@ to `{modifiedAt, deviceID}` during migration.
 
 | Data | Merge rule |
 | --- | --- |
-| `ViewingSession`, `PlaybackEvent` | Union by stable event ID |
+| `ViewingSession` | Stable session ID; higher mutation stamp updates the rebuildable aggregate |
+| `ProfilePlaybackEvent` | Immutable union by stable event ID |
 | `PlaybackState` | Materialized projection; higher mutation stamp wins until event rebuilding is implemented |
 | `FavoriteState`, `RatingState` | Explicit value/tombstone with higher mutation stamp |
 | Profile metadata | Field-level mutation in the eventual schema; record-level stamp in the current slice |
@@ -126,9 +127,16 @@ Implemented and covered by package tests:
 - CloudKit account status and completed initial-import readiness checks;
 - idempotent provisional promotion and merge;
 - TCA application-readiness barrier and root Profile-resolution surface.
+- Cloud and provisional `DeviceRecord`, `ViewingSession`, and
+  `ProfilePlaybackEvent` persistence;
+- atomic playback projection/session/event/device writes before independent
+  provider reporting;
+- idempotent event insertion, mutation-ordered session updates, and fact
+  preservation through provisional promotion and Profile merge;
+- Profile manifest session/watch-time summaries and friendly last-device
+  projection from durable facts.
 
 Still required before treating multi-device sync as release-ready:
 
-- Device records and durable viewing sessions;
 - signed two-device tests covering offline creation, delayed initial import,
   merge, tombstones, and reinstall behavior.

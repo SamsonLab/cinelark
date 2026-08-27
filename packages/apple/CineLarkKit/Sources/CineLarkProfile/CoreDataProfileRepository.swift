@@ -38,6 +38,9 @@ public actor CoreDataProfileRepository: ProfileRepository {
         static let snapshot = "MediaSnapshot"
         static let importMarker = "ImportMarker"
         static let profileMergeMarker = "ProfileMergeMarker"
+        static let deviceRecord = "DeviceRecord"
+        static let viewingSession = "ViewingSession"
+        static let playbackEvent = "ProfilePlaybackEvent"
         static let source = "ProfileSourceRecord"
         static let binding = "ProfileSourceBinding"
         static let activeSelection = "ActiveProfileSelection"
@@ -48,6 +51,9 @@ public actor CoreDataProfileRepository: ProfileRepository {
         static let provisionalPlayback = "ProvisionalPlaybackState"
         static let provisionalSnapshot = "ProvisionalMediaSnapshot"
         static let provisionalImportMarker = "ProvisionalImportMarker"
+        static let provisionalDeviceRecord = "ProvisionalDeviceRecord"
+        static let provisionalViewingSession = "ProvisionalViewingSession"
+        static let provisionalPlaybackEvent = "ProvisionalPlaybackEvent"
     }
 
     private let container: NSPersistentCloudKitContainer
@@ -140,7 +146,9 @@ public actor CoreDataProfileRepository: ProfileRepository {
                 profile: profile,
                 favoriteEntity: Entity.favorite,
                 playbackEntity: Entity.playback,
-                snapshotEntity: Entity.snapshot
+                snapshotEntity: Entity.snapshot,
+                sessionEntity: Entity.viewingSession,
+                deviceEntity: Entity.deviceRecord
             ))
         }
         return manifests
@@ -176,7 +184,9 @@ public actor CoreDataProfileRepository: ProfileRepository {
             profile: profile,
             favoriteEntity: Entity.provisionalFavorite,
             playbackEntity: Entity.provisionalPlayback,
-            snapshotEntity: Entity.provisionalSnapshot
+            snapshotEntity: Entity.provisionalSnapshot,
+            sessionEntity: Entity.provisionalViewingSession,
+            deviceEntity: Entity.provisionalDeviceRecord
         )
     }
 
@@ -432,6 +442,17 @@ public actor CoreDataProfileRepository: ProfileRepository {
                 targetProfileID: request.targetProfileID,
                 as: ProfilePlaybackState.self,
                 encoder: encoder,
+                context: context
+            )
+            try Self.copyViewingFacts(
+                sourceProfileID: request.sourceProfileID,
+                targetProfileID: request.targetProfileID,
+                sourceSessionEntity: Entity.viewingSession,
+                targetSessionEntity: Entity.viewingSession,
+                sourceEventEntity: Entity.playbackEvent,
+                targetEventEntity: Entity.playbackEvent,
+                sourceDeviceEntity: Entity.deviceRecord,
+                targetDeviceEntity: Entity.deviceRecord,
                 context: context
             )
 
@@ -719,22 +740,110 @@ public actor CoreDataProfileRepository: ProfileRepository {
         return try await states(entity: entity, profileID: profileID, as: ProfilePlaybackState.self)
     }
 
-    public func savePlayback(
-        _ state: ProfilePlaybackState,
-        snapshot: ProfileMediaSnapshot?
+    public func viewingSessions(profileID: ProfileID) async throws -> [ViewingSession] {
+        let entity = try await isProvisional(profileID: profileID)
+            ? Entity.provisionalViewingSession
+            : Entity.viewingSession
+        return try await viewingSessions(entity: entity, profileID: profileID)
+    }
+
+    public func playbackEvents(profileID: ProfileID) async throws -> [ProfilePlaybackEvent] {
+        let entity = try await isProvisional(profileID: profileID)
+            ? Entity.provisionalPlaybackEvent
+            : Entity.playbackEvent
+        return try await playbackEvents(entity: entity, profileID: profileID)
+    }
+
+    public func deviceRecords() async throws -> [DeviceRecord] {
+        let cloud = try await deviceRecords(entity: Entity.deviceRecord)
+        let provisional = try await deviceRecords(entity: Entity.provisionalDeviceRecord)
+        var newest = Dictionary(uniqueKeysWithValues: cloud.map { ($0.id, $0) })
+        for record in provisional {
+            if let existing = newest[record.id],
+               existing.effectiveMutationStamp >= record.effectiveMutationStamp {
+                continue
+            }
+            newest[record.id] = record
+        }
+        return Array(newest.values)
+    }
+
+    public func saveDeviceRecord(
+        _ record: DeviceRecord,
+        profileID: ProfileID
     ) async throws {
+        let provisional = try await isProvisional(profileID: profileID)
+        let didSave = try await context.perform { [context] in
+            let didWrite = try Self.upsertDeviceRecord(
+                record,
+                entity: provisional ? Entity.provisionalDeviceRecord : Entity.deviceRecord,
+                encoder: JSONEncoder(),
+                context: context
+            )
+            try Self.save(context)
+            return didWrite
+        }
+        if didSave { changeHub.yield(.profiles) }
+    }
+
+    public func savePlayback(_ write: ProfilePlaybackWrite) async throws {
+        let state = write.state
         let provisional = try await isProvisional(profileID: state.profileID)
-        try await saveVersionedState(
-            state,
-            entity: provisional ? Entity.provisionalPlayback : Entity.playback,
-            snapshotEntity: provisional ? Entity.provisionalSnapshot : Entity.snapshot,
-            key: Self.stateKey(profileID: state.profileID, mediaKey: state.mediaKey),
-            profileID: state.profileID,
-            mediaKey: state.mediaKey,
-            modifiedAt: state.modifiedAt,
-            deviceID: state.deviceID,
-            snapshot: snapshot
-        )
+        let playbackEntity = provisional ? Entity.provisionalPlayback : Entity.playback
+        let snapshotEntity = provisional ? Entity.provisionalSnapshot : Entity.snapshot
+        let sessionEntity = provisional
+            ? Entity.provisionalViewingSession
+            : Entity.viewingSession
+        let eventEntity = provisional ? Entity.provisionalPlaybackEvent : Entity.playbackEvent
+        let deviceEntity = provisional ? Entity.provisionalDeviceRecord : Entity.deviceRecord
+        try await context.perform { [context] in
+            let encoder = JSONEncoder()
+            try Self.upsertVersioned(
+                state,
+                entity: playbackEntity,
+                key: Self.stateKey(profileID: state.profileID, mediaKey: state.mediaKey),
+                profileID: state.profileID,
+                mediaKey: state.mediaKey,
+                modifiedAt: state.modifiedAt,
+                deviceID: state.deviceID,
+                mutationStamp: state.mutationStamp,
+                encoder: encoder,
+                context: context
+            )
+            if let snapshot = write.snapshot {
+                try Self.upsertSnapshot(
+                    snapshot,
+                    entity: snapshotEntity,
+                    encoder: encoder,
+                    context: context
+                )
+            }
+            if let session = write.session {
+                try Self.upsertViewingSession(
+                    session,
+                    entity: sessionEntity,
+                    encoder: encoder,
+                    context: context
+                )
+            }
+            if let event = write.event {
+                try Self.upsertPlaybackEvent(
+                    event,
+                    entity: eventEntity,
+                    encoder: encoder,
+                    context: context
+                )
+            }
+            if let deviceRecord = write.deviceRecord {
+                _ = try Self.upsertDeviceRecord(
+                    deviceRecord,
+                    entity: deviceEntity,
+                    encoder: encoder,
+                    context: context
+                )
+            }
+            try Self.save(context)
+        }
         changeHub.yield(.userState(state.profileID))
     }
 
@@ -915,7 +1024,9 @@ public actor CoreDataProfileRepository: ProfileRepository {
         profile: Profile,
         favoriteEntity: String,
         playbackEntity: String,
-        snapshotEntity: String
+        snapshotEntity: String,
+        sessionEntity: String,
+        deviceEntity: String
     ) async throws -> ProfileManifest {
         async let favoriteValues = states(
             entity: favoriteEntity,
@@ -927,23 +1038,120 @@ public actor CoreDataProfileRepository: ProfileRepository {
             profileID: profile.id,
             as: ProfilePlaybackState.self
         )
-        let (favorites, playback) = try await (favoriteValues, playbackValues)
-        let keys = Set(favorites.map(\.mediaKey) + playback.map(\.mediaKey))
+        async let sessionValues = viewingSessions(entity: sessionEntity, profileID: profile.id)
+        let (favorites, playback, sessions) = try await (
+            favoriteValues,
+            playbackValues,
+            sessionValues
+        )
+        let keys = Set(
+            favorites.map(\.mediaKey) + playback.map(\.mediaKey) + sessions.map(\.mediaKey)
+        )
         let snapshotValues = try await snapshots(keys: keys, entity: snapshotEntity)
         let latestState = (favorites.map { ($0.modifiedAt, $0.deviceID) }
             + playback.map { ($0.modifiedAt, $0.deviceID) })
             .max { $0.0 < $1.0 }
+        let latestSession = sessions.max {
+            ($0.endedAt ?? $0.modifiedAt) < ($1.endedAt ?? $1.modifiedAt)
+        }
+        let fallbackDeviceID = latestSession?.deviceID ?? latestState?.1 ?? profile.deviceID
+        let deviceRecordID = latestSession?.deviceRecordID
+            ?? UUID(uuidString: fallbackDeviceID).map(DeviceRecordID.init(rawValue:))
+        let lastDeviceName = if let deviceRecordID {
+            try await deviceRecord(id: deviceRecordID, entity: deviceEntity)?.displayName
+                ?? fallbackDeviceID
+        } else {
+            fallbackDeviceID
+        }
+        let lastSessionActivity = latestSession.map { $0.endedAt ?? $0.modifiedAt }
         return ProfileManifest(
             profile: profile,
-            lastActivityAt: latestState?.0 ?? profile.modifiedAt,
-            lastDeviceName: latestState?.1 ?? profile.deviceID,
+            lastActivityAt: [latestState?.0, lastSessionActivity, profile.modifiedAt]
+                .compactMap { $0 }
+                .max(),
+            lastDeviceName: lastDeviceName,
             titleCount: snapshotValues.count,
-            viewingSessionCount: playback.count,
+            viewingSessionCount: sessions.count,
             favoriteCount: favorites.count(where: \.isFavorite),
-            totalWatchSeconds: Int64(playback.reduce(0) {
-                $0 + max($1.state.positionSeconds, 0)
-            })
+            totalWatchSeconds: Int64(sessions.reduce(0) {
+                $0 + max($1.watchedSeconds, 0)
+            }.rounded())
         )
+    }
+
+    private func deviceRecords(entity: String) async throws -> [DeviceRecord] {
+        try await context.perform { [context] in
+            let request = NSFetchRequest<NSManagedObject>(entityName: entity)
+            let decoder = JSONDecoder()
+            return try context.fetch(request).compactMap { object in
+                guard let payload = object.value(forKey: "payload") as? Data else { return nil }
+                return try? decoder.decode(DeviceRecord.self, from: payload)
+            }
+        }
+    }
+
+    private func viewingSessions(
+        entity: String,
+        profileID: ProfileID
+    ) async throws -> [ViewingSession] {
+        let values = try await states(
+            entity: entity,
+            profileID: profileID,
+            as: ViewingSession.self
+        )
+        var newest: [ViewingSessionID: ViewingSession] = [:]
+        for value in values {
+            if let existing = newest[value.id],
+               existing.effectiveMutationStamp >= value.effectiveMutationStamp {
+                continue
+            }
+            newest[value.id] = value
+        }
+        return newest.values.sorted {
+            if $0.startedAt != $1.startedAt { return $0.startedAt < $1.startedAt }
+            return $0.id.rawValue.uuidString < $1.id.rawValue.uuidString
+        }
+    }
+
+    private func playbackEvents(
+        entity: String,
+        profileID: ProfileID
+    ) async throws -> [ProfilePlaybackEvent] {
+        let values = try await states(
+            entity: entity,
+            profileID: profileID,
+            as: ProfilePlaybackEvent.self
+        )
+        var newest: [ProfilePlaybackEventID: ProfilePlaybackEvent] = [:]
+        for value in values {
+            if let existing = newest[value.id],
+               existing.effectiveMutationStamp >= value.effectiveMutationStamp {
+                continue
+            }
+            newest[value.id] = value
+        }
+        return newest.values.sorted {
+            if $0.observedAt != $1.observedAt { return $0.observedAt < $1.observedAt }
+            return $0.id.rawValue.uuidString < $1.id.rawValue.uuidString
+        }
+    }
+
+    private func deviceRecord(
+        id: DeviceRecordID,
+        entity: String
+    ) async throws -> DeviceRecord? {
+        try await context.perform { [context] in
+            guard
+                let object = try Self.fetchOne(
+                    entity: entity,
+                    key: "id",
+                    value: id.rawValue,
+                    context: context
+                ),
+                let payload = object.value(forKey: "payload") as? Data
+            else { return nil }
+            return try JSONDecoder().decode(DeviceRecord.self, from: payload)
+        }
     }
 
     private func snapshots(
@@ -1112,6 +1320,99 @@ public actor CoreDataProfileRepository: ProfileRepository {
         object.setValue(snapshot.deviceID, forKey: "deviceID")
         setMutationStamp(snapshot.effectiveMutationStamp, on: object)
         object.setValue(try encoder.encode(snapshot), forKey: "payload")
+    }
+
+    @discardableResult
+    private static func upsertDeviceRecord(
+        _ record: DeviceRecord,
+        entity: String,
+        encoder: JSONEncoder,
+        context: NSManagedObjectContext
+    ) throws -> Bool {
+        let object = try fetchOne(
+            entity: entity,
+            key: "id",
+            value: record.id.rawValue,
+            context: context
+        ) ?? NSEntityDescription.insertNewObject(forEntityName: entity, into: context)
+        if let payload = object.value(forKey: "payload") as? Data,
+           let existing = try? JSONDecoder().decode(DeviceRecord.self, from: payload) {
+            guard record.effectiveMutationStamp > existing.effectiveMutationStamp else {
+                return false
+            }
+            let presentationUnchanged = existing.displayName == record.displayName
+                && existing.platform == record.platform
+            if presentationUnchanged,
+               record.lastSeenAt.timeIntervalSince(existing.lastSeenAt) < 3_600 {
+                return false
+            }
+        }
+        object.setValue(record.id.rawValue, forKey: "id")
+        object.setValue(record.clientID.description, forKey: "clientID")
+        object.setValue(record.displayName, forKey: "displayName")
+        object.setValue(record.platform, forKey: "platform")
+        object.setValue(record.lastSeenAt, forKey: "lastSeenAt")
+        setMutationStamp(record.effectiveMutationStamp, on: object)
+        object.setValue(try encoder.encode(record), forKey: "payload")
+        return true
+    }
+
+    private static func upsertViewingSession(
+        _ session: ViewingSession,
+        entity: String,
+        encoder: JSONEncoder,
+        context: NSManagedObjectContext
+    ) throws {
+        let key = viewingSessionKey(profileID: session.profileID, sessionID: session.id)
+        let object = try fetchOne(
+            entity: entity,
+            key: "key",
+            value: key,
+            context: context
+        ) ?? NSEntityDescription.insertNewObject(forEntityName: entity, into: context)
+        if let existingStamp = mutationStamp(from: object),
+           session.effectiveMutationStamp <= existingStamp {
+            return
+        }
+        object.setValue(key, forKey: "key")
+        object.setValue(session.id.rawValue, forKey: "id")
+        object.setValue(session.profileID.rawValue, forKey: "profileID")
+        object.setValue(session.mediaKey.rawValue, forKey: "mediaKey")
+        object.setValue(session.deviceRecordID.rawValue, forKey: "deviceRecordID")
+        object.setValue(session.startedAt, forKey: "startedAt")
+        object.setValue(session.endedAt, forKey: "endedAt")
+        object.setValue(session.watchedSeconds, forKey: "watchedSeconds")
+        object.setValue(session.modifiedAt, forKey: "modifiedAt")
+        object.setValue(session.deviceID, forKey: "deviceID")
+        setMutationStamp(session.effectiveMutationStamp, on: object)
+        object.setValue(try encoder.encode(session), forKey: "payload")
+    }
+
+    private static func upsertPlaybackEvent(
+        _ event: ProfilePlaybackEvent,
+        entity: String,
+        encoder: JSONEncoder,
+        context: NSManagedObjectContext
+    ) throws {
+        let key = playbackEventKey(profileID: event.profileID, eventID: event.id)
+        guard try fetchOne(
+            entity: entity,
+            key: "key",
+            value: key,
+            context: context
+        ) == nil else { return }
+        let object = NSEntityDescription.insertNewObject(forEntityName: entity, into: context)
+        object.setValue(key, forKey: "key")
+        object.setValue(event.id.rawValue, forKey: "id")
+        object.setValue(event.sessionID.rawValue, forKey: "sessionID")
+        object.setValue(event.profileID.rawValue, forKey: "profileID")
+        object.setValue(event.mediaKey.rawValue, forKey: "mediaKey")
+        object.setValue(event.deviceRecordID.rawValue, forKey: "deviceRecordID")
+        object.setValue(event.kind.rawValue, forKey: "kind")
+        object.setValue(event.observedAt, forKey: "observedAt")
+        object.setValue(event.deviceID, forKey: "deviceID")
+        if let stamp = event.mutationStamp { setMutationStamp(stamp, on: object) }
+        object.setValue(try encoder.encode(event), forKey: "payload")
     }
 
     private static func writeMirror(
@@ -1290,7 +1591,104 @@ public actor CoreDataProfileRepository: ProfileRepository {
             )
             if try !context.fetch(request).isEmpty { return true }
         }
+        for entity in [Entity.provisionalViewingSession, Entity.provisionalPlaybackEvent] {
+            let request = NSFetchRequest<NSManagedObject>(entityName: entity)
+            request.fetchLimit = 1
+            request.predicate = NSPredicate(
+                format: "profileID == %@",
+                profileID.rawValue as CVarArg
+            )
+            if try !context.fetch(request).isEmpty { return true }
+        }
         return false
+    }
+
+    private static func copyViewingFacts(
+        sourceProfileID: ProfileID,
+        targetProfileID: ProfileID,
+        sourceSessionEntity: String,
+        targetSessionEntity: String,
+        sourceEventEntity: String,
+        targetEventEntity: String,
+        sourceDeviceEntity: String,
+        targetDeviceEntity: String,
+        context: NSManagedObjectContext
+    ) throws {
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        var deviceRecordIDs = Set<DeviceRecordID>()
+
+        let sessionRequest = NSFetchRequest<NSManagedObject>(entityName: sourceSessionEntity)
+        sessionRequest.predicate = NSPredicate(
+            format: "profileID == %@",
+            sourceProfileID.rawValue as CVarArg
+        )
+        for object in try context.fetch(sessionRequest) {
+            guard
+                let payload = object.value(forKey: "payload") as? Data,
+                let session = try? decoder.decode(ViewingSession.self, from: payload)
+            else { continue }
+            let copy = session.withMutationStamp(
+                session.effectiveMutationStamp,
+                profileID: targetProfileID
+            )
+            deviceRecordIDs.insert(copy.deviceRecordID)
+            try upsertViewingSession(
+                copy,
+                entity: targetSessionEntity,
+                encoder: encoder,
+                context: context
+            )
+        }
+
+        let eventRequest = NSFetchRequest<NSManagedObject>(entityName: sourceEventEntity)
+        eventRequest.predicate = NSPredicate(
+            format: "profileID == %@",
+            sourceProfileID.rawValue as CVarArg
+        )
+        for object in try context.fetch(eventRequest) {
+            guard
+                let payload = object.value(forKey: "payload") as? Data,
+                let event = try? decoder.decode(ProfilePlaybackEvent.self, from: payload)
+            else { continue }
+            let stamp = event.mutationStamp
+                ?? MutationStamp(date: event.observedAt, clientID: event.deviceID)
+            let copy = event.withMutationStamp(stamp, profileID: targetProfileID)
+            deviceRecordIDs.insert(copy.deviceRecordID)
+            try upsertPlaybackEvent(
+                copy,
+                entity: targetEventEntity,
+                encoder: encoder,
+                context: context
+            )
+        }
+
+        if sourceDeviceEntity != targetDeviceEntity {
+            let request = NSFetchRequest<NSManagedObject>(entityName: sourceDeviceEntity)
+            for object in try context.fetch(request) {
+                if let id = object.value(forKey: "id") as? UUID {
+                    deviceRecordIDs.insert(DeviceRecordID(rawValue: id))
+                }
+            }
+        }
+        for deviceRecordID in deviceRecordIDs {
+            guard
+                let object = try fetchOne(
+                    entity: sourceDeviceEntity,
+                    key: "id",
+                    value: deviceRecordID.rawValue,
+                    context: context
+                ),
+                let payload = object.value(forKey: "payload") as? Data,
+                let record = try? decoder.decode(DeviceRecord.self, from: payload)
+            else { continue }
+            _ = try upsertDeviceRecord(
+                record,
+                entity: targetDeviceEntity,
+                encoder: encoder,
+                context: context
+            )
+        }
     }
 
     private static func copyProvisionalState(
@@ -1363,6 +1761,18 @@ public actor CoreDataProfileRepository: ProfileRepository {
                 context: context
             )
         }
+
+        try copyViewingFacts(
+            sourceProfileID: sourceProfileID,
+            targetProfileID: targetProfileID,
+            sourceSessionEntity: Entity.provisionalViewingSession,
+            targetSessionEntity: Entity.viewingSession,
+            sourceEventEntity: Entity.provisionalPlaybackEvent,
+            targetEventEntity: Entity.playbackEvent,
+            sourceDeviceEntity: Entity.provisionalDeviceRecord,
+            targetDeviceEntity: Entity.deviceRecord,
+            context: context
+        )
 
         if !mediaKeys.isEmpty {
             let snapshotRequest = NSFetchRequest<NSManagedObject>(
@@ -1472,6 +1882,27 @@ public actor CoreDataProfileRepository: ProfileRepository {
                 context.delete(object)
             }
         }
+        let sessionRequest = NSFetchRequest<NSManagedObject>(
+            entityName: Entity.provisionalViewingSession
+        )
+        sessionRequest.predicate = NSPredicate(
+            format: "profileID == %@",
+            profileID.rawValue as CVarArg
+        )
+        for object in try context.fetch(sessionRequest) {
+            if let key = object.value(forKey: "mediaKey") as? String {
+                mediaKeys.insert(key)
+            }
+            context.delete(object)
+        }
+        try deleteAll(
+            entity: Entity.provisionalPlaybackEvent,
+            predicate: NSPredicate(
+                format: "profileID == %@",
+                profileID.rawValue as CVarArg
+            ),
+            context: context
+        )
         if !mediaKeys.isEmpty {
             try deleteAll(
                 entity: Entity.provisionalSnapshot,
@@ -1496,10 +1927,29 @@ public actor CoreDataProfileRepository: ProfileRepository {
             predicate: profilePredicate,
             context: context
         )
+        try deleteAll(
+            entity: Entity.provisionalDeviceRecord,
+            predicate: NSPredicate(format: "clientID == %@", clientID.description),
+            context: context
+        )
     }
 
     private static func stateKey(profileID: ProfileID, mediaKey: ProfileMediaKey) -> String {
         "\(profileID.rawValue.uuidString):\(mediaKey.rawValue)"
+    }
+
+    private static func viewingSessionKey(
+        profileID: ProfileID,
+        sessionID: ViewingSessionID
+    ) -> String {
+        "\(profileID.rawValue.uuidString):\(sessionID.rawValue.uuidString)"
+    }
+
+    private static func playbackEventKey(
+        profileID: ProfileID,
+        eventID: ProfilePlaybackEventID
+    ) -> String {
+        "\(profileID.rawValue.uuidString):\(eventID.rawValue.uuidString)"
     }
 
     private static func bindingKey(profileID: ProfileID, sourceID: SourceID) -> String {
@@ -1578,6 +2028,15 @@ public actor CoreDataProfileRepository: ProfileRepository {
             attribute("mergedAt", .dateAttributeType),
             attribute("payload", .binaryDataAttributeType)
         ])
+        let deviceRecord = entity(Entity.deviceRecord, attributes: deviceRecordAttributes())
+        let viewingSession = entity(
+            Entity.viewingSession,
+            attributes: viewingSessionAttributes()
+        )
+        let playbackEvent = entity(
+            Entity.playbackEvent,
+            attributes: playbackEventAttributes()
+        )
         let source = entity(Entity.source, attributes: [
             requiredAttribute("sourceID", .UUIDAttributeType),
             requiredAttribute("pluginID", .stringAttributeType),
@@ -1648,22 +2107,40 @@ public actor CoreDataProfileRepository: ProfileRepository {
             attribute("marker", .stringAttributeType),
             attribute("importedAt", .dateAttributeType)
         ])
+        let provisionalDeviceRecord = entity(
+            Entity.provisionalDeviceRecord,
+            attributes: deviceRecordAttributes()
+        )
+        let provisionalViewingSession = entity(
+            Entity.provisionalViewingSession,
+            attributes: viewingSessionAttributes()
+        )
+        let provisionalPlaybackEvent = entity(
+            Entity.provisionalPlaybackEvent,
+            attributes: playbackEventAttributes()
+        )
 
         model.entities = [
             profile, favorite, playback, snapshot, importMarker, profileMergeMarker,
+            deviceRecord, viewingSession, playbackEvent,
             source, binding, active, mirror, mutationClock, provisionalProfile,
             provisionalFavorite, provisionalPlayback, provisionalSnapshot,
-            provisionalImportMarker
+            provisionalImportMarker, provisionalDeviceRecord, provisionalViewingSession,
+            provisionalPlaybackEvent
         ]
         model.setEntities(
-            [profile, favorite, playback, snapshot, importMarker, profileMergeMarker],
+            [
+                profile, favorite, playback, snapshot, importMarker, profileMergeMarker,
+                deviceRecord, viewingSession, playbackEvent
+            ],
             forConfigurationName: StoreConfiguration.cloud
         )
         model.setEntities(
             [
                 source, binding, active, mirror, mutationClock, provisionalProfile,
                 provisionalFavorite, provisionalPlayback, provisionalSnapshot,
-                provisionalImportMarker
+                provisionalImportMarker, provisionalDeviceRecord,
+                provisionalViewingSession, provisionalPlaybackEvent
             ],
             forConfigurationName: StoreConfiguration.local
         )
@@ -1676,6 +2153,57 @@ public actor CoreDataProfileRepository: ProfileRepository {
             attribute("profileID", .UUIDAttributeType),
             attribute("mediaKey", .stringAttributeType),
             attribute("modifiedAt", .dateAttributeType),
+            attribute("deviceID", .stringAttributeType),
+            attribute("mutationPhysicalMillisecondsUTC", .integer64AttributeType),
+            attribute("mutationLogicalCounter", .integer64AttributeType),
+            attribute("mutationClientID", .stringAttributeType),
+            attribute("payload", .binaryDataAttributeType)
+        ]
+    }
+
+    private static func deviceRecordAttributes() -> [NSAttributeDescription] {
+        [
+            attribute("id", .UUIDAttributeType),
+            attribute("clientID", .stringAttributeType),
+            attribute("displayName", .stringAttributeType),
+            attribute("platform", .stringAttributeType),
+            attribute("lastSeenAt", .dateAttributeType),
+            attribute("mutationPhysicalMillisecondsUTC", .integer64AttributeType),
+            attribute("mutationLogicalCounter", .integer64AttributeType),
+            attribute("mutationClientID", .stringAttributeType),
+            attribute("payload", .binaryDataAttributeType)
+        ]
+    }
+
+    private static func viewingSessionAttributes() -> [NSAttributeDescription] {
+        [
+            attribute("key", .stringAttributeType),
+            attribute("id", .UUIDAttributeType),
+            attribute("profileID", .UUIDAttributeType),
+            attribute("mediaKey", .stringAttributeType),
+            attribute("deviceRecordID", .UUIDAttributeType),
+            attribute("startedAt", .dateAttributeType),
+            attribute("endedAt", .dateAttributeType),
+            attribute("watchedSeconds", .doubleAttributeType),
+            attribute("modifiedAt", .dateAttributeType),
+            attribute("deviceID", .stringAttributeType),
+            attribute("mutationPhysicalMillisecondsUTC", .integer64AttributeType),
+            attribute("mutationLogicalCounter", .integer64AttributeType),
+            attribute("mutationClientID", .stringAttributeType),
+            attribute("payload", .binaryDataAttributeType)
+        ]
+    }
+
+    private static func playbackEventAttributes() -> [NSAttributeDescription] {
+        [
+            attribute("key", .stringAttributeType),
+            attribute("id", .UUIDAttributeType),
+            attribute("sessionID", .UUIDAttributeType),
+            attribute("profileID", .UUIDAttributeType),
+            attribute("mediaKey", .stringAttributeType),
+            attribute("deviceRecordID", .UUIDAttributeType),
+            attribute("kind", .stringAttributeType),
+            attribute("observedAt", .dateAttributeType),
             attribute("deviceID", .stringAttributeType),
             attribute("mutationPhysicalMillisecondsUTC", .integer64AttributeType),
             attribute("mutationLogicalCounter", .integer64AttributeType),

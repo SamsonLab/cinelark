@@ -416,3 +416,34 @@ Each entry uses a stable `LNNN` identifier and contains:
 - **Version caveat:** TCA cancellation is doing exactly what it promises here;
   changing cancellation IDs only hides the race and can allow two loads to
   mutate state concurrently. The reducer needs an explicit coalescing policy.
+
+## L016 — Persist one semantic lifecycle edge as one domain write bundle
+
+- **Problem / context:** a playback edge updates the Resume projection, media
+  snapshot, viewing-session aggregate, device activity, and one immutable
+  event. Separate dependency calls could partially persist or let provider
+  reporting race ahead of CineLark's local viewing memory.
+- **Pattern applied:** `PlaybackFeature` owns lightweight active-session
+  accounting and converts each started/checkpoint/pause/resume/stop/completion
+  edge into one value-typed `ProfilePlaybackWrite`. `ProfileClient` stamps the
+  bundle once, and the repository saves every local component in one Core Data
+  transaction before the effect attempts provider reporting.
+- **Why this boundary was chosen:** the reducer knows the semantic lifecycle
+  edge, the dependency client owns mutation authorship, the repository owns
+  atomic persistence, and the media plugin owns only the independent remote
+  protocol command. None of those responsibilities belongs in Store state.
+- **Minimal CineLark example:** `.progressTick` accepts only a positive player
+  position delta of at most 30 seconds, updates the active session projection,
+  persists a `.checkpoint` write bundle, and then sends Emby Progress.
+- **Test evidence:** `PlaybackFeatureTests.lifecycleReporting` verifies the
+  started/checkpoint/completed sequence and local-first session projection.
+  `PlaybackFeatureTests.pauseAwareWatchAccounting` proves paused movement and
+  large seeks do not increase watched seconds. Repository tests prove atomic
+  facts remain idempotent through updates, promotion, and merge.
+- **Reuse rule:** when one user intent creates several durable projections of
+  the same fact, inject one domain write value and let the repository define
+  the transaction. Keep transport reporting as a subsequent, independently
+  recoverable effect.
+- **Version caveat:** effect ordering in TCA 1.26.1 is causal only inside the
+  same `.run` operation with explicit `await`. Separate merged effects do not
+  establish local-before-remote ordering.

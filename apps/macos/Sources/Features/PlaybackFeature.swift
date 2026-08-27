@@ -23,6 +23,10 @@ struct PlaybackFeature {
         var audioTracks: [BridgeTrack] = []
         var subtitleTracks: [BridgeTrack] = []
         var didReportStarted = false
+        var sessionStartedAt: Date?
+        var sessionStartPositionSeconds: Double = 0
+        var lastAccountedPositionSeconds: Double?
+        var watchedSeconds: Double = 0
     }
 
     enum Failure: Error, Equatable {
@@ -187,12 +191,18 @@ struct PlaybackFeature {
                 guard state.active?.id == playbackID, var active = state.active else { return .none }
                 active.positionSeconds = resumedAt
                 active.didReportStarted = true
+                active.sessionStartedAt = now
+                active.sessionStartPositionSeconds = resumedAt
+                active.lastAccountedPositionSeconds = resumedAt
                 state.active = active
                 return .merge(
                     report(
                         .started(locator: active.locator, positionSeconds: resumedAt),
                         active: active,
-                        profileID: state.profileID
+                        profileID: state.profileID,
+                        localKind: .started,
+                        sessionStatus: .active,
+                        endedAt: nil
                     ),
                     progressTimer()
                 )
@@ -204,15 +214,27 @@ struct PlaybackFeature {
                 return .none
 
             case let .internal(.engineEvent(.stateChanged(playbackID, snapshot))):
-                guard state.active?.id == playbackID else { return .none }
-                state.active?.positionSeconds = snapshot.positionSeconds
-                state.active?.durationSeconds = snapshot.durationSeconds
-                state.active?.isPaused = snapshot.state == .paused
-                state.active?.speed = snapshot.speed
-                state.active?.volume = snapshot.volume
-                state.active?.muted = snapshot.muted
-                state.active?.fullscreen = snapshot.fullscreen
-                return .none
+                guard state.active?.id == playbackID, var active = state.active else { return .none }
+                let wasPaused = active.isPaused
+                active.positionSeconds = snapshot.positionSeconds
+                active.durationSeconds = snapshot.durationSeconds
+                accountWatchTime(&active)
+                active.isPaused = snapshot.state == .paused
+                active.speed = snapshot.speed
+                active.volume = snapshot.volume
+                active.muted = snapshot.muted
+                active.fullscreen = snapshot.fullscreen
+                state.active = active
+                guard active.didReportStarted, wasPaused != active.isPaused else { return .none }
+                return persist(
+                    active: active,
+                    played: false,
+                    reportRemote: true,
+                    profileID: state.profileID,
+                    localKind: active.isPaused ? .paused : .resumed,
+                    sessionStatus: .active,
+                    endedAt: nil
+                )
 
             case let .internal(.engineEvent(.tracksChanged(playbackID, audio, subtitles, _))):
                 guard state.active?.id == playbackID else { return .none }
@@ -221,13 +243,15 @@ struct PlaybackFeature {
                 return .none
 
             case let .internal(.engineEvent(.ended(playbackID, reason))):
-                guard let active = state.active, active.id == playbackID else { return .none }
+                guard var active = state.active, active.id == playbackID else { return .none }
+                accountWatchTime(&active)
                 state.active = nil
                 let eof = reason == "eof" || reason == "end-of-file" || reason == "playlist_ended"
                 return finish(active: active, reachedEOF: eof, profileID: state.profileID)
 
             case let .internal(.engineEvent(.closed(playbackID, _))):
-                guard let active = state.active, active.id == playbackID else { return .none }
+                guard var active = state.active, active.id == playbackID else { return .none }
+                accountWatchTime(&active)
                 state.active = nil
                 return finish(active: active, reachedEOF: false, profileID: state.profileID)
 
@@ -239,12 +263,17 @@ struct PlaybackFeature {
                 return .none
 
             case .internal(.progressTick):
-                guard let active = state.active, active.didReportStarted else { return .none }
+                guard var active = state.active, active.didReportStarted else { return .none }
+                accountWatchTime(&active)
+                state.active = active
                 return persist(
                     active: active,
                     played: false,
                     reportRemote: true,
-                    profileID: state.profileID
+                    profileID: state.profileID,
+                    localKind: .checkpoint,
+                    sessionStatus: .active,
+                    endedAt: nil
                 )
 
             case let .view(.control(command)):
@@ -260,18 +289,24 @@ struct PlaybackFeature {
             case .view(.stop):
                 state.pendingRequestID = nil
                 state.isStarting = false
-                guard let active = state.active else {
+                guard var active = state.active else {
                     return .concatenate(
                         .cancel(id: CancelID.resolution),
                         .send(.delegate(.stopped))
                     )
                 }
+                accountWatchTime(&active)
+                let stoppedPlayback = active
                 state.active = nil
                 return .concatenate(
                     .cancel(id: CancelID.resolution),
                     .cancel(id: CancelID.progress),
-                    .run { _ in try? await engine.send(.stop, active.id) },
-                    finish(active: active, reachedEOF: false, profileID: state.profileID)
+                    .run { _ in try? await engine.send(.stop, stoppedPlayback.id) },
+                    finish(
+                        active: stoppedPlayback,
+                        reachedEOF: false,
+                        profileID: state.profileID
+                    )
                 )
 
             case .delegate:
@@ -294,7 +329,8 @@ struct PlaybackFeature {
         reachedEOF: Bool,
         profileID: ProfileID?
     ) -> Effect<Action> {
-        .concatenate(
+        let endedAt = now
+        return .concatenate(
             .cancel(id: CancelID.progress),
             report(
                 .stopped(
@@ -304,7 +340,10 @@ struct PlaybackFeature {
                 ),
                 active: active,
                 played: reachedEOF,
-                profileID: profileID
+                profileID: profileID,
+                localKind: reachedEOF ? .completed : .stopped,
+                sessionStatus: reachedEOF ? .completed : .stopped,
+                endedAt: endedAt
             ),
             .send(.delegate(.stopped))
         )
@@ -314,11 +353,25 @@ struct PlaybackFeature {
         _ event: CineLarkPluginAPI.PlaybackEvent,
         active: Active,
         played: Bool = false,
-        profileID: ProfileID?
+        profileID: ProfileID?,
+        localKind: ProfilePlaybackEventKind,
+        sessionStatus: ViewingSessionStatus,
+        endedAt: Date?
     ) -> Effect<Action> {
-        .run { _ in
+        let timestamp = now
+        let eventID = ProfilePlaybackEventID(rawValue: uuid())
+        return .run { _ in
+            await saveLocal(
+                active: active,
+                played: played,
+                profileID: profileID,
+                eventID: eventID,
+                eventKind: localKind,
+                sessionStatus: sessionStatus,
+                timestamp: timestamp,
+                endedAt: endedAt
+            )
             try? await mediaPlatform.reportPlayback(active.locator.sourceID, event)
-            await saveLocal(active: active, played: played, profileID: profileID)
         }
     }
 
@@ -326,9 +379,24 @@ struct PlaybackFeature {
         active: Active,
         played: Bool,
         reportRemote: Bool,
-        profileID: ProfileID?
+        profileID: ProfileID?,
+        localKind: ProfilePlaybackEventKind,
+        sessionStatus: ViewingSessionStatus,
+        endedAt: Date?
     ) -> Effect<Action> {
-        .run { _ in
+        let timestamp = now
+        let eventID = ProfilePlaybackEventID(rawValue: uuid())
+        return .run { _ in
+            await saveLocal(
+                active: active,
+                played: played,
+                profileID: profileID,
+                eventID: eventID,
+                eventKind: localKind,
+                sessionStatus: sessionStatus,
+                timestamp: timestamp,
+                endedAt: endedAt
+            )
             if reportRemote {
                 try? await mediaPlatform.reportPlayback(
                     active.locator.sourceID,
@@ -339,20 +407,25 @@ struct PlaybackFeature {
                     )
                 )
             }
-            await saveLocal(active: active, played: played, profileID: profileID)
         }
     }
 
     private func saveLocal(
         active: Active,
         played: Bool,
-        profileID: ProfileID?
+        profileID: ProfileID?,
+        eventID: ProfilePlaybackEventID,
+        eventKind: ProfilePlaybackEventKind,
+        sessionStatus: ViewingSessionStatus,
+        timestamp: Date,
+        endedAt: Date?
     ) async {
         guard let profileID else { return }
         let duration = max(active.durationSeconds, 0)
         let progress = duration > 0 ? active.positionSeconds / duration : 0
-        let timestamp = now
         let deviceID = profiles.deviceID()
+        let deviceRecordID = profiles.deviceRecordID()
+        let sessionID = ViewingSessionID(rawValue: active.id)
         let state = ProfilePlaybackState(
             profileID: profileID,
             mediaKey: active.mediaKey,
@@ -374,7 +447,52 @@ struct PlaybackFeature {
             modifiedAt: timestamp,
             deviceID: deviceID
         )
-        try? await profiles.savePlayback(state, snapshot)
+        let session = ViewingSession(
+            id: sessionID,
+            profileID: profileID,
+            mediaKey: active.mediaKey,
+            deviceRecordID: deviceRecordID,
+            startedAt: active.sessionStartedAt ?? timestamp,
+            endedAt: endedAt,
+            startPositionSeconds: active.sessionStartPositionSeconds,
+            endPositionSeconds: active.positionSeconds,
+            watchedSeconds: active.watchedSeconds,
+            status: sessionStatus,
+            modifiedAt: timestamp,
+            deviceID: deviceID
+        )
+        let event = ProfilePlaybackEvent(
+            id: eventID,
+            sessionID: sessionID,
+            profileID: profileID,
+            mediaKey: active.mediaKey,
+            deviceRecordID: deviceRecordID,
+            kind: eventKind,
+            observedAt: timestamp,
+            positionSeconds: active.positionSeconds,
+            durationSeconds: duration,
+            isPaused: active.isPaused,
+            deviceID: deviceID
+        )
+        try? await profiles.savePlayback(ProfilePlaybackWrite(
+            state: state,
+            snapshot: snapshot,
+            session: session,
+            event: event,
+            deviceRecord: nil
+        ))
+    }
+
+    private func accountWatchTime(_ active: inout Active) {
+        guard let previous = active.lastAccountedPositionSeconds else {
+            active.lastAccountedPositionSeconds = active.positionSeconds
+            return
+        }
+        defer { active.lastAccountedPositionSeconds = active.positionSeconds }
+        guard !active.isPaused else { return }
+        let delta = active.positionSeconds - previous
+        guard delta > 0, delta <= 30 else { return }
+        active.watchedSeconds += delta
     }
 
     private static func normalize(_ error: Error) -> Failure {

@@ -20,6 +20,26 @@ public struct DeviceRecordID: RawRepresentable, Codable, Hashable, Sendable {
     public init(rawValue: UUID) {
         self.rawValue = rawValue
     }
+
+    public init(clientID: ClientID) {
+        rawValue = clientID.rawValue
+    }
+}
+
+public struct ViewingSessionID: RawRepresentable, Codable, Hashable, Sendable {
+    public let rawValue: UUID
+
+    public init(rawValue: UUID) {
+        self.rawValue = rawValue
+    }
+}
+
+public struct ProfilePlaybackEventID: RawRepresentable, Codable, Hashable, Sendable {
+    public let rawValue: UUID
+
+    public init(rawValue: UUID) {
+        self.rawValue = rawValue
+    }
 }
 
 public struct ProfileID: RawRepresentable, Codable, Hashable, Sendable {
@@ -467,6 +487,221 @@ public struct ProfilePlaybackState: Codable, Hashable, Sendable {
             deviceID: deviceID,
             mutationStamp: stamp
         )
+    }
+}
+
+public struct DeviceRecord: Codable, Hashable, Sendable, Identifiable {
+    public let id: DeviceRecordID
+    public let clientID: ClientID
+    public let displayName: String
+    public let platform: String
+    public let lastSeenAt: Date
+    public let mutationStamp: MutationStamp?
+
+    public init(
+        id: DeviceRecordID,
+        clientID: ClientID,
+        displayName: String,
+        platform: String,
+        lastSeenAt: Date,
+        mutationStamp: MutationStamp? = nil
+    ) {
+        self.id = id
+        self.clientID = clientID
+        self.displayName = displayName
+        self.platform = platform
+        self.lastSeenAt = lastSeenAt
+        self.mutationStamp = mutationStamp
+    }
+
+    public var effectiveMutationStamp: MutationStamp {
+        mutationStamp ?? MutationStamp(date: lastSeenAt, clientID: clientID.description)
+    }
+
+    public func withMutationStamp(_ stamp: MutationStamp) -> Self {
+        Self(
+            id: id,
+            clientID: clientID,
+            displayName: displayName,
+            platform: platform,
+            lastSeenAt: lastSeenAt,
+            mutationStamp: stamp
+        )
+    }
+}
+
+public enum ViewingSessionStatus: String, Codable, Hashable, Sendable {
+    case active
+    case stopped
+    case completed
+}
+
+public struct ViewingSession: Codable, Hashable, Sendable, Identifiable {
+    public let id: ViewingSessionID
+    public let profileID: ProfileID
+    public let mediaKey: ProfileMediaKey
+    public let deviceRecordID: DeviceRecordID
+    public let startedAt: Date
+    public let endedAt: Date?
+    public let startPositionSeconds: Double
+    public let endPositionSeconds: Double
+    public let watchedSeconds: Double
+    public let status: ViewingSessionStatus
+    public let modifiedAt: Date
+    public let deviceID: String
+    public let mutationStamp: MutationStamp?
+
+    public init(
+        id: ViewingSessionID,
+        profileID: ProfileID,
+        mediaKey: ProfileMediaKey,
+        deviceRecordID: DeviceRecordID,
+        startedAt: Date,
+        endedAt: Date?,
+        startPositionSeconds: Double,
+        endPositionSeconds: Double,
+        watchedSeconds: Double,
+        status: ViewingSessionStatus,
+        modifiedAt: Date,
+        deviceID: String,
+        mutationStamp: MutationStamp? = nil
+    ) {
+        self.id = id
+        self.profileID = profileID
+        self.mediaKey = mediaKey
+        self.deviceRecordID = deviceRecordID
+        self.startedAt = startedAt
+        self.endedAt = endedAt
+        self.startPositionSeconds = startPositionSeconds
+        self.endPositionSeconds = endPositionSeconds
+        self.watchedSeconds = watchedSeconds
+        self.status = status
+        self.modifiedAt = modifiedAt
+        self.deviceID = deviceID
+        self.mutationStamp = mutationStamp
+    }
+
+    public var effectiveMutationStamp: MutationStamp {
+        mutationStamp ?? MutationStamp(date: modifiedAt, clientID: deviceID)
+    }
+
+    public func withMutationStamp(
+        _ stamp: MutationStamp,
+        profileID: ProfileID? = nil
+    ) -> Self {
+        Self(
+            id: id,
+            profileID: profileID ?? self.profileID,
+            mediaKey: mediaKey,
+            deviceRecordID: deviceRecordID,
+            startedAt: startedAt,
+            endedAt: endedAt,
+            startPositionSeconds: startPositionSeconds,
+            endPositionSeconds: endPositionSeconds,
+            watchedSeconds: watchedSeconds,
+            status: status,
+            modifiedAt: modifiedAt,
+            deviceID: deviceID,
+            mutationStamp: stamp
+        )
+    }
+}
+
+public enum ProfilePlaybackEventKind: String, Codable, Hashable, Sendable {
+    case started
+    case checkpoint
+    case paused
+    case resumed
+    case stopped
+    case completed
+}
+
+public struct ProfilePlaybackEvent: Codable, Hashable, Sendable, Identifiable {
+    public let id: ProfilePlaybackEventID
+    public let sessionID: ViewingSessionID
+    public let profileID: ProfileID
+    public let mediaKey: ProfileMediaKey
+    public let deviceRecordID: DeviceRecordID
+    public let kind: ProfilePlaybackEventKind
+    public let observedAt: Date
+    public let positionSeconds: Double
+    public let durationSeconds: Double
+    public let isPaused: Bool
+    public let deviceID: String
+    public let mutationStamp: MutationStamp?
+
+    public init(
+        id: ProfilePlaybackEventID,
+        sessionID: ViewingSessionID,
+        profileID: ProfileID,
+        mediaKey: ProfileMediaKey,
+        deviceRecordID: DeviceRecordID,
+        kind: ProfilePlaybackEventKind,
+        observedAt: Date,
+        positionSeconds: Double,
+        durationSeconds: Double,
+        isPaused: Bool,
+        deviceID: String,
+        mutationStamp: MutationStamp? = nil
+    ) {
+        self.id = id
+        self.sessionID = sessionID
+        self.profileID = profileID
+        self.mediaKey = mediaKey
+        self.deviceRecordID = deviceRecordID
+        self.kind = kind
+        self.observedAt = observedAt
+        self.positionSeconds = positionSeconds
+        self.durationSeconds = durationSeconds
+        self.isPaused = isPaused
+        self.deviceID = deviceID
+        self.mutationStamp = mutationStamp
+    }
+
+    public var effectiveMutationStamp: MutationStamp {
+        mutationStamp ?? MutationStamp(date: observedAt, clientID: deviceID)
+    }
+
+    public func withMutationStamp(
+        _ stamp: MutationStamp,
+        profileID: ProfileID? = nil
+    ) -> Self {
+        Self(
+            id: id,
+            sessionID: sessionID,
+            profileID: profileID ?? self.profileID,
+            mediaKey: mediaKey,
+            deviceRecordID: deviceRecordID,
+            kind: kind,
+            observedAt: observedAt,
+            positionSeconds: positionSeconds,
+            durationSeconds: durationSeconds,
+            isPaused: isPaused,
+            deviceID: deviceID,
+            mutationStamp: stamp
+        )
+    }
+}
+
+public struct ProfilePlaybackWrite: Codable, Hashable, Sendable {
+    public let state: ProfilePlaybackState
+    public let snapshot: ProfileMediaSnapshot?
+    public let session: ViewingSession?
+    public let event: ProfilePlaybackEvent?
+    public let deviceRecord: DeviceRecord?
+
+    public init(
+        state: ProfilePlaybackState,
+        snapshot: ProfileMediaSnapshot?,
+        session: ViewingSession?,
+        event: ProfilePlaybackEvent?,
+        deviceRecord: DeviceRecord?
+    ) {
+        self.state = state
+        self.snapshot = snapshot
+        self.session = session
+        self.event = event
+        self.deviceRecord = deviceRecord
     }
 }
 

@@ -2,7 +2,7 @@
 
 | | |
 | --- | --- |
-| **Status** | Active — runtime bootstrap implemented; device/session facts and signed CloudKit validation pending |
+| **Status** | Active — runtime facts implemented; signed multi-device CloudKit validation pending |
 | **Anchor date** | 2026-08-27 |
 | **Primary refs** | Pending |
 | **Related** | [`../../docs/decisions/0011-personal-viewing-memory.md`](../../docs/decisions/0011-personal-viewing-memory.md), [`../../docs/interfaces/profile-cloudkit-schema.md`](../../docs/interfaces/profile-cloudkit-schema.md), [`../011-media-source-platform/000-plan.md`](../011-media-source-platform/000-plan.md) |
@@ -116,3 +116,8 @@ independent remote playback record.
   [`002-provisional-profile-bootstrap.md`](002-provisional-profile-bootstrap.md).
 - Updated 2026-08-27: The provisional bootstrap amendment is implemented and
   validated locally — see [`003-action.md`](003-action.md).
+- Updated 2026-08-27: Add synced device presentation plus append-oriented
+  playback facts and rebuildable viewing sessions — see
+  [`004-viewing-facts-and-device-records.md`](004-viewing-facts-and-device-records.md).
+- Updated 2026-08-27: The viewing-facts amendment is implemented and locally
+  validated — see [`005-action.md`](005-action.md).

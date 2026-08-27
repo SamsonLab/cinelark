@@ -23,8 +23,8 @@ import CineLarkPluginAPI
         ),
         snapshot: nil
     )
-    try await repository.savePlayback(
-        ProfilePlaybackState(
+    try await repository.savePlayback(ProfilePlaybackWrite(
+        state: ProfilePlaybackState(
             profileID: second,
             mediaKey: mediaKey,
             state: UserPlaybackState(
@@ -35,13 +35,92 @@ import CineLarkPluginAPI
             modifiedAt: timestamp,
             deviceID: "device"
         ),
-        snapshot: nil
-    )
+        snapshot: nil,
+        session: nil,
+        event: nil,
+        deviceRecord: nil
+    ))
 
     #expect(try await repository.favorite(profileID: first, mediaKey: mediaKey)?.isFavorite == true)
     #expect(try await repository.favorite(profileID: second, mediaKey: mediaKey) == nil)
     #expect(try await repository.playback(profileID: first, mediaKey: mediaKey) == nil)
     #expect(try await repository.playback(profileID: second, mediaKey: mediaKey)?.state.positionSeconds == 50)
+}
+
+@Test func viewingFactsAreIdempotentAndDriveProfileManifest() async throws {
+    let repository = try CoreDataProfileRepository(configuration: .init(inMemory: true))
+    let clientID = ClientID(rawValue: UUID())
+    let profileID = ProfileID(rawValue: UUID())
+    let locator = MediaLocatorID(
+        sourceID: SourceID(rawValue: UUID()),
+        providerItemID: "movie-1"
+    )
+    let date = Date(timeIntervalSince1970: 100)
+    let stamp = MutationStamp(date: date, clientID: clientID.description)
+    let sessionID = ViewingSessionID(rawValue: UUID())
+    try await repository.saveProfile(Profile(
+        id: profileID,
+        name: "Personal",
+        createdAt: date,
+        modifiedAt: date,
+        deviceID: clientID.description,
+        mutationStamp: stamp
+    ))
+    try await repository.saveDeviceRecord(
+        DeviceRecord(
+            id: DeviceRecordID(clientID: clientID),
+            clientID: clientID,
+            displayName: "Test Mac",
+            platform: "macOS",
+            lastSeenAt: date,
+            mutationStamp: stamp
+        ),
+        profileID: profileID
+    )
+    let registeredManifests = try await repository.profileManifests()
+    #expect(registeredManifests.first?.lastDeviceName == "Test Mac")
+    let started = playbackWrite(
+        profileID: profileID,
+        locator: locator,
+        title: "Arrival",
+        date: date,
+        stamp: stamp,
+        clientID: clientID,
+        watchedSeconds: 0,
+        sessionID: sessionID,
+        status: .active,
+        eventKind: .started,
+        startedAt: date
+    )
+    let completedAt = date.addingTimeInterval(42)
+    let completed = playbackWrite(
+        profileID: profileID,
+        locator: locator,
+        title: "Arrival",
+        date: completedAt,
+        stamp: MutationStamp(date: completedAt, clientID: clientID.description),
+        clientID: clientID,
+        watchedSeconds: 42,
+        sessionID: sessionID,
+        status: .completed,
+        eventKind: .completed,
+        startedAt: date
+    )
+
+    try await repository.savePlayback(started)
+    try await repository.savePlayback(started)
+    try await repository.savePlayback(completed)
+    try await repository.savePlayback(completed)
+
+    let manifests = try await repository.profileManifests()
+    let manifest = try #require(manifests.first)
+    #expect(try await repository.viewingSessions(profileID: profileID).count == 1)
+    #expect(try await repository.playbackEvents(profileID: profileID).count == 2)
+    #expect(try await repository.deviceRecords().count == 1)
+    #expect(manifest.lastDeviceName == "Test Mac")
+    #expect(manifest.titleCount == 1)
+    #expect(manifest.viewingSessionCount == 1)
+    #expect(manifest.totalWatchSeconds == 42)
 }
 
 @Test func profileStateUsesModifiedAtThenDeviceIDForConflictResolution() async throws {
@@ -286,6 +365,19 @@ import CineLarkPluginAPI
         deviceID: "client-a",
         mutationStamp: baseStamp
     ), snapshot: nil)
+    let locator = MediaLocatorID(
+        sourceID: SourceID(rawValue: UUID()),
+        providerItemID: "movie-merge"
+    )
+    try await repository.savePlayback(playbackWrite(
+        profileID: sourceID,
+        locator: locator,
+        title: "Merge Movie",
+        date: createdAt,
+        stamp: baseStamp,
+        clientID: ClientID(rawValue: UUID()),
+        watchedSeconds: 25
+    ))
 
     let request = ProfileMergeRequest(
         operationID: UUID(),
@@ -303,6 +395,8 @@ import CineLarkPluginAPI
     #expect(try await repository.profiles().map(\.id) == [targetID])
     #expect(try await repository.favorite(profileID: targetID, mediaKey: mediaKey)?.isFavorite == true)
     #expect(try await repository.favorite(profileID: sourceID, mediaKey: mediaKey)?.isFavorite == true)
+    #expect(try await repository.viewingSessions(profileID: targetID).count == 1)
+    #expect(try await repository.playbackEvents(profileID: targetID).count == 1)
 }
 
 @Test func provisionalStateStaysLocalUntilIdempotentPromotion() async throws {
@@ -343,9 +437,19 @@ import CineLarkPluginAPI
         deviceID: clientID.description,
         mutationStamp: stamp
     ))
+    try await repository.savePlayback(playbackWrite(
+        profileID: profileID,
+        locator: locator,
+        title: "Arrival",
+        date: date,
+        stamp: stamp,
+        clientID: clientID,
+        watchedSeconds: 30
+    ))
 
     #expect(try await repository.profiles().isEmpty)
     #expect(try await repository.provisionalProfileManifest(clientID: clientID)?.titleCount == 1)
+    #expect(try await repository.provisionalProfileManifest(clientID: clientID)?.viewingSessionCount == 1)
 
     try await repository.promoteProvisionalProfile(clientID: clientID, profileID: profileID)
     try await repository.promoteProvisionalProfile(clientID: clientID, profileID: profileID)
@@ -353,6 +457,9 @@ import CineLarkPluginAPI
     #expect(try await repository.provisionalProfileManifest(clientID: clientID) == nil)
     #expect(try await repository.profiles().map(\.id) == [profileID])
     #expect(try await repository.favorite(profileID: profileID, mediaKey: mediaKey)?.isFavorite == true)
+    #expect(try await repository.viewingSessions(profileID: profileID).count == 1)
+    #expect(try await repository.playbackEvents(profileID: profileID).count == 1)
+    #expect(try await repository.deviceRecords().map(\.displayName) == ["Test Mac"])
 }
 
 @Test func provisionalMergeMovesFactsWithoutPublishingTheSourceProfile() async throws {
@@ -418,5 +525,86 @@ private func manifest(id: String, name: String) -> ProfileManifest {
         viewingSessionCount: 0,
         favoriteCount: 0,
         totalWatchSeconds: 0
+    )
+}
+
+private func playbackWrite(
+    profileID: ProfileID,
+    locator: MediaLocatorID,
+    title: String,
+    date: Date,
+    stamp: MutationStamp,
+    clientID: ClientID,
+    watchedSeconds: Double,
+    sessionID: ViewingSessionID = ViewingSessionID(rawValue: UUID()),
+    status: ViewingSessionStatus = .completed,
+    eventKind: ProfilePlaybackEventKind = .completed,
+    startedAt: Date? = nil
+) -> ProfilePlaybackWrite {
+    let mediaKey = ProfileMediaKey(locator: locator)
+    let deviceRecordID = DeviceRecordID(clientID: clientID)
+    let deviceID = clientID.description
+    let isCompleted = status == .completed
+    return ProfilePlaybackWrite(
+        state: ProfilePlaybackState(
+            profileID: profileID,
+            mediaKey: mediaKey,
+            state: UserPlaybackState(
+                played: isCompleted,
+                positionSeconds: isCompleted ? 0 : watchedSeconds,
+                progress: isCompleted ? 1 : 0,
+                lastPlayedAt: date
+            ),
+            modifiedAt: date,
+            deviceID: deviceID,
+            mutationStamp: stamp
+        ),
+        snapshot: ProfileMediaSnapshot(
+            key: mediaKey,
+            locator: locator,
+            title: title,
+            kind: .movie,
+            artworkURL: nil,
+            modifiedAt: date,
+            deviceID: deviceID,
+            mutationStamp: stamp
+        ),
+        session: ViewingSession(
+            id: sessionID,
+            profileID: profileID,
+            mediaKey: mediaKey,
+            deviceRecordID: deviceRecordID,
+            startedAt: startedAt ?? date.addingTimeInterval(-watchedSeconds),
+            endedAt: status == .active ? nil : date,
+            startPositionSeconds: 0,
+            endPositionSeconds: watchedSeconds,
+            watchedSeconds: watchedSeconds,
+            status: status,
+            modifiedAt: date,
+            deviceID: deviceID,
+            mutationStamp: stamp
+        ),
+        event: ProfilePlaybackEvent(
+            id: ProfilePlaybackEventID(rawValue: UUID()),
+            sessionID: sessionID,
+            profileID: profileID,
+            mediaKey: mediaKey,
+            deviceRecordID: deviceRecordID,
+            kind: eventKind,
+            observedAt: date,
+            positionSeconds: watchedSeconds,
+            durationSeconds: watchedSeconds,
+            isPaused: false,
+            deviceID: deviceID,
+            mutationStamp: stamp
+        ),
+        deviceRecord: DeviceRecord(
+            id: deviceRecordID,
+            clientID: clientID,
+            displayName: "Test Mac",
+            platform: "macOS",
+            lastSeenAt: date,
+            mutationStamp: stamp
+        )
     )
 }

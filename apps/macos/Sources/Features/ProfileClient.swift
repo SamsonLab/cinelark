@@ -61,7 +61,7 @@ struct ProfileClient: Sendable {
     var setSelection: @Sendable (ActiveProfileSelection) async throws -> Void
     var saveSource: @Sendable (PluginID, SourceConfiguration) async throws -> Void
     var saveBinding: @Sendable (ProfileSourceBinding) async throws -> Void
-    var savePlayback: @Sendable (ProfilePlaybackState, ProfileMediaSnapshot?) async throws -> Void
+    var savePlayback: @Sendable (ProfilePlaybackWrite) async throws -> Void
     var saveFavorite: @Sendable (ProfileFavoriteState, ProfileMediaSnapshot?) async throws -> Void
     var state: @Sendable (ProfileID) async throws -> ProfileStateSnapshot
     var enqueueMirror: @Sendable (MirrorQueueEntry) async throws -> Void
@@ -73,6 +73,10 @@ struct ProfileClient: Sendable {
 
     func deviceID() -> String {
         clientID().description
+    }
+
+    func deviceRecordID() -> DeviceRecordID {
+        DeviceRecordID(clientID: clientID())
     }
 }
 
@@ -91,7 +95,7 @@ extension ProfileClient: DependencyKey {
         setSelection: { _ in throw ProfileClientFailure.unavailable("Profile repository is not configured") },
         saveSource: { _, _ in throw ProfileClientFailure.unavailable("Profile repository is not configured") },
         saveBinding: { _ in throw ProfileClientFailure.unavailable("Profile repository is not configured") },
-        savePlayback: { _, _ in throw ProfileClientFailure.unavailable("Profile repository is not configured") },
+        savePlayback: { _ in throw ProfileClientFailure.unavailable("Profile repository is not configured") },
         saveFavorite: { _, _ in throw ProfileClientFailure.unavailable("Profile repository is not configured") },
         state: { _ in throw ProfileClientFailure.unavailable("Profile repository is not configured") },
         enqueueMirror: { _ in throw ProfileClientFailure.unavailable("Profile repository is not configured") },
@@ -117,7 +121,13 @@ extension ProfileClient {
         repository: any ProfileRepository,
         clientID: ClientID,
         now: @escaping @Sendable () -> Date = { Date() },
-        uuid: @escaping @Sendable () -> UUID = { UUID() }
+        uuid: @escaping @Sendable () -> UUID = { UUID() },
+        deviceName: @escaping @Sendable () -> String = {
+            Host.current().localizedName ?? "Mac"
+        },
+        platform: @escaping @Sendable () -> String = {
+            "macOS \(ProcessInfo.processInfo.operatingSystemVersionString)"
+        }
     ) -> Self {
         Self(
             clientID: { clientID },
@@ -126,7 +136,9 @@ extension ProfileClient {
                     repository: repository,
                     clientID: clientID,
                     now: now,
-                    uuid: uuid
+                    uuid: uuid,
+                    deviceName: deviceName,
+                    platform: platform
                 )
             },
             resolveProfile: { choice in
@@ -181,7 +193,9 @@ extension ProfileClient {
                     repository: repository,
                     clientID: clientID,
                     now: now,
-                    uuid: uuid
+                    uuid: uuid,
+                    deviceName: deviceName,
+                    platform: platform
                 )
             },
             saveProfile: { profile in
@@ -213,7 +227,8 @@ extension ProfileClient {
             },
             saveSource: { try await repository.saveSource(pluginID: $0, configuration: $1) },
             saveBinding: { try await repository.saveBinding($0) },
-            savePlayback: { state, snapshot in
+            savePlayback: { write in
+                let state = write.state
                 let stamp: MutationStamp
                 if let existing = state.mutationStamp {
                     stamp = existing
@@ -224,8 +239,23 @@ extension ProfileClient {
                     )
                 }
                 let stampedState = state.withMutationStamp(stamp)
-                let stampedSnapshot = snapshot?.withMutationStamp(stamp)
-                try await repository.savePlayback(stampedState, snapshot: stampedSnapshot)
+                let stampedSnapshot = write.snapshot?.withMutationStamp(stamp)
+                let stampedSession = write.session?.withMutationStamp(stamp)
+                let stampedEvent = write.event?.withMutationStamp(stamp)
+                let currentDevice = (write.deviceRecord ?? DeviceRecord(
+                    id: DeviceRecordID(clientID: clientID),
+                    clientID: clientID,
+                    displayName: deviceName(),
+                    platform: platform(),
+                    lastSeenAt: state.modifiedAt
+                )).withMutationStamp(stamp)
+                try await repository.savePlayback(ProfilePlaybackWrite(
+                    state: stampedState,
+                    snapshot: stampedSnapshot,
+                    session: stampedSession,
+                    event: stampedEvent,
+                    deviceRecord: currentDevice
+                ))
                 guard let stampedSnapshot else { return }
                 try await enqueueMirrorIfEnabled(
                     repository: repository,
@@ -303,7 +333,9 @@ extension ProfileClient {
         repository: any ProfileRepository,
         clientID: ClientID,
         now: @Sendable () -> Date,
-        uuid: @Sendable () -> UUID
+        uuid: @Sendable () -> UUID,
+        deviceName: @Sendable () -> String,
+        platform: @Sendable () -> String
     ) async throws -> ProfileBootstrap {
         async let cloudManifestValues = repository.profileManifests()
         async let sourceValues = repository.sourceConfigurations()
@@ -384,6 +416,35 @@ extension ProfileClient {
         var bindings: [ProfileSourceBinding] = []
         for manifest in manifests {
             bindings.append(contentsOf: try await repository.bindings(profileID: manifest.id))
+        }
+        let registrationProfileID: ProfileID?
+        switch resolution {
+        case let .localOnly(manifest), let .synchronize(manifest):
+            registrationProfileID = manifest.id
+        case let .waitingForCloud(manifest):
+            registrationProfileID = manifest?.id
+        case let .requiresChoice(provisional, _):
+            registrationProfileID = provisional.id
+        case let .promoteProvisional(manifest):
+            registrationProfileID = manifest.id
+        }
+        if let registrationProfileID {
+            let timestamp = now()
+            let stamp = try await repository.nextMutationStamp(
+                clientID: clientID,
+                at: timestamp
+            )
+            try await repository.saveDeviceRecord(
+                DeviceRecord(
+                    id: DeviceRecordID(clientID: clientID),
+                    clientID: clientID,
+                    displayName: deviceName(),
+                    platform: platform(),
+                    lastSeenAt: timestamp,
+                    mutationStamp: stamp
+                ),
+                profileID: registrationProfileID
+            )
         }
         return ProfileBootstrap(
             profiles: manifests.map(\.profile),
