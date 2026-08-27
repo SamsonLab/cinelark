@@ -57,3 +57,10 @@ Documents use the following status labels:
 
 External APIs documented here may change without notice. Provider adapters must
 isolate that volatility from CineLark's domain model.
+
+## Product research
+
+| Document | Status | Purpose |
+| --- | --- | --- |
+| [Forward competitive audit](research/forward-competitive-audit/README.md) | Observed | Source-backed comparison covering media sources, profiles, playback, cache, sync, and plugin boundaries |
+| [Trakt service opportunities](research/trakt-service-opportunities/README.md) | Observed | Free/VIP capability split, API feasibility, trust risks, and CineLark service opportunities |

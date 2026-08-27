@@ -54,3 +54,7 @@ Fixture tests cover reverse-proxy URL preservation, UDP response parsing and
 deduplication, offset cursor mapping, content/detail hierarchy, image metadata,
 secret-free URLs, remote import/mirror endpoints, exact-user enforcement, and
 direct playback headers.
+
+The [`CineLark Emby Postman kit`](../../tools/postman/README.md) provides the
+same implemented surface as an importable collection, real-server environment
+template, and loopback-only deterministic mock for manual contract validation.

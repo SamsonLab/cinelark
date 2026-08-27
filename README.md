@@ -51,6 +51,7 @@ plugins/iina/     thin IINA JavaScript adapter
 specs/            cross-language contracts and external API observations
 shared/           generated-code policy, design tokens, and brand assets
 fixtures/         synthetic, redacted test fixtures only
+tools/postman/    Emby Postman collection and loopback contract fixture
 docs/             product, architecture, integration, and decision records
 docs-ai/          curated feature plans, implementation outcomes, and runbooks
 ```
@@ -84,6 +85,10 @@ cd apps/remote && flutter test
 
 See [`apps/macos/README.md`](apps/macos/README.md) for implemented capabilities
 and build details.
+
+For provider API validation, import the
+[`CineLark Emby Postman kit`](tools/postman/README.md) or run its loopback-only
+fixture server locally.
 
 ## Specifications
 
