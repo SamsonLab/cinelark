@@ -108,3 +108,7 @@ Started/Progress/Stopped and optional explicit import/mirror operations.
   `CineLarkUHDNow` product reference.
 
 ## Amendments
+
+- Updated 2026-08-27: a subscriber-facing standard Emby endpoint and login were
+  validated read-only; resulting contract fixes are recorded in
+  [017 — Emby real-contract hardening](../017-emby-real-contract-hardening/000-plan.md).

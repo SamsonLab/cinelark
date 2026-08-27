@@ -1,0 +1,10 @@
+{
+  "MediaSources": [
+    {
+      "Id": "source-synthetic-1",
+      "DirectStreamUrl": "/play/synthetic/stream?MediaSourceId=source-synthetic-1&api_key=fixture-secret",
+      "SupportsDirectPlay": false,
+      "SupportsDirectStream": true
+    }
+  ]
+}

@@ -75,7 +75,8 @@ let package = Package(
         ),
         .testTarget(
             name: "CineLarkEmbyTests",
-            dependencies: ["CineLarkDomain", "CineLarkPluginAPI", "CineLarkEmby"]
+            dependencies: ["CineLarkDomain", "CineLarkPluginAPI", "CineLarkEmby"],
+            resources: [.process("Fixtures")]
         ),
         .testTarget(
             name: "CineLarkPersistenceTests",

@@ -17,6 +17,11 @@ third-party dynamic code is not loaded.
 The Core Data catalog supports multiple locators for one catalog item. It does
 not merge items merely because TMDB or IMDb keys match.
 
+`MediaKind` describes the normalized item identity, not a navigation section.
+The current kinds are movie, series, and episode. The v1 UI still exposes only
+movie and series as top-level library categories; episodes enter the catalog
+and Profile projections through hierarchy and resume results.
+
 ## Calls and streams
 
 Cold queries and commands are `async throws`. Snapshot streams use

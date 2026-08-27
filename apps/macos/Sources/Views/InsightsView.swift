@@ -1,6 +1,7 @@
 import Charts
 import ComposableArchitecture
 import SwiftUI
+import CineLarkDomain
 import CineLarkInsights
 
 struct InsightsView: View {
@@ -178,7 +179,7 @@ struct InsightsView: View {
                                 .frame(width: 30, alignment: .trailing)
                             ArtworkView(
                                 url: title.artworkURL,
-                                placeholderSystemImage: title.kind == .series ? "tv" : "film"
+                                placeholderSystemImage: placeholderSystemImage(for: title.kind)
                             )
                                 .frame(width: 46, height: 69)
                                 .clipShape(RoundedRectangle(cornerRadius: 7))
@@ -206,6 +207,15 @@ struct InsightsView: View {
                 .padding(.horizontal, 18)
                 .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16))
             }
+        }
+    }
+
+    private func placeholderSystemImage(for kind: MediaKind?) -> String {
+        guard let kind else { return "film" }
+        return switch kind {
+        case .movie: "film"
+        case .series: "tv"
+        case .episode: "play.rectangle"
         }
     }
 

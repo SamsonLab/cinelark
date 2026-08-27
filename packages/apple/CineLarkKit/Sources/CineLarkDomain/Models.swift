@@ -56,6 +56,7 @@ extension Page: Equatable where Element: Equatable {}
 public enum MediaKind: String, Codable, Sendable, Hashable {
     case movie
     case series
+    case episode
 }
 
 public struct UserPlaybackState: Codable, Sendable, Hashable {

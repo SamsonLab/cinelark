@@ -101,12 +101,13 @@ actor EmbyService {
         )
         let page: ItemPageDTO = try await response(for: request)
         let located = page.items.compactMap { map($0) }
-        let nextOffset = offset + located.count
         return MediaPage(
             items: located,
-            nextCursor: nextOffset < page.totalRecordCount
-                ? MediaCursor(rawValue: String(nextOffset))
-                : nil,
+            nextCursor: try Self.nextCursor(
+                offset: offset,
+                consumedCount: page.items.count,
+                total: page.totalRecordCount
+            ),
             total: page.totalRecordCount
         )
     }
@@ -318,14 +319,8 @@ actor EmbyService {
             throw MediaSourceFailure.unsupported("No direct-playable Emby media source")
         }
         let url: URL
-        if
-            let streamPath = source.directStreamURL,
-            let absoluteURL = URL(string: streamPath),
-            absoluteURL.scheme != nil
-        {
-            url = absoluteURL
-        } else if let streamPath = source.directStreamURL {
-            url = configuration.baseURL.appendingPathComponent(streamPath)
+        if let streamPath = source.directStreamURL, !streamPath.isEmpty {
+            url = try directStreamURL(from: streamPath)
         } else {
             url = try builder.request(
                 path: "Videos/\(locator.providerItemID)/stream",
@@ -519,10 +514,13 @@ actor EmbyService {
         )
         let page: ItemPageDTO = try await response(for: request)
         let located = page.items.compactMap(map)
-        let next = offset + located.count
         return MediaPage(
             items: located,
-            nextCursor: next < page.totalRecordCount ? MediaCursor(rawValue: String(next)) : nil,
+            nextCursor: try Self.nextCursor(
+                offset: offset,
+                consumedCount: page.items.count,
+                total: page.totalRecordCount
+            ),
             total: page.totalRecordCount
         )
     }
@@ -533,10 +531,18 @@ actor EmbyService {
     ) async throws -> [LocatedMediaItem] {
         var query = initial
         var result: [LocatedMediaItem] = []
-        repeat {
+        var observedCursors = Set<MediaCursor>()
+        if let cursor = initial.cursor {
+            observedCursors.insert(cursor)
+        }
+        while true {
+            try Task.checkCancellation()
             let page = try await fetch(query)
             result.append(contentsOf: page.items)
             guard let cursor = page.nextCursor else { break }
+            guard observedCursors.insert(cursor).inserted else {
+                throw MediaSourceFailure.invalidResponse
+            }
             query = MediaQuery(
                 scope: query.scope,
                 parent: query.parent,
@@ -546,9 +552,48 @@ actor EmbyService {
                 cursor: cursor,
                 limit: query.limit
             )
-        } while !Task.isCancelled
-        try Task.checkCancellation()
+        }
         return result
+    }
+
+    private func directStreamURL(from reference: String) throws -> URL {
+        guard var baseComponents = URLComponents(
+            url: configuration.baseURL,
+            resolvingAgainstBaseURL: false
+        ) else {
+            throw MediaSourceFailure.invalidResponse
+        }
+        baseComponents.query = nil
+        baseComponents.fragment = nil
+        baseComponents.user = nil
+        baseComponents.password = nil
+        if !baseComponents.percentEncodedPath.hasSuffix("/") {
+            baseComponents.percentEncodedPath += "/"
+        }
+        guard
+            let resolutionBaseURL = baseComponents.url,
+            let resolvedURL = URL(string: reference, relativeTo: resolutionBaseURL)?.absoluteURL,
+            var resolvedComponents = URLComponents(
+                url: resolvedURL,
+                resolvingAgainstBaseURL: false
+            ),
+            Self.isHTTPOrigin(resolvedComponents),
+            Self.isSameOrigin(resolvedComponents, baseComponents)
+        else {
+            throw MediaSourceFailure.invalidResponse
+        }
+
+        resolvedComponents.user = nil
+        resolvedComponents.password = nil
+        resolvedComponents.fragment = nil
+        if let queryItems = resolvedComponents.queryItems {
+            let safeItems = queryItems.filter { !Self.isCredentialQueryName($0.name) }
+            resolvedComponents.queryItems = safeItems.isEmpty ? nil : safeItems
+        }
+        guard let sanitizedURL = resolvedComponents.url else {
+            throw MediaSourceFailure.invalidResponse
+        }
+        return sanitizedURL
     }
 
     private func validate(_ response: HTTPURLResponse) throws {
@@ -634,6 +679,7 @@ actor EmbyService {
         switch value.lowercased() {
         case "movie": .movie
         case "series": .series
+        case "episode": .episode
         default: nil
         }
     }
@@ -642,7 +688,62 @@ actor EmbyService {
         switch kind {
         case .movie: "Movie"
         case .series: "Series"
+        case .episode: "Episode"
         }
+    }
+
+    private static func nextCursor(
+        offset: Int,
+        consumedCount: Int,
+        total: Int
+    ) throws -> MediaCursor? {
+        let nextOffset = offset + consumedCount
+        if nextOffset >= total {
+            return nil
+        }
+        guard consumedCount > 0 else {
+            throw MediaSourceFailure.invalidResponse
+        }
+        return MediaCursor(rawValue: String(nextOffset))
+    }
+
+    private static func isHTTPOrigin(_ components: URLComponents) -> Bool {
+        guard let scheme = components.scheme?.lowercased(), components.host != nil else {
+            return false
+        }
+        return scheme == "http" || scheme == "https"
+    }
+
+    private static func isSameOrigin(
+        _ lhs: URLComponents,
+        _ rhs: URLComponents
+    ) -> Bool {
+        lhs.scheme?.lowercased() == rhs.scheme?.lowercased()
+            && lhs.host?.lowercased() == rhs.host?.lowercased()
+            && effectivePort(lhs) == effectivePort(rhs)
+    }
+
+    private static func effectivePort(_ components: URLComponents) -> Int? {
+        if let port = components.port { return port }
+        switch components.scheme?.lowercased() {
+        case "http": return 80
+        case "https": return 443
+        default: return nil
+        }
+    }
+
+    private static func isCredentialQueryName(_ name: String) -> Bool {
+        let normalized = name.lowercased().filter(\.isLetter)
+        return [
+            "apikey",
+            "token",
+            "xembytoken",
+            "accesstoken",
+            "auth",
+            "authorization",
+            "signature",
+            "sig"
+        ].contains(normalized)
     }
 
     private static func embySort(_ field: MediaSort.Field) -> String {

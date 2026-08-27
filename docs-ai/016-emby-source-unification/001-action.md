@@ -55,9 +55,12 @@
 
 ## Open questions
 
-- Validate the subscriber-facing standard Emby base URL and login flow against
-  a real UHDNow account before treating the URL suggestion as product guidance.
 - Do not migrate old private-facade item IDs until a verified mapping proves
   identity equivalence with Emby item IDs.
 - Remove the remaining legacy provider/session compatibility surface when its
   cache tests have been replaced by Catalog-level coverage.
+
+The subscriber-facing standard Emby endpoint and login flow were subsequently
+validated read-only. See
+[017 — Emby real-contract hardening](../017-emby-real-contract-hardening/001-action.md)
+for the resulting episode, pagination, and playback URL corrections.

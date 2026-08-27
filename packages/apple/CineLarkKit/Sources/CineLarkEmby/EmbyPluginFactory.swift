@@ -16,7 +16,7 @@ public struct EmbyPluginFactory: MediaSourcePluginFactory {
         setupModes: [.manualURL, .localDiscovery],
         authenticationModes: [.usernamePassword, .token],
         capabilities: CapabilityDescriptor(
-            itemKinds: [.movie, .series],
+            itemKinds: [.movie, .series, .episode],
             sortFields: Set(MediaSort.Field.allCases),
             filters: ["favorite", "played", "resumable", "genre"],
             pagination: .offset,
