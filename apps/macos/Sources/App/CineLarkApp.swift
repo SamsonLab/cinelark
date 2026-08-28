@@ -22,17 +22,20 @@ struct CineLarkApp: App {
     private let store: StoreOf<AppFeature>
     private let gateway: CineLarkNativeGateway
     private let artworkResolver: ArtworkResolutionClient
+    private let cloudKitAuditOperation: (@Sendable () async -> Void)?
     private let updateMonitor: SparkleUpdateMonitor
     private let updaterController: SPUStandardUpdaterController
 
     init() {
-        let isRunningTests = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+        let environment = ProcessInfo.processInfo.environment
+        let isRunningTests = environment["XCTestConfigurationFilePath"] != nil
+        let cloudKitAuditRequest = CloudKitAuditLaunchRequest(environment: environment)
         let updateMonitor = SparkleUpdateMonitor()
         let gateway = CineLarkNativeGateway()
         self.gateway = gateway
         self.updateMonitor = updateMonitor
         updaterController = SPUStandardUpdaterController(
-            startingUpdater: true,
+            startingUpdater: cloudKitAuditRequest == nil,
             updaterDelegate: updateMonitor,
             userDriverDelegate: nil
         )
@@ -126,6 +129,21 @@ struct CineLarkApp: App {
         } catch {
             preconditionFailure("Unable to open the profile repository: \(error)")
         }
+        if let cloudKitAuditRequest {
+            cloudKitAuditOperation = {
+                do {
+                    try await CloudKitAuditCapture.run(
+                        repository: profileRepository,
+                        request: cloudKitAuditRequest
+                    )
+                } catch {
+                    let message = Data("CloudKit audit capture failed.\n".utf8)
+                    try? FileHandle.standardError.write(contentsOf: message)
+                }
+            }
+        } else {
+            cloudKitAuditOperation = nil
+        }
         let appStore = Store(initialState: AppFeature.State()) {
             AppFeature()
         } withDependencies: {
@@ -180,6 +198,11 @@ struct CineLarkApp: App {
                 .environment(\.artworkResolutionClient, artworkResolver)
                 .frame(minWidth: 960, minHeight: 640)
                 .task {
+                    if let cloudKitAuditOperation {
+                        await cloudKitAuditOperation()
+                        NSApplication.shared.terminate(nil)
+                        return
+                    }
                     store.send(.view(.appeared))
                     shortcuts.start()
                     appDelegate.prepareForTermination = { [weak shortcuts, weak remote, gateway] in

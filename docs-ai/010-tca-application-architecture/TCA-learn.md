@@ -2,7 +2,7 @@
 
 - **TCA baseline:** 1.26.1
 - **Scope:** Validated CineLark-specific patterns only
-- **Last reviewed:** 2026-08-27
+- **Last reviewed:** 2026-08-28
 
 This is a living engineering reference, not a work log or a substitute for the
 official TCA documentation. Add an entry only after the pattern is implemented

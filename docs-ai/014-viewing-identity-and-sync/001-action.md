@@ -6,6 +6,7 @@
 | --- | --- | --- |
 | 2026-08-27 | Accepted personal viewing memory as the durable product identity | [`../../docs/decisions/0011-personal-viewing-memory.md`](../../docs/decisions/0011-personal-viewing-memory.md) |
 | 2026-08-27 | Implemented identity, mutation-clock, manifest, merge, and tombstone foundation | Working tree |
+| 2026-08-28 | Added redacted signed-app convergence harness and physical scenario runbook | [`../023-cloudkit-convergence-validation/001-action.md`](../023-cloudkit-convergence-validation/001-action.md) |
 
 ## Outcome & current state (as of 2026-08-27)
 
@@ -42,7 +43,8 @@
 - Unsigned `xcodebuild ... test`: 16 Swift Testing tests across 9 suites and 6
   XCTest cases pass.
 - `git diff --check` passes.
-- The required signed two-device CloudKit verification was not run.
+- The signed-app harness now exists, but the required physical two-device
+  CloudKit verification has not been run.
 
 ## Deviations from plan
 

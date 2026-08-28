@@ -623,6 +623,114 @@ import CineLarkPluginAPI
     #expect(try await repository.favorite(profileID: targetID, mediaKey: mediaKey)?.isFavorite == true)
 }
 
+@Test func syncAuditIsDeterministicRedactedAndSensitiveToFactChanges() async throws {
+    let first = try CoreDataProfileRepository(configuration: .init(inMemory: true))
+    let second = try CoreDataProfileRepository(configuration: .init(inMemory: true))
+    let profileID = ProfileID(
+        rawValue: UUID(uuidString: "10000000-0000-0000-0000-000000000001")!
+    )
+    let sourceID = SourceID(
+        rawValue: UUID(uuidString: "20000000-0000-0000-0000-000000000002")!
+    )
+    let clientID = ClientID(
+        rawValue: UUID(uuidString: "30000000-0000-0000-0000-000000000003")!
+    )
+    let date = Date(timeIntervalSince1970: 1_800_000_000)
+    let stamp = MutationStamp(date: date, clientID: clientID.description)
+    let profile = Profile(
+        id: profileID,
+        name: "Private Profile Name",
+        createdAt: date,
+        modifiedAt: date,
+        deviceID: clientID.description,
+        mutationStamp: stamp
+    )
+    let locator = MediaLocatorID(
+        sourceID: sourceID,
+        providerItemID: "private-provider-item"
+    )
+    let mediaKey = ProfileMediaKey(locator: locator)
+    let favorite = ProfileFavoriteState(
+        profileID: profileID,
+        mediaKey: mediaKey,
+        isFavorite: true,
+        modifiedAt: date,
+        deviceID: clientID.description,
+        mutationStamp: stamp
+    )
+    let snapshot = ProfileMediaSnapshot(
+        key: mediaKey,
+        locator: locator,
+        title: "Private Movie Title",
+        kind: .movie,
+        artworkURL: URL(string: "https://private.example/poster.jpg"),
+        modifiedAt: date,
+        deviceID: clientID.description,
+        mutationStamp: stamp
+    )
+    let write = playbackWrite(
+        profileID: profileID,
+        locator: locator,
+        title: "Private Movie Title",
+        date: date,
+        stamp: stamp,
+        clientID: clientID,
+        watchedSeconds: 90,
+        artworkURL: URL(string: "https://private.example/poster.jpg"),
+        sessionID: ViewingSessionID(
+            rawValue: UUID(uuidString: "40000000-0000-0000-0000-000000000004")!
+        ),
+        eventID: ProfilePlaybackEventID(
+            rawValue: UUID(uuidString: "50000000-0000-0000-0000-000000000005")!
+        )
+    )
+
+    try await first.saveProfile(profile)
+    try await first.saveFavorite(favorite, snapshot: snapshot)
+    try await first.savePlayback(write)
+    try await second.savePlayback(write)
+    try await second.saveFavorite(favorite, snapshot: snapshot)
+    try await second.saveProfile(profile)
+
+    let firstAudit = try await ProfileSyncAuditSnapshot.capture(
+        repository: first,
+        capturedAt: date
+    )
+    let secondAudit = try await ProfileSyncAuditSnapshot.capture(
+        repository: second,
+        capturedAt: date.addingTimeInterval(60)
+    )
+    #expect(firstAudit.profileSetDigest == secondAudit.profileSetDigest)
+    #expect(firstAudit.profiles.first?.factDigest == secondAudit.profiles.first?.factDigest)
+
+    let jsonData = try JSONEncoder().encode(firstAudit)
+    let json = try #require(String(data: jsonData, encoding: .utf8))
+    #expect(!json.contains(profileID.rawValue.uuidString.lowercased()))
+    #expect(!json.contains(clientID.description))
+    #expect(!json.contains("Private Profile Name"))
+    #expect(!json.contains("Private Movie Title"))
+    #expect(!json.contains("private-provider-item"))
+    #expect(!json.contains("private.example"))
+
+    let later = date.addingTimeInterval(1)
+    try await second.saveFavorite(
+        ProfileFavoriteState(
+            profileID: profileID,
+            mediaKey: mediaKey,
+            isFavorite: false,
+            modifiedAt: later,
+            deviceID: clientID.description,
+            mutationStamp: MutationStamp(date: later, clientID: clientID.description)
+        ),
+        snapshot: snapshot
+    )
+    let changed = try await ProfileSyncAuditSnapshot.capture(
+        repository: second,
+        capturedAt: later
+    )
+    #expect(changed.profileSetDigest != firstAudit.profileSetDigest)
+}
+
 private func manifest(id: String, name: String) -> ProfileManifest {
     let date = Date(timeIntervalSince1970: 100)
     return ProfileManifest(
@@ -650,7 +758,9 @@ private func playbackWrite(
     stamp: MutationStamp,
     clientID: ClientID,
     watchedSeconds: Double,
+    artworkURL: URL? = nil,
     sessionID: ViewingSessionID = ViewingSessionID(rawValue: UUID()),
+    eventID: ProfilePlaybackEventID = ProfilePlaybackEventID(rawValue: UUID()),
     status: ViewingSessionStatus = .completed,
     eventKind: ProfilePlaybackEventKind = .completed,
     startedAt: Date? = nil
@@ -678,7 +788,7 @@ private func playbackWrite(
             locator: locator,
             title: title,
             kind: .movie,
-            artworkURL: nil,
+            artworkURL: artworkURL,
             modifiedAt: date,
             deviceID: deviceID,
             mutationStamp: stamp
@@ -699,7 +809,7 @@ private func playbackWrite(
             mutationStamp: stamp
         ),
         event: ProfilePlaybackEvent(
-            id: ProfilePlaybackEventID(rawValue: UUID()),
+            id: eventID,
             sessionID: sessionID,
             profileID: profileID,
             mediaKey: mediaKey,

@@ -72,6 +72,18 @@ Run package tests:
 swift test --package-path packages/apple/CineLarkKit
 ```
 
+Validate a Team-signed CloudKit build on two physical Macs:
+
+```sh
+scripts/validate_cloudkit_sync.sh preflight /Applications/CineLark.app
+scripts/validate_cloudkit_sync.sh capture \
+  /Applications/CineLark.app \
+  "$PWD/build/cloudkit-validation/device-a.json"
+```
+
+The complete non-destructive scenario matrix and comparison procedure live in
+[`docs/runbooks/cloudkit-convergence-validation.md`](../../docs/runbooks/cloudkit-convergence-validation.md).
+
 `project.yml` is the source definition for XcodeGen; the generated Xcode project
 is committed so contributors do not need XcodeGen merely to build the app. App
 builds compile and embed the helper with the pinned Rust toolchain; end users do

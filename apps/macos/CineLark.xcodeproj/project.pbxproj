@@ -39,6 +39,7 @@
 		70C14D59345F72DEB66B532A /* ComposableArchitecture in Frameworks */ = {isa = PBXBuildFile; productRef = E2A406AD72EA115EBB7078DF /* ComposableArchitecture */; };
 		7650F3757844A96D543171D3 /* CineLarkSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB47DF5FBB63F7B997DE32D6 /* CineLarkSettingsView.swift */; };
 		7FD6FC460F299A30B2CF86E3 /* PlaybackEngineClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 483EBAF59527918EC755E9DB /* PlaybackEngineClient.swift */; };
+		83ACEBCDF208A170FBD3A4CD /* CloudKitAuditLaunch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 922C2270CF5A9DAB517E1BF9 /* CloudKitAuditLaunch.swift */; };
 		86AED1016C613AE5BA259D8B /* ArtworkRequestTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D19B5E7B51777E1FB265688B /* ArtworkRequestTests.swift */; };
 		8DFAB7061F5A026730AE9BE7 /* InsightsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0655AD5F6065C2C7D3995483 /* InsightsView.swift */; };
 		960EB8C065B6371FC7BE7795 /* CatalogPersonDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA2B841298AED234E26DF707 /* CatalogPersonDetailView.swift */; };
@@ -47,6 +48,7 @@
 		A06B9DC0BD495F055D07289C /* CacheFeature.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07A58D0EF3507067E08D62E4 /* CacheFeature.swift */; };
 		AB1FA9650C4D01D6B3062FCA /* LibraryFeature.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83FAAB742010ABD4505B99A7 /* LibraryFeature.swift */; };
 		AD35F8FB63FF52A556814D76 /* ArtworkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 883B64BCA708D6239E86FF3B /* ArtworkView.swift */; };
+		AF1E9CE0F10B0804F0044CCF /* CloudKitAuditLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0D8114691792D6A90B18C1C /* CloudKitAuditLaunchTests.swift */; };
 		AFDA797DE940F64692C23F6C /* RemoteTextInputCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = E765B55C29005B0C9C68A0A9 /* RemoteTextInputCoordinator.swift */; };
 		B05299F38635BB6EA6EBF3E8 /* CineLarkProfile in Frameworks */ = {isa = PBXBuildFile; productRef = 522AA628FF213923A1A29558 /* CineLarkProfile */; };
 		B2DBF0BB7F564689EC5D6882 /* SourceFeatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF0965E1E4695F89A285F4C8 /* SourceFeatureTests.swift */; };
@@ -132,6 +134,7 @@
 		8600FB58205A364EA54AD224 /* RemoteFeatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteFeatureTests.swift; sourceTree = "<group>"; };
 		883B64BCA708D6239E86FF3B /* ArtworkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkView.swift; sourceTree = "<group>"; };
 		90723D0B7D689218047E2149 /* CacheSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheSettingsView.swift; sourceTree = "<group>"; };
+		922C2270CF5A9DAB517E1BF9 /* CloudKitAuditLaunch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitAuditLaunch.swift; sourceTree = "<group>"; };
 		965C389DF3862C0DB2CBA4E0 /* CatalogLibraryViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogLibraryViews.swift; sourceTree = "<group>"; };
 		97BE8DB4F32948DCCBD3C259 /* SourceFeature.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceFeature.swift; sourceTree = "<group>"; };
 		9E60EA4B37ECDE5FB62CA0F6 /* RemoteTextInputCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteTextInputCoordinatorTests.swift; sourceTree = "<group>"; };
@@ -146,6 +149,7 @@
 		B045701A3B4DC2A4B1127098 /* MediaDetailFeature.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaDetailFeature.swift; sourceTree = "<group>"; };
 		B054FB68231FF0E76CF25C1B /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
 		B08A8B1D616822F23271FF8A /* CineLarkAppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CineLarkAppDelegate.swift; sourceTree = "<group>"; };
+		B0D8114691792D6A90B18C1C /* CloudKitAuditLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitAuditLaunchTests.swift; sourceTree = "<group>"; };
 		B532E84E86C995C4C7436EB0 /* RemoteNetworkAddressTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteNetworkAddressTests.swift; sourceTree = "<group>"; };
 		B5976220527170DE4D05D69F /* CineLarkKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = CineLarkKit; path = ../../packages/apple/CineLarkKit; sourceTree = SOURCE_ROOT; };
 		CB47DF5FBB63F7B997DE32D6 /* CineLarkSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CineLarkSettingsView.swift; sourceTree = "<group>"; };
@@ -198,6 +202,7 @@
 				3ABABA128E2A0D311D6A7F7D /* AppFeatureTests.swift */,
 				D19B5E7B51777E1FB265688B /* ArtworkRequestTests.swift */,
 				44E630295E91495671DCDF26 /* CacheFeatureTests.swift */,
+				B0D8114691792D6A90B18C1C /* CloudKitAuditLaunchTests.swift */,
 				1A871399EF1660889251D88E /* InsightsFeatureTests.swift */,
 				0654E9CA1587D965FE7FF5C5 /* LibraryFeatureTests.swift */,
 				5FBCEEFE3043C91636C69E3C /* MediaDetailFeatureTests.swift */,
@@ -293,6 +298,7 @@
 				F3E20D588912F0D88C2F56C8 /* AppLanguage.swift */,
 				DF1BEAD272C89D962C8DB178 /* CineLarkApp.swift */,
 				B08A8B1D616822F23271FF8A /* CineLarkAppDelegate.swift */,
+				922C2270CF5A9DAB517E1BF9 /* CloudKitAuditLaunch.swift */,
 				A0D1C3B91534B390EFC9F800 /* SparkleUpdateViews.swift */,
 			);
 			path = App;
@@ -499,6 +505,7 @@
 				EF4E62F26D7A69E13E8531B9 /* CineLarkAppDelegate.swift in Sources */,
 				BD2B0437A28E2E7431E58D04 /* CineLarkBrandMark.swift in Sources */,
 				7650F3757844A96D543171D3 /* CineLarkSettingsView.swift in Sources */,
+				83ACEBCDF208A170FBD3A4CD /* CloudKitAuditLaunch.swift in Sources */,
 				0FBA55BD2D5A9E90186B12A9 /* ImagePipeline.swift in Sources */,
 				D87EA7C5E146B8CC38BA3CE0 /* InsightsClient.swift in Sources */,
 				FDBDFC4BE924330ACA55681F /* InsightsFeature.swift in Sources */,
@@ -541,6 +548,7 @@
 				D449539E42C6AAB50207B561 /* AppFeatureTests.swift in Sources */,
 				86AED1016C613AE5BA259D8B /* ArtworkRequestTests.swift in Sources */,
 				2018937F5ABAD73AF2A1A1D7 /* CacheFeatureTests.swift in Sources */,
+				AF1E9CE0F10B0804F0044CCF /* CloudKitAuditLaunchTests.swift in Sources */,
 				D6801076D0A0DB015F0E3D44 /* InsightsFeatureTests.swift in Sources */,
 				45E2048B8A2A19D95ED13C04 /* LibraryFeatureTests.swift in Sources */,
 				0986FCB7B6B4372C26941C34 /* MediaDetailFeatureTests.swift in Sources */,

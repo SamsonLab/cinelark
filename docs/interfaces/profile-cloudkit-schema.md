@@ -1,6 +1,6 @@
 # Personal Viewing Memory and CloudKit Persistence
 
-- **Status:** Local-first bootstrap and Profile resolution implemented; signed multi-device validation pending
+- **Status:** Local-first implementation complete; signed two-device convergence execution pending
 - **CloudKit container:** `iCloud.com.samsonlab.cinelark`
 - **Normative decision:** [`../decisions/0011-personal-viewing-memory.md`](../decisions/0011-personal-viewing-memory.md)
 
@@ -174,8 +174,11 @@ Implemented and covered by package tests:
 - explicit pending-import recovery and local-first continuation through the
   application readiness barrier;
 - Settings sync health over account status plus setup/import/export events.
+- privacy-preserving Profile fact audits and a signed-app convergence harness;
+  see the [CloudKit convergence runbook](../runbooks/cloudkit-convergence-validation.md).
 
 Still required before treating multi-device sync as release-ready:
 
-- signed two-device tests covering offline creation, delayed initial import,
-  merge, tombstones, and reinstall behavior.
+- execute the signed two-device matrix covering delayed initial import, offline
+  writes, concurrent conflict, merge, tombstones, reinstall, and account
+  transition behavior. Harness availability is not evidence of convergence.
