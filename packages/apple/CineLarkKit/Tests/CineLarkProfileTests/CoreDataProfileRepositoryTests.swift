@@ -392,6 +392,35 @@ import CineLarkPluginAPI
     )) == .requiresChoice(provisional: provisional, cloudProfiles: [cloud]))
 }
 
+@Test func cloudSyncStatusProjectsAccountAndTransportFacts() {
+    let completedAt = Date(timeIntervalSince1970: 200)
+
+    #expect(ProfileCloudSyncStatus.resolve(
+        availability: .unavailable
+    ).phase == .localOnly)
+    #expect(ProfileCloudSyncStatus.resolve(
+        availability: .pendingInitialImport
+    ).phase == .checking)
+    #expect(ProfileCloudSyncStatus.resolve(
+        availability: .available,
+        activeOperations: [.exporting]
+    ).phase == .synchronizing)
+    #expect(ProfileCloudSyncStatus.resolve(
+        availability: .available,
+        lastSuccessfulAt: completedAt
+    ) == ProfileCloudSyncStatus(
+        phase: .upToDate,
+        availability: .available,
+        activeOperations: [],
+        lastSuccessfulAt: completedAt,
+        failureDescription: nil
+    ))
+    #expect(ProfileCloudSyncStatus.resolve(
+        availability: .available,
+        failureDescription: "iCloud synchronization failed."
+    ).phase == .failed)
+}
+
 @Test func mutationStampWinsEvenWhenWallClockMovesBackward() async throws {
     let repository = try CoreDataProfileRepository(configuration: .init(inMemory: true))
     let profileID = ProfileID(rawValue: UUID())

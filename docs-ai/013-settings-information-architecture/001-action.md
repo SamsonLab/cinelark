@@ -52,6 +52,6 @@
 
 ## Open questions
 
-- A dedicated first-run onboarding flow may open Profiles & Sources directly in
-  a future milestone. The current unified gear button and Command-, entry remain
-  available before a source is configured.
+- Pending initial CloudKit import now has a dedicated root recovery surface via
+  [021 — Profile onboarding and sync health](../021-profile-onboarding-and-sync-health/001-action.md).
+  Source configuration remains consolidated in Settings.

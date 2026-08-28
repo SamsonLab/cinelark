@@ -63,6 +63,34 @@ record. Provisional-to-cloud merge copies facts and import markers with their
 original mutation stamps, migrates local bindings, and removes the local
 provisional graph only after the Cloud-store save succeeds.
 
+While initial import remains pending, the root presents a dedicated iCloud
+checking surface. **Continue Offline** selects the provisional Local-store
+Profile and restores configured Source runtimes without promoting, publishing,
+or merging that Profile. A later successful import still invalidates bootstrap
+and may produce normal synchronization or the explicit resolution choice.
+
+## Synchronization health
+
+Settings projects CloudKit account and transport evidence into five states:
+
+| State | Meaning |
+| --- | --- |
+| Local Only | The iCloud account is unavailable; Profile facts remain usable locally |
+| Checking iCloud | Account is available but initial import readiness is not confirmed |
+| Synchronizing | A persistent-container setup, import, or export event is active |
+| Available | iCloud is available and no active or failed event is observed |
+| Needs Attention | The latest completed transport event failed; local facts remain authoritative |
+
+The status includes the latest successful persistent-container event time when
+available. Event-history requests set `affectedStores` to the Cloud store so the
+Local configuration never receives an unsupported CloudKit event request.
+Transport notifications become repository invalidations; only the value-typed
+status enters TCA State.
+
+**Recheck iCloud** refreshes account, readiness, and event projections. It does
+not claim to force synchronization because `NSPersistentCloudKitContainer`
+owns scheduling and automatic retry.
+
 ## Time and conflict ordering
 
 All stored `Date` values represent absolute instants. UI formatting applies the
@@ -140,6 +168,9 @@ Implemented and covered by package tests:
   compatibility and dimension-complete merging for partial imports;
 - rebuildable month, quarter, year, and all-time Insights projections over
   Profile-owned facts. Derived snapshots remain outside Core Data and CloudKit.
+- explicit pending-import recovery and local-first continuation through the
+  application readiness barrier;
+- Settings sync health over account status plus setup/import/export events.
 
 Still required before treating multi-device sync as release-ready:
 

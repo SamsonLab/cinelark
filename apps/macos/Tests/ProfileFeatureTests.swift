@@ -318,6 +318,82 @@ struct ProfileFeatureTests {
         }
     }
 
+    @Test("Cloud sync health refreshes through the dependency boundary")
+    func cloudSyncStatusRefresh() async {
+        let recorder = ProfileSyncRecorder()
+        let completedAt = Date(timeIntervalSince1970: 200)
+        let status = ProfileCloudSyncStatus(
+            phase: .upToDate,
+            availability: .available,
+            activeOperations: [],
+            lastSuccessfulAt: completedAt,
+            failureDescription: nil
+        )
+        var client = Self.profileClient(recorder: recorder)
+        client.cloudSyncStatus = { status }
+        let store = TestStore(initialState: ProfileFeature.State()) {
+            ProfileFeature()
+        } withDependencies: {
+            $0.profiles = client
+        }
+
+        await store.send(.view(.refreshCloudSyncStatus)) {
+            $0.isRefreshingCloudSyncStatus = true
+        }
+        await store.receive(.internal(.cloudSyncStatusLoaded(status))) {
+            $0.isRefreshingCloudSyncStatus = false
+            $0.cloudSyncStatus = status
+        }
+    }
+
+    @Test("Pending initial import can continue with the provisional local Profile")
+    func continueOffline() async {
+        let date = Date(timeIntervalSince1970: 100)
+        let provisional = ProfileManifest(
+            profile: Profile(
+                id: ProfileID(rawValue: UUID()),
+                name: "Personal",
+                createdAt: date,
+                modifiedAt: date,
+                deviceID: "this-mac"
+            ),
+            lastActivityAt: nil,
+            lastDeviceName: "This Mac",
+            titleCount: 0,
+            viewingSessionCount: 0,
+            favoriteCount: 0,
+            totalWatchSeconds: 0
+        )
+        let bootstrap = ProfileBootstrap(
+            profiles: [provisional.profile],
+            manifests: [provisional],
+            resolution: .waitingForCloud(provisional),
+            sources: [],
+            selection: ActiveProfileSelection(profileID: nil, sourceID: nil)
+        )
+        let recorder = ProfileSyncRecorder()
+        let store = TestStore(initialState: ProfileFeature.State()) {
+            ProfileFeature()
+        } withDependencies: {
+            $0.profiles = Self.profileClient(recorder: recorder)
+        }
+
+        await store.send(.internal(.loaded(.success(bootstrap)))) {
+            $0.profiles = bootstrap.profiles
+            $0.manifests = bootstrap.manifests
+            $0.bootstrapResolution = bootstrap.resolution
+        }
+        await store.send(.view(.continueOffline))
+        let selection = ActiveProfileSelection(
+            profileID: provisional.id,
+            sourceID: nil
+        )
+        await store.receive(.internal(.selectionSaved(selection, .success))) {
+            $0.activeProfileID = provisional.id
+        }
+        await store.receive(.delegate(.selectionChanged(selection)))
+    }
+
     private static func profileClient(recorder: ProfileSyncRecorder) -> ProfileClient {
         ProfileClient(
             clientID: {
@@ -325,6 +401,7 @@ struct ProfileFeatureTests {
             },
             load: { throw ProfileClientFailure.unavailable("unused") },
             resolveProfile: { _ in throw ProfileClientFailure.unavailable("unused") },
+            cloudSyncStatus: { .localOnly },
             saveProfile: { _ in },
             setSelection: { _ in },
             saveSource: { _, _ in },

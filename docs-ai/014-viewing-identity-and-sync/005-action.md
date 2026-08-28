@@ -51,8 +51,10 @@
 - Watch accounting currently derives from bounded player-position deltas. It
   measures consumed media time and rejects seek jumps; wall-clock engagement
   time can be added later as a separate metric without changing event identity.
-- Settings exposes durable totals and the friendly last device, but does not yet
-  show CloudKit transport health because signed-device behavior is not validated.
+- Settings exposed durable totals and the friendly last device at this
+  milestone. Account/transport health and pending-import recovery were added
+  later by
+  [021 — Profile onboarding and sync health](../021-profile-onboarding-and-sync-health/001-action.md).
 
 ## Follow-up
 
@@ -61,5 +63,5 @@
 - Add an insight projection layer that derives monthly, quarterly, annual,
   person, director, and genre summaries from immutable playback events plus
   Catalog metadata.
-- Add a Cloud synchronization-status surface only after transport states and
-  recovery actions are verified on real accounts.
+- Signed-device convergence remains unverified; the status surface intentionally
+  reports transport evidence rather than claiming cross-device convergence.

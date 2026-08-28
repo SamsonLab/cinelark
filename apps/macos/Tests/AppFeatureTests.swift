@@ -156,6 +156,58 @@ struct AppFeatureTests {
         }
     }
 
+    @Test("Pending CloudKit import exposes an explicit local-first recovery state")
+    func bootstrapWaitsForCloudWithRecovery() async {
+        let date = Date(timeIntervalSince1970: 100)
+        let provisional = ProfileManifest(
+            profile: Profile(
+                id: ProfileID(rawValue: UUID()),
+                name: "Personal",
+                createdAt: date,
+                modifiedAt: date,
+                deviceID: "this-mac"
+            ),
+            lastActivityAt: nil,
+            lastDeviceName: "This Mac",
+            titleCount: 0,
+            viewingSessionCount: 0,
+            favoriteCount: 0,
+            totalWatchSeconds: 0
+        )
+        let bootstrap = ProfileBootstrap(
+            profiles: [provisional.profile],
+            manifests: [provisional],
+            resolution: .waitingForCloud(provisional),
+            sources: [],
+            selection: ActiveProfileSelection(profileID: nil, sourceID: nil)
+        )
+        var state = AppFeature.State()
+        state.bootstrap = .loading
+        let store = TestStore(initialState: state) {
+            AppFeature()
+        }
+        store.exhaustivity = .off
+
+        await store.send(.profile(.internal(.loaded(.success(bootstrap))))) {
+            $0.bootstrap = .waitingForCloud
+        }
+
+        #expect(store.state.library.profileID == nil)
+
+        let selection = ActiveProfileSelection(
+            profileID: provisional.id,
+            sourceID: nil
+        )
+        await store.send(.profile(.internal(.selectionSaved(selection, .success)))) {
+            $0.profile.activeProfileID = provisional.id
+        }
+        await store.skipReceivedActions(strict: false)
+
+        #expect(store.state.bootstrap == .ready)
+        #expect(store.state.pendingBootstrapSelection == nil)
+        #expect(store.state.library.profileID == provisional.id)
+    }
+
     @Test("Source reconnect preserves the existing Profile binding policy")
     func sourceReconnectPreservesBindingPolicy() async {
         let profileID = ProfileID(rawValue: UUID())

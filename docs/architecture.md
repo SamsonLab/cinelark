@@ -86,7 +86,19 @@ catalog with exact source isolation and one-to-many locator support. TCA sees
 both only through `MediaPlatformClient`; provider adapters translate unstable
 external contracts into stable value models.
 
-### 3.3 `CineLarkEmby`
+### 3.3 `CineLarkProfile`
+
+Owns source-independent personal viewing memory in Cloud/Local Core Data
+configurations. Provisional Profile facts remain Local until CloudKit readiness
+is confirmed or the user resolves existing histories. Account state and
+persistent-container events are projected as value-typed sync health; CloudKit
+objects remain below the TCA dependency boundary.
+
+`AppFeature` owns the root readiness barrier. Pending import may continue
+offline with the provisional Profile, but both normal and recovery paths restore
+Source runtimes before revealing Library.
+
+### 3.4 `CineLarkEmby`
 
 Owns:
 
@@ -98,7 +110,7 @@ Owns:
 
 Raw DTOs stay internal to this package.
 
-### 3.4 Cache infrastructure
+### 3.5 Cache infrastructure
 
 `CoreDataCatalogStore` is the current cached-first metadata source. It owns
 normalized recreatable records and reports logical payload usage independently
@@ -115,7 +127,7 @@ pairing records are outside this boundary.
 
 See [`interfaces/metadata-cache.md`](interfaces/metadata-cache.md).
 
-### 3.5 `CineLarkApplication`
+### 3.6 `CineLarkApplication`
 
 TCA 1.26.1 is the sole application-layer state and orchestration convention.
 `AppFeature` scopes Navigation, Profile, Source, Library, Search, Playback,

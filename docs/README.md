@@ -39,7 +39,7 @@ Documents use the following status labels:
 | --- | --- | --- |
 | [Retired media library provider](interfaces/media-library-provider.md) | Historical pointer | Tombstone linking the current Source and Catalog contracts |
 | [Media source platform](interfaces/media-source-platform.md) | Implemented v1 | Capability-based plugin, identity, query, and runtime contracts |
-| [Personal viewing memory and CloudKit](interfaces/profile-cloudkit-schema.md) | Foundation implemented; bootstrap UI pending | Identity, Cloud/local placement, bootstrap, conflict, merge, import, and mirror rules |
+| [Personal viewing memory and CloudKit](interfaces/profile-cloudkit-schema.md) | Implemented; signed validation pending | Identity, dual-store bootstrap, sync health, conflict, merge, import, and mirror rules |
 | [Cache management](interfaces/metadata-cache.md) | Accepted implementation | Catalog/artwork accounting, purge, and user-data boundaries |
 | [Playback bridge](interfaces/playback-bridge.md) | Draft, Phase 0 implemented | Mac app ↔ IINA protocol |
 | [Remote protocol](interfaces/remote-protocol.md) | Implemented v1 | Flutter Remote ↔ Rust gateway ↔ Mac protocol |

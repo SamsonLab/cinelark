@@ -243,6 +243,77 @@ public enum CloudProfileAvailability: Codable, Hashable, Sendable {
     case available
 }
 
+public enum ProfileCloudSyncOperation: String, Codable, Hashable, Sendable {
+    case setup
+    case importing
+    case exporting
+}
+
+public enum ProfileCloudSyncPhase: String, Codable, Hashable, Sendable {
+    case localOnly
+    case checking
+    case synchronizing
+    case upToDate
+    case failed
+}
+
+public struct ProfileCloudSyncStatus: Codable, Hashable, Sendable {
+    public let phase: ProfileCloudSyncPhase
+    public let availability: CloudProfileAvailability
+    public let activeOperations: Set<ProfileCloudSyncOperation>
+    public let lastSuccessfulAt: Date?
+    public let failureDescription: String?
+
+    public init(
+        phase: ProfileCloudSyncPhase,
+        availability: CloudProfileAvailability,
+        activeOperations: Set<ProfileCloudSyncOperation>,
+        lastSuccessfulAt: Date?,
+        failureDescription: String?
+    ) {
+        self.phase = phase
+        self.availability = availability
+        self.activeOperations = activeOperations
+        self.lastSuccessfulAt = lastSuccessfulAt
+        self.failureDescription = failureDescription
+    }
+
+    public static var localOnly: Self {
+        resolve(availability: .unavailable)
+    }
+
+    public static var checking: Self {
+        resolve(availability: .pendingInitialImport)
+    }
+
+    public static func resolve(
+        availability: CloudProfileAvailability,
+        activeOperations: Set<ProfileCloudSyncOperation> = [],
+        lastSuccessfulAt: Date? = nil,
+        failureDescription: String? = nil
+    ) -> Self {
+        let phase: ProfileCloudSyncPhase
+        if availability == .unavailable {
+            phase = .localOnly
+        } else if !activeOperations.isEmpty {
+            phase = .synchronizing
+        } else if failureDescription != nil {
+            phase = .failed
+        } else if availability == .pendingInitialImport {
+            phase = .checking
+        } else {
+            phase = .upToDate
+        }
+        return Self(
+            phase: phase,
+            availability: availability,
+            activeOperations: activeOperations,
+            lastSuccessfulAt: lastSuccessfulAt,
+            failureDescription: failureDescription
+        )
+    }
+}
+
 public struct ProfileBootstrapInput: Codable, Hashable, Sendable {
     public let provisionalProfile: ProfileManifest?
     public let cloudProfiles: [ProfileManifest]
@@ -868,6 +939,7 @@ public enum ProfileRepositoryChange: Equatable, Sendable {
     case mirrorQueue
     case external
     case bootstrap
+    case cloudSyncStatus
 }
 
 public enum ProfileRepositoryError: Error, Equatable, Sendable {

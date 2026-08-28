@@ -57,6 +57,7 @@ struct ProfileClient: Sendable {
     var clientID: @Sendable () -> ClientID
     var load: @Sendable () async throws -> ProfileBootstrap
     var resolveProfile: @Sendable (ProfileResolutionChoice) async throws -> ProfileBootstrap
+    var cloudSyncStatus: @Sendable () async -> ProfileCloudSyncStatus
     var saveProfile: @Sendable (Profile) async throws -> Void
     var setSelection: @Sendable (ActiveProfileSelection) async throws -> Void
     var saveSource: @Sendable (PluginID, SourceConfiguration) async throws -> Void
@@ -91,6 +92,7 @@ extension ProfileClient: DependencyKey {
         resolveProfile: { _ in
             throw ProfileClientFailure.unavailable("Profile repository is not configured")
         },
+        cloudSyncStatus: { .localOnly },
         saveProfile: { _ in throw ProfileClientFailure.unavailable("Profile repository is not configured") },
         setSelection: { _ in throw ProfileClientFailure.unavailable("Profile repository is not configured") },
         saveSource: { _, _ in throw ProfileClientFailure.unavailable("Profile repository is not configured") },
@@ -198,6 +200,7 @@ extension ProfileClient {
                     platform: platform
                 )
             },
+            cloudSyncStatus: { await repository.cloudSyncStatus() },
             saveProfile: { profile in
                 let stamp: MutationStamp
                 if let existing = profile.mutationStamp {

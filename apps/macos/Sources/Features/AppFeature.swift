@@ -8,6 +8,7 @@ struct AppFeature {
     enum BootstrapState: Equatable {
         case idle
         case loading
+        case waitingForCloud
         case resolvingProfile
         case ready
     }
@@ -89,7 +90,10 @@ struct AppFeature {
 
             case let .profile(.internal(.loaded(.success(bootstrap)))):
                 switch bootstrap.resolution {
-                case .waitingForCloud, .promoteProvisional:
+                case .waitingForCloud:
+                    state.bootstrap = .waitingForCloud
+                    return .none
+                case .promoteProvisional:
                     state.bootstrap = .loading
                     return .none
                 case .requiresChoice:
@@ -138,6 +142,12 @@ struct AppFeature {
 
             case let .profile(.delegate(.selectionChanged(selection))):
                 state.pendingBootstrapSelection = nil
+                if state.bootstrap == .waitingForCloud {
+                    state.pendingBootstrapSelection = selection
+                    return .send(.source(.internal(.restoreSources(
+                        state.profile.sources
+                    ))))
+                }
                 return applyContext(selection)
 
             case let .profile(.internal(.repositoryChanged(.userState(profileID)))):

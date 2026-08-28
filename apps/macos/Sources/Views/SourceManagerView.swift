@@ -60,6 +60,53 @@ struct SourceManagerView: View {
                 }
             }
 
+            Section("iCloud Sync") {
+                LabeledContent("Status") {
+                    Label(syncStatusTitle, systemImage: syncStatusSymbol)
+                        .foregroundStyle(syncStatusColor)
+                }
+
+                if !profileStore.cloudSyncStatus.activeOperations.isEmpty {
+                    LabeledContent(
+                        "Activity",
+                        value: syncActivityDescription
+                    )
+                }
+
+                if let lastSuccessfulAt = profileStore.cloudSyncStatus.lastSuccessfulAt {
+                    LabeledContent(
+                        "Last successful event",
+                        value: lastSuccessfulAt.formatted(
+                            date: .abbreviated,
+                            time: .shortened
+                        )
+                    )
+                }
+
+                Text(syncStatusDetail)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+
+                if profileStore.cloudSyncStatus.phase == .failed,
+                   let failure = profileStore.cloudSyncStatus.failureDescription {
+                    Text(failure)
+                        .font(.callout)
+                        .foregroundStyle(.red)
+                }
+
+                Button {
+                    profileStore.send(.view(.refreshCloudSyncStatus))
+                } label: {
+                    if profileStore.isRefreshingCloudSyncStatus {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Label("Recheck iCloud", systemImage: "arrow.clockwise")
+                    }
+                }
+                .disabled(profileStore.isRefreshingCloudSyncStatus)
+            }
+
             Section("Media Sources") {
                 if sourceStore.persistedSources.isEmpty {
                     emptySources
@@ -249,6 +296,77 @@ struct SourceManagerView: View {
     private var activeManifest: ProfileManifest? {
         guard let activeProfileID = profileStore.activeProfileID else { return nil }
         return profileStore.manifests.first { $0.id == activeProfileID }
+    }
+
+    private var syncStatusTitle: String {
+        switch profileStore.cloudSyncStatus.phase {
+        case .localOnly:
+            return "Local Only"
+        case .checking:
+            return "Checking iCloud"
+        case .synchronizing:
+            return "Synchronizing"
+        case .upToDate:
+            return "Available"
+        case .failed:
+            return "Needs Attention"
+        }
+    }
+
+    private var syncStatusSymbol: String {
+        switch profileStore.cloudSyncStatus.phase {
+        case .localOnly:
+            return "icloud.slash"
+        case .checking:
+            return "icloud.and.arrow.down"
+        case .synchronizing:
+            return "icloud.and.arrow.up"
+        case .upToDate:
+            return "checkmark.icloud"
+        case .failed:
+            return "exclamationmark.icloud"
+        }
+    }
+
+    private var syncStatusColor: Color {
+        switch profileStore.cloudSyncStatus.phase {
+        case .localOnly, .checking:
+            return .secondary
+        case .synchronizing:
+            return .blue
+        case .upToDate:
+            return .green
+        case .failed:
+            return .red
+        }
+    }
+
+    private var syncStatusDetail: String {
+        switch profileStore.cloudSyncStatus.phase {
+        case .localOnly:
+            return "Viewing history remains available on this Mac. Sign in to iCloud to synchronize Profiles."
+        case .checking:
+            return "CineLark is waiting for the initial iCloud import. Local viewing history remains usable."
+        case .synchronizing:
+            return "Changes are being exchanged with your private iCloud database. Local data remains authoritative in the UI."
+        case .upToDate:
+            return "iCloud is available. Synchronization continues automatically when local or remote facts change."
+        case .failed:
+            return "Viewing history remains safe locally while the persistent container retries automatically."
+        }
+    }
+
+    private var syncActivityDescription: String {
+        profileStore.cloudSyncStatus.activeOperations
+            .sorted { $0.rawValue < $1.rawValue }
+            .map {
+                switch $0 {
+                case .setup: "Preparing"
+                case .importing: "Downloading"
+                case .exporting: "Uploading"
+                }
+            }
+            .joined(separator: ", ")
     }
 
     private func setupBinding(

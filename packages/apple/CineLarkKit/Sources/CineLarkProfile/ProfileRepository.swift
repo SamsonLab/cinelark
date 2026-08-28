@@ -7,6 +7,7 @@ public protocol ProfileRepository: Sendable {
     func profiles() async throws -> [Profile]
     func profileManifests() async throws -> [ProfileManifest]
     func cloudProfileAvailability() async -> CloudProfileAvailability
+    func cloudSyncStatus() async -> ProfileCloudSyncStatus
     func provisionalProfileManifest(clientID: ClientID) async throws -> ProfileManifest?
     func saveProfile(_ profile: Profile) async throws
     func saveProvisionalProfile(_ profile: Profile, clientID: ClientID) async throws

@@ -25,7 +25,9 @@ struct ProfileFeature {
         var activeProfileID: ProfileID?
         var activeSourceID: SourceID?
         var bootstrapResolution: ProfileBootstrapResolution?
+        var cloudSyncStatus: ProfileCloudSyncStatus = .checking
         var isLoading = false
+        var isRefreshingCloudSyncStatus = false
         var needsReloadAfterCurrentLoad = false
         var isImportingRemoteState = false
         var isProcessingMirrorQueue = false
@@ -48,6 +50,8 @@ struct ProfileFeature {
         enum View: Equatable {
             case appeared
             case reload
+            case refreshCloudSyncStatus
+            case continueOffline
             case createProfile(String)
             case resolveProfile(ProfileResolutionChoice)
             case selectProfile(ProfileID)
@@ -59,6 +63,7 @@ struct ProfileFeature {
 
         enum Internal: Equatable {
             case loaded(Result<ProfileBootstrap, ProfileClientFailure>)
+            case cloudSyncStatusLoaded(ProfileCloudSyncStatus)
             case defaultProfileSaved(Result<Profile, ProfileClientFailure>)
             case selectionSaved(
                 ActiveProfileSelection,
@@ -81,6 +86,7 @@ struct ProfileFeature {
     private enum CancelID {
         case load
         case changes
+        case cloudSyncStatus
         case selection
         case importRemoteState
         case mirrorQueue
@@ -99,12 +105,28 @@ struct ProfileFeature {
                 guard !state.isLoading else { return .none }
                 return .merge(
                     load(&state),
+                    refreshCloudSyncStatus(&state),
                     subscribe(),
                     .send(.view(.processMirrorQueue))
                 )
 
             case .view(.reload):
-                return load(&state)
+                return .merge(
+                    load(&state),
+                    refreshCloudSyncStatus(&state)
+                )
+
+            case .view(.refreshCloudSyncStatus):
+                return refreshCloudSyncStatus(&state)
+
+            case .view(.continueOffline):
+                guard case let .waitingForCloud(manifest?) = state.bootstrapResolution else {
+                    return .none
+                }
+                return persistSelection(ActiveProfileSelection(
+                    profileID: manifest.id,
+                    sourceID: state.activeSourceID
+                ))
 
             case let .view(.createProfile(name)):
                 let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -210,6 +232,11 @@ struct ProfileFeature {
                 }
                 return .none
 
+            case let .internal(.cloudSyncStatusLoaded(status)):
+                state.isRefreshingCloudSyncStatus = false
+                state.cloudSyncStatus = status
+                return .none
+
             case let .internal(.defaultProfileSaved(.success(profile))):
                 let selection = ActiveProfileSelection(
                     profileID: profile.id,
@@ -246,6 +273,9 @@ struct ProfileFeature {
                     .send(.view(.reload)),
                     .send(.view(.processMirrorQueue))
                 )
+
+            case .internal(.repositoryChanged(.cloudSyncStatus)):
+                return refreshCloudSyncStatus(&state)
 
             case .internal(.repositoryChanged):
                 if state.isLoading {
@@ -340,6 +370,16 @@ struct ProfileFeature {
             }
         }
         .cancellable(id: CancelID.changes, cancelInFlight: true)
+    }
+
+    private func refreshCloudSyncStatus(_ state: inout State) -> Effect<Action> {
+        state.isRefreshingCloudSyncStatus = true
+        return .run { send in
+            await send(.internal(.cloudSyncStatusLoaded(
+                await profiles.cloudSyncStatus()
+            )))
+        }
+        .cancellable(id: CancelID.cloudSyncStatus, cancelInFlight: true)
     }
 
     private func saveDefault(_ profile: Profile) -> Effect<Action> {

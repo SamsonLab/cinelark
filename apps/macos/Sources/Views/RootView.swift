@@ -44,6 +44,10 @@ struct RootView: View {
                         }
                     }
                 }
+            case .waitingForCloud:
+                CloudProfileBootstrapView(
+                    store: store.scope(state: \.profile, action: \.profile)
+                )
             case .resolvingProfile:
                 ProfileResolutionView(
                     store: store.scope(state: \.profile, action: \.profile)
@@ -103,6 +107,95 @@ struct RootView: View {
             })
         }
         .preferredColorScheme(.dark)
+    }
+}
+
+private struct CloudProfileBootstrapView: View {
+    @Bindable var store: StoreOf<ProfileFeature>
+
+    var body: some View {
+        ZStack {
+            CineLarkPageBackground()
+
+            VStack(spacing: 24) {
+                CineLarkBrandMark(size: 64)
+                    .frame(width: 80, height: 80)
+                    .glassEffect(.regular, in: Circle())
+
+                VStack(spacing: 8) {
+                    Text("Checking your iCloud Profiles")
+                        .font(.system(size: 30, weight: .bold))
+                    Text(
+                        "CineLark is waiting for the first iCloud import before "
+                            + "deciding whether this is a new or existing viewing history."
+                    )
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 580)
+                }
+
+                if case let .waitingForCloud(manifest?) = store.bootstrapResolution {
+                    VStack(alignment: .leading, spacing: 7) {
+                        Label("Safe on this Mac", systemImage: "externaldrive.fill.badge.checkmark")
+                            .font(.headline)
+                        Text(manifest.profile.name)
+                            .font(.title3.weight(.semibold))
+                        Text(
+                            "Your provisional Profile stays in local storage until iCloud "
+                                + "is resolved. Continuing offline will not publish or merge it."
+                        )
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                    }
+                    .padding(18)
+                    .frame(maxWidth: 580, alignment: .leading)
+                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16))
+                }
+
+                if let failure = store.failure {
+                    Text(String(describing: failure))
+                        .font(.callout)
+                        .foregroundStyle(.red)
+                        .multilineTextAlignment(.center)
+                }
+
+                if store.cloudSyncStatus.phase == .failed,
+                   let failure = store.cloudSyncStatus.failureDescription {
+                    Text(failure)
+                        .font(.callout)
+                        .foregroundStyle(.red)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: 580)
+                }
+
+                HStack(spacing: 12) {
+                    Button {
+                        store.send(.view(.reload))
+                    } label: {
+                        if store.isLoading || store.isRefreshingCloudSyncStatus {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Label("Recheck iCloud", systemImage: "arrow.clockwise")
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(store.isLoading)
+
+                    Button {
+                        store.send(.view(.continueOffline))
+                    } label: {
+                        Label("Continue Offline", systemImage: "arrow.right.circle.fill")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(store.isLoading)
+                }
+                .controlSize(.large)
+            }
+            .padding(40)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
     }
 }
 
