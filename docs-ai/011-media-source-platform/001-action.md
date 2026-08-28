@@ -48,6 +48,6 @@
 
 - Run a signed two-device CloudKit smoke test with the production/development
   container schema deployed for the selected environment.
-- Route authenticated artwork descriptors through the UI image pipeline.
-  Metadata URLs intentionally contain no token, so servers that require image
-  headers cannot be handled correctly by a plain URL-only SwiftUI loader.
+
+Authenticated artwork delivery was completed and verified in
+[019 — Authenticated artwork delivery](../019-authenticated-artwork-delivery/001-action.md).

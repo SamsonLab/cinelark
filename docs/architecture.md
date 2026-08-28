@@ -103,10 +103,11 @@ Raw DTOs stay internal to this package.
 `CoreDataCatalogStore` is the current cached-first metadata source. It owns
 normalized recreatable records and reports logical payload usage independently
 of SQLite structural overhead. Artwork uses a separate bounded Kingfisher
-memory/disk pipeline. The former `PersistentMetadataCache` directory remains
-only for compatibility cleanup and is not a UI metadata source.
+memory/disk pipeline. `LegacyProviderArtifacts` removes the former metadata
+cache directory at startup through a narrow, path-validated migration cleanup;
+the retired cache is not a runtime store or a user-visible cache category.
 
-`CacheClient` aggregates those infrastructure stores for `CacheFeature`.
+`CacheClient` aggregates Catalog and artwork infrastructure for `CacheFeature`.
 Before a destructive purge, the feature delegates to `AppFeature` so active
 Library/Search writers are cancelled and dependent detail routes are removed.
 Profile/CloudKit stores, source configuration, Keychain values, and Remote

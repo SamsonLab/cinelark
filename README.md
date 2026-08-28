@@ -102,7 +102,7 @@ maintained once under `.claude/skills/` and exposed to Codex through
 - [Product specification](docs/product-spec.md)
 - [Architecture](docs/architecture.md)
 - [Implementation plan](docs/implementation-plan.md)
-- [Media provider interface](docs/interfaces/media-library-provider.md)
+- [Retired media provider interface](docs/interfaces/media-library-provider.md)
 - [Metadata cache](docs/interfaces/metadata-cache.md)
 - [Playback bridge protocol](docs/interfaces/playback-bridge.md)
 - [Rust bridge helper](docs/implementation-plan.md#4-rust-bridge-helper)

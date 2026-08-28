@@ -15,7 +15,7 @@ The initial Apple implementation uses one local Swift package at
   app owns semantic command dispatch and sanitized snapshots.
 - `CineLarkGateway` — one process shell with independent `IINABridgeCenter` and
   `RemoteGatewayCenter` actors.
-- `CineLarkPersistence` — Keychain and non-secret cache abstractions.
+- `CineLarkPersistence` — Keychain secret storage and narrow persistence migrations.
 
 Dependencies point inward: adapters depend on domain contracts; domain code does
 not import provider, UI, Flutter, or IINA types. Cross-language sharing belongs

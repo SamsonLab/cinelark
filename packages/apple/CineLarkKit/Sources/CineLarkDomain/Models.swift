@@ -1,31 +1,5 @@
 import Foundation
 
-public struct ProviderCredentials: Sendable, Equatable {
-    public let username: String
-    public let password: String
-    public let totpCode: String?
-
-    public init(username: String, password: String, totpCode: String?) {
-        self.username = username
-        self.password = password
-        self.totpCode = totpCode
-    }
-}
-
-public struct ProviderSession: Codable, Sendable, Equatable {
-    public let token: String
-    public let expiresAt: Date
-
-    public init(token: String, expiresAt: Date) {
-        self.token = token
-        self.expiresAt = expiresAt
-    }
-
-    public var isExpired: Bool {
-        expiresAt <= Date()
-    }
-}
-
 public struct PageRequest: Sendable, Equatable {
     public let number: Int
     public let size: Int

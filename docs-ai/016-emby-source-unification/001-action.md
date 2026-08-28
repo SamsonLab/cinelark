@@ -48,17 +48,16 @@
 - The observed private OpenAPI draft and integration inventory were retained as
   explicitly archived evidence rather than deleted. They are not linked into
   runtime code.
-- Legacy `MediaLibraryProvider`, `ProviderSession`, and
-  `CachedMediaLibraryProvider` compatibility types remain in Domain/Persistence.
-  They have no macOS UI ownership and are deferred to the separate cache-boundary
-  cleanup.
+- The legacy provider/session/cache surface was intentionally deferred from this
+  milestone and subsequently removed by
+  [020 — Legacy provider retirement](../020-legacy-provider-retirement/001-action.md).
 
 ## Open questions
 
 - Do not migrate old private-facade item IDs until a verified mapping proves
   identity equivalence with Emby item IDs.
-- Remove the remaining legacy provider/session compatibility surface when its
-  cache tests have been replaced by Catalog-level coverage.
+- No unresolved provider compatibility work remains. New Sources normalize
+  through Catalog.
 
 The subscriber-facing standard Emby endpoint and login flow were subsequently
 validated read-only. See

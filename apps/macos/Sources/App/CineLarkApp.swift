@@ -50,6 +50,10 @@ struct CineLarkApp: App {
         let sourceSecrets = KeychainSecretStore(
             service: "com.samsonlab.cinelark.source-token"
         )
+        let legacySourceSecrets = KeychainSecretStore(
+            service: "com.samsonlab.cinelark.provider"
+        )
+        try? LegacyProviderArtifacts().removeMetadataCache()
         let clientIDKey = "cinelark.client.id"
         let legacyDeviceIDKey = "cinelark.device.id"
         let storedClientID = UserDefaults.standard.string(forKey: clientIDKey)
@@ -99,7 +103,6 @@ struct CineLarkApp: App {
         } catch {
             preconditionFailure("Unable to open the local media catalog: \(error)")
         }
-        let legacyMetadataCache = PersistentMetadataCache()
         let profileRepository: CoreDataProfileRepository
         do {
             profileRepository = try CoreDataProfileRepository(
@@ -131,9 +134,9 @@ struct CineLarkApp: App {
                 catalog: catalog,
                 cleanupLegacyCredentials: { pluginID, sourceID in
                     guard pluginID == EmbyPluginFactory.legacyUHDNowPluginID else { return }
-                    try? await KeychainSessionStore(
+                    try? await legacySourceSecrets.remove(
                         account: "uhdnow-\(sourceID.rawValue.uuidString)"
-                    ).clear()
+                    )
                 }
             )
             $0.profiles = .live(repository: profileRepository, clientID: clientID)
@@ -144,7 +147,6 @@ struct CineLarkApp: App {
             $0.remote = .live(coordinator: remote)
             $0.cache = .live(
                 catalog: catalog,
-                legacyMetadata: legacyMetadataCache,
                 artworkUsage: {
                     UInt64(try await CineLarkImagePipeline.cache.diskStorageSize)
                 },

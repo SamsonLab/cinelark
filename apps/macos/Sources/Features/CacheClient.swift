@@ -1,7 +1,6 @@
 import ComposableArchitecture
 import Foundation
 import CineLarkCatalog
-import CineLarkPersistence
 
 struct CacheUsage: Equatable, Sendable {
     var metadataBytes: UInt64
@@ -52,36 +51,27 @@ extension CacheClient {
 
     static func live(
         catalog: any CatalogRepository,
-        legacyMetadata: any MetadataCaching,
         artworkUsage: @escaping @Sendable () async throws -> UInt64,
         clearArtwork: @escaping @Sendable () async throws -> Void
     ) -> Self {
         Self(
             usage: {
                 async let catalogStatistics = catalog.cacheStatistics()
-                async let legacyStatistics = legacyMetadata.performMaintenance()
                 async let artworkBytes = artworkUsage()
-                let values = try await (
-                    catalogStatistics,
-                    legacyStatistics,
-                    artworkBytes
-                )
+                let values = try await (catalogStatistics, artworkBytes)
                 return CacheUsage(
-                    metadataBytes: UInt64(values.0.byteCount) + UInt64(values.1.byteCount),
-                    artworkBytes: values.2
+                    metadataBytes: UInt64(values.0.byteCount),
+                    artworkBytes: values.1
                 )
             },
             clearAll: {
                 async let catalogFailure = Self.clearFailure("Media metadata") {
                     try await catalog.removeAllCachedData()
                 }
-                async let legacyFailure = Self.clearFailure("Legacy metadata") {
-                    try await legacyMetadata.removeAll()
-                }
                 async let artworkFailure = Self.clearFailure("Artwork") {
                     try await clearArtwork()
                 }
-                let outcomes = await [catalogFailure, legacyFailure, artworkFailure]
+                let outcomes = await [catalogFailure, artworkFailure]
                 if outcomes.contains(where: {
                     if case .cancelled = $0 { return true }
                     return false
