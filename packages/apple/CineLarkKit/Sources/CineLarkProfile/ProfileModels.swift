@@ -936,6 +936,7 @@ public enum ProfileRepositoryChange: Equatable, Sendable {
     case activeSelection(ActiveProfileSelection)
     case sources
     case userState(ProfileID)
+    case mediaMetadata(ProfileID)
     case mirrorQueue
     case external
     case bootstrap

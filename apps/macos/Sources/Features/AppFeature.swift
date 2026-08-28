@@ -160,6 +160,14 @@ struct AppFeature {
                 }
                 return .merge(effects)
 
+            case let .profile(.internal(.repositoryChanged(.mediaMetadata(profileID)))):
+                guard
+                    state.profile.activeProfileID == profileID,
+                    state.navigation.selection == .insights,
+                    !state.insights.isLoading
+                else { return .none }
+                return .send(.insights(.view(.reload)))
+
             case .profile(.internal(.repositoryChanged(.external))):
                 var effects: [Effect<Action>] = [
                     .send(.library(.view(.loadOverview)))
@@ -270,7 +278,10 @@ struct AppFeature {
                 sourceID: selection.sourceID
             )))),
             .send(.search(.view(.sourceChanged(selection.sourceID)))),
-            .send(.insights(.view(.contextChanged(selection.profileID)))),
+            .send(.insights(.view(.contextChanged(
+                profileID: selection.profileID,
+                sourceID: selection.sourceID
+            )))),
             .send(.playback(.view(.contextChanged(selection.profileID)))),
             .send(.navigation(.view(.contextChanged(
                 profileID: selection.profileID,

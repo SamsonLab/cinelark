@@ -714,6 +714,25 @@ public actor CoreDataProfileRepository: ProfileRepository {
         return Array(newest.values)
     }
 
+    public func saveMediaSnapshot(
+        _ snapshot: ProfileMediaSnapshot,
+        profileID: ProfileID
+    ) async throws {
+        let entity = try await isProvisional(profileID: profileID)
+            ? Entity.provisionalSnapshot
+            : Entity.snapshot
+        try await context.perform { [context] in
+            try Self.upsertSnapshot(
+                snapshot,
+                entity: entity,
+                encoder: JSONEncoder(),
+                context: context
+            )
+            try Self.save(context)
+        }
+        changeHub.yield(.mediaMetadata(profileID))
+    }
+
     public func saveFavorite(
         _ state: ProfileFavoriteState,
         snapshot: ProfileMediaSnapshot?

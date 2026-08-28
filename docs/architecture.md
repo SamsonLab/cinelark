@@ -45,6 +45,7 @@
 | Keychain lifecycle | Mac app; plugin stores only its bridge secret |
 | UI-facing library metadata | Local Catalog; source plugins refresh and normalize it |
 | Favorites and resume state | Local profile repository; optional explicit remote import/mirror |
+| Viewing insights and personal recommendations | Pure local Insights service over Profile facts and cached Catalog values |
 | Semantic navigation and persisted sidebar preference | TCA application state |
 | Hover, pointer, transient focus, and live geometry | SwiftUI local state |
 | Version selection | Source playback resolver, orchestrated by `PlaybackFeature` |
@@ -98,6 +99,11 @@ objects remain below the TCA dependency boundary.
 offline with the provisional Profile, but both normal and recovery paths restore
 Source runtimes before revealing Library.
 
+`CineLarkInsights` owns pure calendar, affinity, and recommendation projection.
+It may enrich missing Profile genres/artwork only through exact cached Catalog
+locators and versioned Profile writes. It never owns a provider runtime or
+places sessions, repositories, or Catalog actors in TCA State.
+
 ### 3.4 `CineLarkEmby`
 
 Owns:
@@ -136,9 +142,10 @@ scoped stores and send actions. Dependency clients isolate repositories,
 plugins, playback, and gateway lifetimes from reducer state.
 
 The main sidebar is a content information architecture: Home, Movies, Series,
-Favorites, and Search. Configuration does not add sidebar destinations or one
-toolbar button per subsystem. The system Settings scene composes General,
-Profiles & Sources, Remote, and Storage categories from the same root Store.
+Favorites, Search, and Viewing Insights. Configuration does not add sidebar
+destinations or one toolbar button per subsystem. The system Settings scene
+composes General, Profiles & Sources, Remote, and Storage categories from the
+same root Store.
 Transient Settings-window presentation is owned by SwiftUI; only profile/source
 selection intent and its playback-stop confirmation enter `AppFeature` state.
 

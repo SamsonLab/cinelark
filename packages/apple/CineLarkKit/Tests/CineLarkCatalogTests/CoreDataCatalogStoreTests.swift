@@ -165,3 +165,29 @@ import CineLarkPluginAPI
     )
     #expect(try await store.cachedPage(for: otherSort).items.isEmpty)
 }
+
+@Test func exactLocatorLookupDoesNotLeakAcrossSources() async throws {
+    let store = try CoreDataCatalogStore(inMemory: true)
+    let sourceA = SourceID(rawValue: UUID())
+    let sourceB = SourceID(rawValue: UUID())
+    let locatorA = MediaLocatorID(sourceID: sourceA, providerItemID: "shared")
+    let locatorB = MediaLocatorID(sourceID: sourceB, providerItemID: "shared")
+    try await store.upsert([
+        LocatedMediaItem(
+            locator: locatorA,
+            summary: MediaSummary(id: "shared", kind: .movie, title: "Source A")
+        ),
+        LocatedMediaItem(
+            locator: locatorB,
+            summary: MediaSummary(id: "shared", kind: .movie, title: "Source B")
+        )
+    ], refreshedAt: .now)
+
+    let result = try await store.items(for: [
+        locatorA,
+        MediaLocatorID(sourceID: sourceA, providerItemID: "missing")
+    ])
+
+    #expect(result.map(\.locator) == [locatorA])
+    #expect(result.map(\.summary.title) == ["Source A"])
+}

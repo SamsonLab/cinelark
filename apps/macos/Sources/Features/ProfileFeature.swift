@@ -288,6 +288,9 @@ struct ProfileFeature {
             case .internal(.repositoryChanged(.cloudSyncStatus)):
                 return refreshCloudSyncStatus(&state)
 
+            case .internal(.repositoryChanged(.mediaMetadata)):
+                return .none
+
             case .internal(.repositoryChanged):
                 if state.isLoading {
                     state.needsReloadAfterCurrentLoad = true

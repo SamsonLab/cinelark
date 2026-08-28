@@ -1,7 +1,7 @@
 # CineLark Product Specification
 
 - **Status:** Draft 0.1
-- **Last updated:** 2026-08-27
+- **Last updated:** 2026-08-28
 - **Initial platform:** macOS
 
 ## 1. Product statement
@@ -24,8 +24,9 @@ IINA/mpv with a TV-first interface.
    an activation or control dependency.
 7. Preserve long-term viewing memory in the user's iCloud private database
    independently from Emby, Jellyfin, Plex, or filesystem account state.
-8. Build monthly, quarterly, yearly, and all-time insights from durable viewing
-   facts before introducing external recommendation services.
+8. Build monthly, quarterly, yearly, and all-time insights plus explainable
+   on-device recommendations from durable viewing facts before considering an
+   external recommendation service.
 
 ## 3. Non-goals for the first release
 
@@ -129,6 +130,7 @@ follow without changing the architecture.
 | Favorites | Read, add, and remove movie/TV favorites | P1 |
 | People | Person detail, credits, and person favorites | P1 |
 | Insights | Month, quarter, year, and all-time local viewing summaries | P1 |
+| Discovery | Explainable active-Source recommendations computed locally from Profile-owned facts | P1 |
 | Remote | QR pairing, remote login, navigation, search text entry, and complete contextual IINA controls on iOS/Android | P1 |
 
 ## 7. Reliability and performance requirements

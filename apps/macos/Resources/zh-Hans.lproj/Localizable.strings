@@ -57,6 +57,9 @@
 "insights.empty" = "还没有观影记录";
 "insights.empty_description" = "使用 CineLark 观看内容后，个人观影总结会显示在这里。";
 "insights.metadata_empty" = "继续观看新的内容后，类型、导演和演员偏好会随着更完整的元数据逐步出现。";
+"insights.recommendations" = "为你推荐";
+"insights.recommendation_reason.one" = "因为你常看 %@";
+"insights.recommendation_reason.two" = "因为你常看 %@ 和 %@";
 
 "login.tagline" = "你的媒体库，为大屏而生。";
 "login.username" = "UHDNow 用户名";

@@ -1,4 +1,5 @@
 import Foundation
+import CineLarkCatalog
 import CineLarkDomain
 import CineLarkPluginAPI
 import CineLarkProfile
@@ -95,6 +96,7 @@ public struct ViewingInsightsSnapshot: Codable, Hashable, Sendable {
     public let topGenres: [ViewingInsightDimension]
     public let topDirectors: [ViewingInsightDimension]
     public let topActors: [ViewingInsightDimension]
+    public let recommendations: [ViewingRecommendation]
 
     public init(
         profileID: ProfileID,
@@ -109,7 +111,8 @@ public struct ViewingInsightsSnapshot: Codable, Hashable, Sendable {
         topTitles: [ViewingInsightTitle],
         topGenres: [ViewingInsightDimension],
         topDirectors: [ViewingInsightDimension],
-        topActors: [ViewingInsightDimension]
+        topActors: [ViewingInsightDimension],
+        recommendations: [ViewingRecommendation] = []
     ) {
         self.profileID = profileID
         self.range = range
@@ -124,6 +127,28 @@ public struct ViewingInsightsSnapshot: Codable, Hashable, Sendable {
         self.topGenres = topGenres
         self.topDirectors = topDirectors
         self.topActors = topActors
+        self.recommendations = recommendations
+    }
+
+    public func replacingRecommendations(
+        _ recommendations: [ViewingRecommendation]
+    ) -> Self {
+        Self(
+            profileID: profileID,
+            range: range,
+            totalWatchSeconds: totalWatchSeconds,
+            sessionCount: sessionCount,
+            completedSessionCount: completedSessionCount,
+            distinctTitleCount: distinctTitleCount,
+            activeDayCount: activeDayCount,
+            longestStreakDays: longestStreakDays,
+            activity: activity,
+            topTitles: topTitles,
+            topGenres: topGenres,
+            topDirectors: topDirectors,
+            topActors: topActors,
+            recommendations: recommendations
+        )
     }
 }
 
@@ -381,22 +406,37 @@ public enum ViewingInsightsProjector {
 
 public struct ViewingInsightsService: Sendable {
     private let repository: any ProfileRepository
+    private let catalog: any CatalogRepository
+    private let clientID: ClientID
 
-    public init(repository: any ProfileRepository) {
+    public init(
+        repository: any ProfileRepository,
+        catalog: any CatalogRepository,
+        clientID: ClientID
+    ) {
         self.repository = repository
+        self.catalog = catalog
+        self.clientID = clientID
     }
 
     public func snapshot(
         profileID: ProfileID,
+        sourceID: SourceID?,
         period: ViewingInsightPeriod,
         containing referenceDate: Date,
         calendar: Calendar
     ) async throws -> ViewingInsightsSnapshot {
-        let sessions = try await repository.viewingSessions(profileID: profileID)
-        let keys = Set(sessions.map(\.mediaKey))
+        async let sessionValues = repository.viewingSessions(profileID: profileID)
+        async let favoriteValues = repository.favorites(profileID: profileID)
+        let (sessions, favorites) = try await (sessionValues, favoriteValues)
+        let keys = Set(sessions.map(\.mediaKey) + favorites.map(\.mediaKey))
         let values = try await repository.mediaSnapshots(keys: keys)
-        let snapshots = Dictionary(uniqueKeysWithValues: values.map { ($0.key, $0) })
-        return ViewingInsightsProjector.project(
+        let snapshots = await enrich(
+            values,
+            profileID: profileID,
+            referenceDate: referenceDate
+        )
+        let snapshot = ViewingInsightsProjector.project(
             profileID: profileID,
             period: period,
             containing: referenceDate,
@@ -404,5 +444,84 @@ public struct ViewingInsightsService: Sendable {
             sessions: sessions,
             snapshots: snapshots
         )
+        guard let sourceID else { return snapshot }
+        let query = MediaQuery(
+            scope: SourceScope(sourceID: sourceID),
+            kinds: [.movie, .series],
+            limit: 500
+        )
+        let candidates = (try? await catalog.cachedPage(for: query).items) ?? []
+        return snapshot.replacingRecommendations(
+            ViewingRecommendationProjector.project(
+                sessions: sessions,
+                favorites: favorites,
+                snapshots: snapshots,
+                candidates: candidates,
+                referenceDate: referenceDate
+            )
+        )
+    }
+
+    private func enrich(
+        _ snapshots: [ProfileMediaSnapshot],
+        profileID: ProfileID,
+        referenceDate: Date
+    ) async -> [ProfileMediaKey: ProfileMediaSnapshot] {
+        let cachedItems = (try? await catalog.items(for: Set(snapshots.map(\.locator)))) ?? []
+        let byLocator = Dictionary(uniqueKeysWithValues: cachedItems.map {
+            ($0.locator, $0.summary)
+        })
+        var result: [ProfileMediaKey: ProfileMediaSnapshot] = [:]
+        for snapshot in snapshots {
+            guard let summary = byLocator[snapshot.locator] else {
+                result[snapshot.key] = snapshot
+                continue
+            }
+            let existingMetadata = snapshot.metadata ?? ProfileMediaMetadataSnapshot()
+            let cachedGenres = summary.genres.map {
+                ProfileGenreSnapshot(
+                    providerID: String($0.id),
+                    name: $0.name,
+                    slug: $0.slug
+                )
+            }
+            let shouldAddGenres = existingMetadata.genres.isEmpty && !cachedGenres.isEmpty
+            let cachedArtworkURL = summary.posterURL ?? summary.backdropURL
+            let shouldAddArtwork = snapshot.artworkURL == nil && cachedArtworkURL != nil
+            guard shouldAddGenres || shouldAddArtwork else {
+                result[snapshot.key] = snapshot
+                continue
+            }
+            let metadata = shouldAddGenres
+                ? ProfileMediaMetadataSnapshot(
+                    genres: cachedGenres,
+                    directors: existingMetadata.directors,
+                    cast: existingMetadata.cast
+                )
+                : snapshot.metadata
+            let artworkURL = snapshot.artworkURL ?? cachedArtworkURL
+            do {
+                let stamp = try await repository.nextMutationStamp(
+                    clientID: clientID,
+                    at: referenceDate
+                )
+                let enriched = ProfileMediaSnapshot(
+                    key: snapshot.key,
+                    locator: snapshot.locator,
+                    title: snapshot.title,
+                    kind: snapshot.kind,
+                    artworkURL: artworkURL,
+                    metadata: metadata,
+                    modifiedAt: referenceDate,
+                    deviceID: clientID.description,
+                    mutationStamp: stamp
+                )
+                try await repository.saveMediaSnapshot(enriched, profileID: profileID)
+                result[snapshot.key] = enriched
+            } catch {
+                result[snapshot.key] = snapshot
+            }
+        }
+        return result
     }
 }

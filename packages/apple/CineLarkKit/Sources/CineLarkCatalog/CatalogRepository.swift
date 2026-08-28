@@ -32,6 +32,7 @@ public struct CatalogCacheStatistics: Sendable, Equatable {
 
 public protocol CatalogRepository: Sendable {
     func cachedPage(for query: MediaQuery) async throws -> MediaPage
+    func items(for locators: Set<MediaLocatorID>) async throws -> [LocatedMediaItem]
     func cache(
         _ page: MediaPage,
         for query: MediaQuery,

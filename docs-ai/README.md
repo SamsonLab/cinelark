@@ -61,3 +61,4 @@ writing, amendment, and verification rules.
 | 021 | [Profile onboarding and sync health](021-profile-onboarding-and-sync-health/000-plan.md) | 2026-08-28 | Pending-import recovery, local-first continuation, and truthful CloudKit transport health |
 | 022 | [Emby mutation delivery](022-emby-mutation-delivery/000-plan.md) | 2026-08-28 | Domain failure classification, safe mirror retry, and ordered playback check-ins |
 | 023 | [CloudKit convergence validation](023-cloudkit-convergence-validation/000-plan.md) | 2026-08-28 | Signed-app preflight, redacted replica audits, and a two-device convergence runbook |
+| 024 | [Local metadata enrichment and recommendations](024-local-recommendations/000-plan.md) | 2026-08-28 | Cached historical enrichment and private explainable active-Source discovery |

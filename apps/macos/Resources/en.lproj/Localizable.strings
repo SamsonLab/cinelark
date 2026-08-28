@@ -57,6 +57,9 @@
 "insights.empty" = "No viewing history yet";
 "insights.empty_description" = "Watch something with CineLark and your personal summary will appear here.";
 "insights.metadata_empty" = "Genre and contributor insights will appear as newly watched titles capture richer metadata.";
+"insights.recommendations" = "Recommended from Your Library";
+"insights.recommendation_reason.one" = "Because you watch %@";
+"insights.recommendation_reason.two" = "Because you watch %@ and %@";
 
 "login.tagline" = "Your library, ready for the big screen.";
 "login.username" = "UHDNow username";

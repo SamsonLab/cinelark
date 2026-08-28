@@ -159,7 +159,11 @@ struct CineLarkApp: App {
             )
             $0.profiles = .live(repository: profileRepository, clientID: clientID)
             $0.insights = .live(
-                service: ViewingInsightsService(repository: profileRepository)
+                service: ViewingInsightsService(
+                    repository: profileRepository,
+                    catalog: catalog,
+                    clientID: clientID
+                )
             )
             $0.playbackEngine = .live(launcher: launcher)
             $0.remote = .live(coordinator: remote)

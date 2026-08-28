@@ -164,6 +164,26 @@ public struct MediaSummary: Codable, Sendable, Hashable, Identifiable {
             userState: userState
         )
     }
+
+    public func replacingID(_ id: String) -> Self {
+        Self(
+            id: id,
+            kind: kind,
+            title: title,
+            originalTitle: originalTitle,
+            synopsis: synopsis,
+            releaseYear: releaseYear,
+            rating: rating,
+            durationSeconds: durationSeconds,
+            posterURL: posterURL,
+            backdropURL: backdropURL,
+            logoURL: logoURL,
+            totalSeasons: totalSeasons,
+            hasMultipleVersions: hasMultipleVersions,
+            genres: genres,
+            userState: userState
+        )
+    }
 }
 
 public struct MediaCollection: Codable, Sendable, Hashable, Identifiable {

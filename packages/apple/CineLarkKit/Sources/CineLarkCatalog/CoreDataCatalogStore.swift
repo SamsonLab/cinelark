@@ -169,6 +169,43 @@ public actor CoreDataCatalogStore: CatalogRepository {
         }
     }
 
+    public func items(
+        for locators: Set<MediaLocatorID>
+    ) async throws -> [LocatedMediaItem] {
+        guard !locators.isEmpty else { return [] }
+        let orderedLocators = locators.sorted {
+            Self.locatorKey($0) < Self.locatorKey($1)
+        }
+        let keys = orderedLocators.map(Self.locatorKey)
+        return try await context.perform { [context] in
+            let request = NSFetchRequest<NSManagedObject>(entityName: Entity.locator)
+            request.predicate = NSPredicate(format: "key IN %@", keys)
+            let values = try context.fetch(request)
+            let byKey = Dictionary(uniqueKeysWithValues: values.compactMap { value in
+                (value.value(forKey: "key") as? String).map { ($0, value) }
+            })
+            let decoder = JSONDecoder()
+            return orderedLocators.compactMap { locator in
+                guard
+                    let locatorObject = byKey[Self.locatorKey(locator)],
+                    let catalogUUID = locatorObject.value(forKey: "catalogItemID") as? UUID,
+                    let itemObject = locatorObject.value(forKey: "item") as? NSManagedObject,
+                    let summaryData = itemObject.value(forKey: "summary") as? Data,
+                    let summary = try? decoder.decode(MediaSummary.self, from: summaryData)
+                else { return nil }
+                let contentKeys = (locatorObject.value(forKey: "contentKeys") as? Data).flatMap {
+                    try? decoder.decode(Set<ContentKey>.self, from: $0)
+                } ?? []
+                return LocatedMediaItem(
+                    catalogID: CatalogItemID(rawValue: catalogUUID),
+                    locator: locator,
+                    contentKeys: contentKeys,
+                    summary: summary
+                )
+            }
+        }
+    }
+
     public func cache(
         _ page: MediaPage,
         for query: MediaQuery,

@@ -2,6 +2,7 @@ import ComposableArchitecture
 import Foundation
 import Testing
 import CineLarkInsights
+import CineLarkPluginAPI
 import CineLarkProfile
 
 @testable import CineLark
@@ -11,18 +12,21 @@ struct InsightsFeatureTests {
     @Test("Appearing loads the active Profile range")
     func initialLoad() async {
         let profileID = ProfileID(rawValue: UUID())
+        let sourceID = SourceID(rawValue: UUID())
         let requestID = UUID()
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let snapshot = insightSnapshot(profileID: profileID, period: .month, date: now)
         let store = TestStore(initialState: InsightsFeature.State(
-            activeProfileID: profileID
+            activeProfileID: profileID,
+            activeSourceID: sourceID
         )) {
             InsightsFeature()
         } withDependencies: {
             $0.date.now = now
             $0.uuid = .constant(requestID)
-            $0.insights.load = { loadedProfileID, period, referenceDate in
+            $0.insights.load = { loadedProfileID, loadedSourceID, period, referenceDate in
                 #expect(loadedProfileID == profileID)
+                #expect(loadedSourceID == sourceID)
                 #expect(period == .month)
                 #expect(referenceDate == now)
                 return snapshot
@@ -37,6 +41,7 @@ struct InsightsFeatureTests {
         await store.receive(.internal(.loaded(
             requestID: requestID,
             profileID: profileID,
+            sourceID: sourceID,
             period: .month,
             .success(snapshot)
         ))) {
@@ -50,12 +55,15 @@ struct InsightsFeatureTests {
     func staleResponsesAreIgnored() async {
         let profileID = ProfileID(rawValue: UUID())
         let otherProfileID = ProfileID(rawValue: UUID())
+        let sourceID = SourceID(rawValue: UUID())
+        let otherSourceID = SourceID(rawValue: UUID())
         let requestID = UUID()
         let staleID = UUID()
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let expected = insightSnapshot(profileID: profileID, period: .year, date: now)
         var state = InsightsFeature.State(
             activeProfileID: profileID,
+            activeSourceID: sourceID,
             selectedPeriod: .year,
             requestID: requestID,
             isPresented: true,
@@ -69,24 +77,35 @@ struct InsightsFeatureTests {
         await store.send(.internal(.loaded(
             requestID: staleID,
             profileID: profileID,
+            sourceID: sourceID,
             period: .year,
             .success(expected)
         )))
         await store.send(.internal(.loaded(
             requestID: requestID,
             profileID: otherProfileID,
+            sourceID: sourceID,
             period: .year,
             .success(expected)
         )))
         await store.send(.internal(.loaded(
             requestID: requestID,
             profileID: profileID,
+            sourceID: otherSourceID,
+            period: .year,
+            .success(expected)
+        )))
+        await store.send(.internal(.loaded(
+            requestID: requestID,
+            profileID: profileID,
+            sourceID: sourceID,
             period: .month,
             .success(expected)
         )))
         await store.send(.internal(.loaded(
             requestID: requestID,
             profileID: profileID,
+            sourceID: sourceID,
             period: .year,
             .success(expected)
         ))) {
@@ -99,6 +118,7 @@ struct InsightsFeatureTests {
     @Test("Changing period reloads with a new query identity")
     func periodSelectionReloads() async {
         let profileID = ProfileID(rawValue: UUID())
+        let sourceID = SourceID(rawValue: UUID())
         let firstRequestID = UUID()
         let secondRequestID = UUID()
         let now = Date(timeIntervalSince1970: 1_800_000_000)
@@ -106,13 +126,15 @@ struct InsightsFeatureTests {
         let quarter = insightSnapshot(profileID: profileID, period: .quarter, date: now)
         let requests = LockIsolated<[ViewingInsightPeriod]>([])
         let store = TestStore(initialState: InsightsFeature.State(
-            activeProfileID: profileID
+            activeProfileID: profileID,
+            activeSourceID: sourceID
         )) {
             InsightsFeature()
         } withDependencies: {
             $0.date.now = now
             $0.uuid = .init { requests.value.isEmpty ? firstRequestID : secondRequestID }
-            $0.insights.load = { _, period, _ in
+            $0.insights.load = { _, loadedSourceID, period, _ in
+                #expect(loadedSourceID == sourceID)
                 requests.withValue { $0.append(period) }
                 return period == .month ? month : quarter
             }
@@ -126,6 +148,7 @@ struct InsightsFeatureTests {
         await store.receive(.internal(.loaded(
             requestID: firstRequestID,
             profileID: profileID,
+            sourceID: sourceID,
             period: .month,
             .success(month)
         ))) {
@@ -141,6 +164,7 @@ struct InsightsFeatureTests {
         await store.receive(.internal(.loaded(
             requestID: secondRequestID,
             profileID: profileID,
+            sourceID: sourceID,
             period: .quarter,
             .success(quarter)
         ))) {
@@ -156,6 +180,7 @@ struct InsightsFeatureTests {
     func profileChangeReloads() async {
         let firstProfileID = ProfileID(rawValue: UUID())
         let secondProfileID = ProfileID(rawValue: UUID())
+        let sourceID = SourceID(rawValue: UUID())
         let requestID = UUID()
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let oldSnapshot = insightSnapshot(
@@ -170,6 +195,7 @@ struct InsightsFeatureTests {
         )
         let store = TestStore(initialState: InsightsFeature.State(
             activeProfileID: firstProfileID,
+            activeSourceID: sourceID,
             snapshot: oldSnapshot,
             isPresented: true
         )) {
@@ -177,13 +203,17 @@ struct InsightsFeatureTests {
         } withDependencies: {
             $0.date.now = now
             $0.uuid = .constant(requestID)
-            $0.insights.load = { profileID, _, _ in
+            $0.insights.load = { profileID, loadedSourceID, _, _ in
                 #expect(profileID == secondProfileID)
+                #expect(loadedSourceID == sourceID)
                 return newSnapshot
             }
         }
 
-        await store.send(.view(.contextChanged(secondProfileID))) {
+        await store.send(.view(.contextChanged(
+            profileID: secondProfileID,
+            sourceID: sourceID
+        ))) {
             $0.activeProfileID = secondProfileID
             $0.snapshot = nil
             $0.isLoading = true
@@ -192,6 +222,55 @@ struct InsightsFeatureTests {
         await store.receive(.internal(.loaded(
             requestID: requestID,
             profileID: secondProfileID,
+            sourceID: sourceID,
+            period: .month,
+            .success(newSnapshot)
+        ))) {
+            $0.isLoading = false
+            $0.requestID = nil
+            $0.snapshot = newSnapshot
+        }
+    }
+
+    @Test("Changing Source invalidates an in-flight recommendation projection")
+    func sourceChangeReloads() async {
+        let profileID = ProfileID(rawValue: UUID())
+        let firstSourceID = SourceID(rawValue: UUID())
+        let secondSourceID = SourceID(rawValue: UUID())
+        let requestID = UUID()
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let oldSnapshot = insightSnapshot(profileID: profileID, period: .month, date: now)
+        let newSnapshot = insightSnapshot(profileID: profileID, period: .month, date: now)
+        let store = TestStore(initialState: InsightsFeature.State(
+            activeProfileID: profileID,
+            activeSourceID: firstSourceID,
+            snapshot: oldSnapshot,
+            isPresented: true
+        )) {
+            InsightsFeature()
+        } withDependencies: {
+            $0.date.now = now
+            $0.uuid = .constant(requestID)
+            $0.insights.load = { loadedProfileID, sourceID, _, _ in
+                #expect(loadedProfileID == profileID)
+                #expect(sourceID == secondSourceID)
+                return newSnapshot
+            }
+        }
+
+        await store.send(.view(.contextChanged(
+            profileID: profileID,
+            sourceID: secondSourceID
+        ))) {
+            $0.activeSourceID = secondSourceID
+            $0.snapshot = nil
+            $0.isLoading = true
+            $0.requestID = requestID
+        }
+        await store.receive(.internal(.loaded(
+            requestID: requestID,
+            profileID: profileID,
+            sourceID: secondSourceID,
             period: .month,
             .success(newSnapshot)
         ))) {

@@ -21,6 +21,7 @@ struct InsightsView: View {
                         activity(snapshot)
                         topTitles(snapshot.topTitles)
                         affinities(snapshot)
+                        recommendations(snapshot.recommendations)
                     }
                 } else if store.isLoading {
                     ProgressView(language.localized("insights.loading"))
@@ -273,6 +274,40 @@ struct InsightsView: View {
         .padding(18)
         .frame(maxWidth: .infinity, minHeight: 190, alignment: .topLeading)
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    @ViewBuilder
+    private func recommendations(_ values: [ViewingRecommendation]) -> some View {
+        if !values.isEmpty {
+            PosterShelf(
+                title: language.localized("insights.recommendations"),
+                items: values.map(\.summary),
+                annotations: values.reduce(into: [:]) {
+                    $0[$1.summary.id] = recommendationReason($1.reasons)
+                }
+            )
+            .padding(.horizontal, -CineLarkDesign.Layout.contentMargin)
+        }
+    }
+
+    private func recommendationReason(
+        _ reasons: [ViewingRecommendationReason]
+    ) -> String {
+        let genres = reasons.compactMap { reason -> String? in
+            guard case let .matchingGenre(name) = reason else { return nil }
+            return name
+        }
+        if genres.count >= 2 {
+            return language.localized(
+                "insights.recommendation_reason.two",
+                genres[0],
+                genres[1]
+            )
+        }
+        return language.localized(
+            "insights.recommendation_reason.one",
+            genres.first ?? ""
+        )
     }
 
     private var emptyState: some View {

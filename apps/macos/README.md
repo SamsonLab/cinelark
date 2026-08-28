@@ -16,6 +16,8 @@ media-source plugin and an IINA/mpv playback engine.
 - detail-level last-watched context, one-action resume, and episode progress states
 - single-content IINA episode replacement for automatic cross-season continuation
 - movie/episode version chooser with expandable codec, color, track, and size metadata
+- month/quarter/year/all-time viewing insights with cached historical metadata
+  enrichment and explainable on-device recommendations
 - explicit copy-playback-link, copy-download-link, and browser-download actions
 - runtime English/Simplified Chinese interface switching
 - native Sparkle update checks with an availability-only sidebar prompt

@@ -132,6 +132,72 @@ import CineLarkPluginAPI
     #expect(stored.metadata?.cast.map(\.name) == ["Actor"])
 }
 
+@Test func directSnapshotEnrichmentUsesVersionOrderingAndPreservesDimensions() async throws {
+    let repository = try CoreDataProfileRepository(configuration: .init(inMemory: true))
+    let profileID = ProfileID(rawValue: UUID())
+    let clientID = ClientID(rawValue: UUID())
+    let sourceID = SourceID(rawValue: UUID())
+    let locator = MediaLocatorID(sourceID: sourceID, providerItemID: "movie-enrichment")
+    let mediaKey = ProfileMediaKey(locator: locator)
+    let firstDate = Date(timeIntervalSince1970: 100)
+    let secondDate = Date(timeIntervalSince1970: 200)
+    let firstStamp = MutationStamp(date: firstDate, clientID: clientID.description)
+    let secondStamp = MutationStamp(date: secondDate, clientID: clientID.description)
+    try await repository.saveProfile(Profile(
+        id: profileID,
+        name: "Personal",
+        createdAt: firstDate,
+        modifiedAt: firstDate,
+        deviceID: clientID.description,
+        mutationStamp: firstStamp
+    ))
+    try await repository.saveMediaSnapshot(ProfileMediaSnapshot(
+        key: mediaKey,
+        locator: locator,
+        title: "Synthetic Movie",
+        kind: .movie,
+        artworkURL: nil,
+        metadata: ProfileMediaMetadataSnapshot(
+            directors: [ProfilePersonSnapshot(name: "Existing Director")]
+        ),
+        modifiedAt: firstDate,
+        deviceID: clientID.description,
+        mutationStamp: firstStamp
+    ), profileID: profileID)
+    try await repository.saveMediaSnapshot(ProfileMediaSnapshot(
+        key: mediaKey,
+        locator: locator,
+        title: "Synthetic Movie",
+        kind: .movie,
+        artworkURL: URL(string: "https://example.invalid/poster.jpg"),
+        metadata: ProfileMediaMetadataSnapshot(
+            genres: [ProfileGenreSnapshot(name: "Drama")]
+        ),
+        modifiedAt: secondDate,
+        deviceID: clientID.description,
+        mutationStamp: secondStamp
+    ), profileID: profileID)
+
+    let result = try #require(
+        try await repository.mediaSnapshots(keys: [mediaKey]).first
+    )
+    #expect(result.metadata?.genres.map(\.name) == ["Drama"])
+    #expect(result.metadata?.directors.map(\.name) == ["Existing Director"])
+    #expect(result.artworkURL == URL(string: "https://example.invalid/poster.jpg"))
+
+    try await repository.saveMediaSnapshot(ProfileMediaSnapshot(
+        key: mediaKey,
+        locator: locator,
+        title: "Stale",
+        kind: .movie,
+        artworkURL: nil,
+        modifiedAt: firstDate,
+        deviceID: clientID.description,
+        mutationStamp: firstStamp
+    ), profileID: profileID)
+    #expect(try await repository.mediaSnapshots(keys: [mediaKey]).first == result)
+}
+
 @Test func viewingFactsAreIdempotentAndDriveProfileManifest() async throws {
     let repository = try CoreDataProfileRepository(configuration: .init(inMemory: true))
     let clientID = ClientID(rawValue: UUID())

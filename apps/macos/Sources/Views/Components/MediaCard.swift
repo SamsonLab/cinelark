@@ -6,6 +6,7 @@ struct PosterLockup: View {
     @Environment(ShortcutCoordinator.self) private var shortcuts
     let item: MediaSummary
     let transitionID: UUID?
+    let annotation: String?
     let isFocused: Bool
     let onPointerSelection: ((MediaSummary, Bool) -> Void)?
     let onHighlight: ((MediaSummary) -> Void)?
@@ -14,12 +15,14 @@ struct PosterLockup: View {
     init(
         item: MediaSummary,
         transitionID: UUID? = nil,
+        annotation: String? = nil,
         isFocused: Bool = false,
         onPointerSelection: ((MediaSummary, Bool) -> Void)? = nil,
         onHighlight: ((MediaSummary) -> Void)? = nil
     ) {
         self.item = item
         self.transitionID = transitionID
+        self.annotation = annotation
         self.isFocused = isFocused
         self.onPointerSelection = onPointerSelection
         self.onHighlight = onHighlight
@@ -34,6 +37,14 @@ struct PosterLockup: View {
                 .lineLimit(1)
                 .frame(width: CineLarkDesign.Media.posterWidth, alignment: .leading)
                 .help(item.title)
+
+            if let annotation {
+                Text(annotation)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .frame(width: CineLarkDesign.Media.posterWidth, alignment: .leading)
+            }
 
             MediaFacts(item: item)
                 .frame(width: CineLarkDesign.Media.posterWidth, alignment: .leading)
@@ -82,6 +93,7 @@ private struct PosterNavigationLink: View {
     @Environment(\.activeMediaSourceID) private var activeSourceID
     @Environment(\.activeProfileID) private var activeProfileID
     let item: MediaSummary
+    let annotation: String?
     let onPointerSelection: ((MediaSummary, Bool) -> Void)?
     let onHighlight: ((MediaSummary) -> Void)?
     let isSelected: Bool
@@ -102,6 +114,7 @@ private struct PosterNavigationLink: View {
             PosterLockup(
                 item: item,
                 transitionID: transitionID,
+                annotation: annotation,
                 isFocused: isSelected || focusedItemID.wrappedValue == item.id,
                 onPointerSelection: onPointerSelection,
                 onHighlight: onHighlight
@@ -125,6 +138,7 @@ struct PosterShelf: View {
     @Environment(ShortcutCoordinator.self) private var shortcuts
     let title: String
     let items: [MediaSummary]
+    let annotations: [String: String]
     let viewAllCollection: MediaCollection?
     let selectedItemID: String?
     let isViewAllSelected: Bool
@@ -137,6 +151,7 @@ struct PosterShelf: View {
     init(
         title: String,
         items: [MediaSummary],
+        annotations: [String: String] = [:],
         viewAllCollection: MediaCollection? = nil,
         selectedItemID: String? = nil,
         isViewAllSelected: Bool = false,
@@ -147,6 +162,7 @@ struct PosterShelf: View {
     ) {
         self.title = title
         self.items = items
+        self.annotations = annotations
         self.viewAllCollection = viewAllCollection
         self.selectedItemID = selectedItemID
         self.isViewAllSelected = isViewAllSelected
@@ -215,6 +231,7 @@ struct PosterShelf: View {
 
                                 PosterNavigationLink(
                                     item: item,
+                                    annotation: annotations[item.id],
                                     onPointerSelection: onPointerSelection,
                                     onHighlight: onHighlight,
                                     isSelected: shortcuts.usesKeyboardNavigation &&
@@ -340,6 +357,7 @@ struct PosterGrid: View {
 
                                 PosterNavigationLink(
                                     item: item,
+                                    annotation: nil,
                                     onPointerSelection: updatePointerSelection,
                                     onHighlight: nil,
                                     isSelected: shortcuts.usesKeyboardNavigation &&

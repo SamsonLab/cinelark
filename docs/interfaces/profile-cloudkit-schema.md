@@ -171,6 +171,8 @@ Implemented and covered by package tests:
   compatibility and dimension-complete merging for partial imports;
 - rebuildable month, quarter, year, and all-time Insights projections over
   Profile-owned facts. Derived snapshots remain outside Core Data and CloudKit.
+- exact-locator cached enrichment for missing snapshot genres/artwork, persisted
+  with the mutation clock without storing recommendation projections;
 - explicit pending-import recovery and local-first continuation through the
   application readiness barrier;
 - Settings sync health over account status plus setup/import/export events.

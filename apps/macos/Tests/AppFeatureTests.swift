@@ -18,6 +18,7 @@ struct AppFeatureTests {
         state.library.sourceID = sourceID
         state.navigation.selection = .insights
         state.insights.activeProfileID = profileID
+        state.insights.activeSourceID = sourceID
         state.insights.isPresented = true
         let refreshes = LockIsolated(0)
         let insightRefreshes = LockIsolated(0)
@@ -40,7 +41,8 @@ struct AppFeatureTests {
             $0.profiles.state = { _ in
                 ProfileStateSnapshot(states: [:], snapshots: [:])
             }
-            $0.insights.load = { loadedProfileID, _, date in
+            $0.insights.load = { loadedProfileID, loadedSourceID, _, date in
+                #expect(loadedSourceID == sourceID)
                 insightRefreshes.withValue { $0 += 1 }
                 return ViewingInsightsSnapshot(
                     profileID: loadedProfileID,
@@ -95,6 +97,7 @@ struct AppFeatureTests {
         #expect(store.state.library.sourceID == sourceID)
         #expect(store.state.search.sourceID == sourceID)
         #expect(store.state.insights.activeProfileID == profileID)
+        #expect(store.state.insights.activeSourceID == sourceID)
         #expect(store.state.playback.profileID == profileID)
         #expect(store.state.navigation.activeProfileID == profileID)
         #expect(store.state.navigation.activeSourceID == sourceID)

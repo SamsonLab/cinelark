@@ -36,6 +36,7 @@ public protocol ProfileRepository: Sendable {
     func favorite(profileID: ProfileID, mediaKey: ProfileMediaKey) async throws -> ProfileFavoriteState?
     func favorites(profileID: ProfileID) async throws -> [ProfileFavoriteState]
     func mediaSnapshots(keys: Set<ProfileMediaKey>) async throws -> [ProfileMediaSnapshot]
+    func saveMediaSnapshot(_ snapshot: ProfileMediaSnapshot, profileID: ProfileID) async throws
     func saveFavorite(_ state: ProfileFavoriteState, snapshot: ProfileMediaSnapshot?) async throws
 
     func playback(profileID: ProfileID, mediaKey: ProfileMediaKey) async throws -> ProfilePlaybackState?

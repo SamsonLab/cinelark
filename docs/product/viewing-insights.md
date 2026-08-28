@@ -1,6 +1,6 @@
 # Viewing Insights
 
-- **Status:** Implemented local projection; signed multi-device validation pending
+- **Status:** Implemented local projection, cached enrichment, and private recommendations; signed multi-device validation pending
 - **Source of truth:** Profile viewing facts and media snapshots
 
 Viewing Insights turns CineLark's source-independent viewing memory into useful
@@ -21,6 +21,11 @@ titles, active days, longest streak, daily activity, top titles, and available
 genre/director/actor affinities. Missing historical metadata removes only the
 affected affinity section; it does not hide the rest of the summary.
 
+When an active Source has locally cached candidates, the page also shows up to
+twelve unwatched and unfavorited movie/series recommendations. Each candidate
+states the one or two strongest matching genres. No generic popularity fallback
+is labeled as personal recommendation when preference evidence is absent.
+
 ## Projection contract
 
 `CineLarkInsights` accepts explicit `ViewingSession` and
@@ -37,6 +42,12 @@ compact immutable `ViewingInsightsSnapshot`.
 - Title ranking uses watched time, session count, then title for deterministic
   ties. Dimension ranking uses watched time, session count, then name.
 - Results are capped to ten titles and ten values per affinity dimension.
+- Recommendations use all-time facts through the reference instant, independent
+  of the currently selected summary period.
+- Session duration and completion plus active favorites contribute bounded
+  genre weights. Ranking then uses score, rating, title, and locator identity.
+- Episodes, consumed/completed locators, active favorites, and candidates with
+  no matching genre evidence are excluded.
 
 ## Data ownership
 
@@ -50,6 +61,12 @@ dimension: a non-empty incoming genre/director/cast dimension replaces that
 dimension, while a missing or empty dimension retains existing evidence. The
 current schema does not interpret absence as metadata deletion.
 
+Insights may fill missing snapshot genres and artwork only from an exact
+`MediaLocatorID` match already present in the local Catalog. It does not fetch
+provider detail during projection. Enrichment receives a new Profile mutation
+stamp and is idempotent once the same dimensions are present; existing
+genre/director/cast dimensions are never replaced by absence.
+
 Insights are rebuildable and therefore are not currently persisted in Core
 Data or CloudKit. TCA receives only the selected period, request identity, and
 compact presentation snapshot. Repository rows, managed objects, calendars,
@@ -61,18 +78,19 @@ Insights projection.
 
 ## Refresh and failure semantics
 
-Changing period or active Profile cancels the obsolete request and starts a new
-one when the screen is visible. Responses must match request, Profile, and
-period identity before replacing the current projection. Relevant Profile
-repository changes refresh the selected Insights screen.
+Changing period, active Profile, or active Source cancels the obsolete request
+and starts a new one when the screen is visible. Responses must match request,
+Profile, Source, and period identity before replacing the current projection.
+Relevant Profile repository changes refresh the selected Insights screen.
 
 A projection failure is recoverable and does not mutate viewing facts. Source
 network failure is not a projection dependency.
 
 ## Privacy and future services
 
-Preference dimensions remain on-device/in the user's private Profile boundary.
-A future recommendation service may consume an explicit privacy-preserving
-projection, but raw viewing events must not be uploaded implicitly. Persisted
-aggregates, historical enrichment, recommendations, and cross-Profile analysis
-remain separate milestones.
+Preference dimensions and recommendation scoring remain on-device/in the
+user's private Profile boundary. Candidate summaries come from the active
+Source's local Catalog, and provider user state is cleared before presentation.
+No history or affinity vector is uploaded. A future recommendation service must
+use a separate explicit consent, privacy, evaluation, and backend contract;
+raw viewing events must never be uploaded implicitly.

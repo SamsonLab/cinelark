@@ -1,6 +1,7 @@
 import ComposableArchitecture
 import Foundation
 import CineLarkInsights
+import CineLarkPluginAPI
 import CineLarkProfile
 
 @Reducer
@@ -18,6 +19,7 @@ struct InsightsFeature {
     @ObservableState
     struct State: Equatable {
         var activeProfileID: ProfileID?
+        var activeSourceID: SourceID?
         var selectedPeriod: ViewingInsightPeriod = .month
         var snapshot: ViewingInsightsSnapshot?
         var requestID: UUID?
@@ -33,7 +35,7 @@ struct InsightsFeature {
         enum View: Equatable {
             case appeared
             case disappeared
-            case contextChanged(ProfileID?)
+            case contextChanged(profileID: ProfileID?, sourceID: SourceID?)
             case periodSelected(ViewingInsightPeriod)
             case reload
         }
@@ -42,6 +44,7 @@ struct InsightsFeature {
             case loaded(
                 requestID: UUID,
                 profileID: ProfileID,
+                sourceID: SourceID?,
                 period: ViewingInsightPeriod,
                 Result<ViewingInsightsSnapshot, Failure>
             )
@@ -69,9 +72,12 @@ struct InsightsFeature {
                 state.requestID = nil
                 return .cancel(id: CancelID.load)
 
-            case let .view(.contextChanged(profileID)):
-                guard state.activeProfileID != profileID else { return .none }
+            case let .view(.contextChanged(profileID, sourceID)):
+                guard
+                    state.activeProfileID != profileID || state.activeSourceID != sourceID
+                else { return .none }
                 state.activeProfileID = profileID
+                state.activeSourceID = sourceID
                 state.snapshot = nil
                 state.failure = nil
                 guard state.isPresented else {
@@ -89,10 +95,17 @@ struct InsightsFeature {
             case .view(.reload):
                 return load(&state)
 
-            case let .internal(.loaded(requestID, profileID, period, .success(snapshot))):
+            case let .internal(.loaded(
+                requestID,
+                profileID,
+                sourceID,
+                period,
+                .success(snapshot)
+            )):
                 guard
                     state.requestID == requestID,
                     state.activeProfileID == profileID,
+                    state.activeSourceID == sourceID,
                     state.selectedPeriod == period
                 else { return .none }
                 state.requestID = nil
@@ -101,10 +114,17 @@ struct InsightsFeature {
                 state.snapshot = snapshot
                 return .none
 
-            case let .internal(.loaded(requestID, profileID, period, .failure(failure))):
+            case let .internal(.loaded(
+                requestID,
+                profileID,
+                sourceID,
+                period,
+                .failure(failure)
+            )):
                 guard
                     state.requestID == requestID,
                     state.activeProfileID == profileID,
+                    state.activeSourceID == sourceID,
                     state.selectedPeriod == period
                 else { return .none }
                 state.requestID = nil
@@ -122,6 +142,7 @@ struct InsightsFeature {
             return .cancel(id: CancelID.load)
         }
         let requestID = uuid()
+        let sourceID = state.activeSourceID
         let period = state.selectedPeriod
         let referenceDate = now
         state.requestID = requestID
@@ -132,13 +153,20 @@ struct InsightsFeature {
                 await send(.internal(.loaded(
                     requestID: requestID,
                     profileID: profileID,
+                    sourceID: sourceID,
                     period: period,
-                    .success(try await insights.load(profileID, period, referenceDate))
+                    .success(try await insights.load(
+                        profileID,
+                        sourceID,
+                        period,
+                        referenceDate
+                    ))
                 )))
             } catch {
                 await send(.internal(.loaded(
                     requestID: requestID,
                     profileID: profileID,
+                    sourceID: sourceID,
                     period: period,
                     .failure(Self.normalize(error))
                 )))

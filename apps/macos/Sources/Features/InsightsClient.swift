@@ -1,6 +1,7 @@
 import ComposableArchitecture
 import Foundation
 import CineLarkInsights
+import CineLarkPluginAPI
 import CineLarkProfile
 
 enum InsightsClientFailure: Error, Equatable, Sendable {
@@ -10,6 +11,7 @@ enum InsightsClientFailure: Error, Equatable, Sendable {
 struct InsightsClient: Sendable {
     var load: @Sendable (
         _ profileID: ProfileID,
+        _ sourceID: SourceID?,
         _ period: ViewingInsightPeriod,
         _ referenceDate: Date
     ) async throws -> ViewingInsightsSnapshot
@@ -17,7 +19,7 @@ struct InsightsClient: Sendable {
 
 extension InsightsClient: DependencyKey {
     static let liveValue = Self(
-        load: { _, _, _ in
+        load: { _, _, _, _ in
             throw InsightsClientFailure.unavailable("Viewing insights are not configured")
         }
     )
@@ -38,9 +40,10 @@ extension InsightsClient {
         calendar: @escaping @Sendable () -> Calendar = { .autoupdatingCurrent }
     ) -> Self {
         Self(
-            load: { profileID, period, referenceDate in
+            load: { profileID, sourceID, period, referenceDate in
                 try await service.snapshot(
                     profileID: profileID,
+                    sourceID: sourceID,
                     period: period,
                     containing: referenceDate,
                     calendar: calendar()

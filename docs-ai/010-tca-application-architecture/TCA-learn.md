@@ -454,27 +454,29 @@ Each entry uses a stable `LNNN` identifier and contains:
   metadata, but putting those repository rows in Store state would duplicate
   ownership, increase observation/equality cost, and expose calendar-dependent
   derivation to SwiftUI.
-- **Pattern applied:** `InsightsClient` accepts explicit Profile, period, and
-  reference-date query identity. A pure service loads repository facts and
-  returns one compact `ViewingInsightsSnapshot`; `InsightsFeature` stores only
-  that snapshot and loading/query state. Each response carries request, Profile,
-  and period identity in addition to feature-scoped cancellation.
+- **Pattern applied:** `InsightsClient` accepts explicit Profile, active Source,
+  period, and reference-date query identity. A pure service loads repository
+  facts and returns one compact `ViewingInsightsSnapshot`; `InsightsFeature`
+  stores only that snapshot and loading/query state. Each response carries
+  request, Profile, Source, and period identity in addition to feature-scoped
+  cancellation.
 - **Why this boundary was chosen:** the repository owns fact volume, the pure
   projector owns calendar and ranking semantics, TCA owns latest-wins effect
   orchestration, and SwiftUI owns only presentation. No layer needs a second
   mutable copy of sessions.
-- **Minimal CineLark example:** selecting `.quarter` cancels the current Insights
-  load. A late `.month` result is ignored unless its request ID, Profile ID, and
-  period all still match state.
+- **Minimal CineLark example:** selecting `.quarter` or another Source cancels
+  the current Insights load. A late result is ignored unless its request ID,
+  Profile ID, Source ID, and period all still match state.
 - **Test evidence:** `ViewingInsightsProjectorTests` verifies deterministic
   time-zone-aware ranges and compact rankings. `InsightsFeatureTests` verifies
-  initial load, period/Profile replacement, and stale-response rejection.
+  initial load, period/Profile/Source replacement, and stale-response rejection.
   `AppFeatureTests.externalProfileChangeRefreshesLibrary` verifies that a
   repository invalidation refreshes the visible projection.
 - **Reuse rule:** when UI needs a rebuildable summary over potentially large
   durable facts, inject a query-shaped dependency that returns a compact value.
-  Combine cancellation with semantic response identity whenever context can
-  change before an effect finishes.
+  Include every external input that affects the projection in response identity,
+  then combine that guard with cancellation whenever context can change before
+  an effect finishes.
 - **Version caveat:** in TCA 1.26.1, `cancelInFlight` prevents cooperative old
   effects from continuing, but it does not prove that an external dependency
   stopped work or that a response cannot arrive. Reducer guards remain the

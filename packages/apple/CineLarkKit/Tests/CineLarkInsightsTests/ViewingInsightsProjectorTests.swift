@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import CineLarkDomain
+import CineLarkCatalog
 import CineLarkInsights
 import CineLarkPluginAPI
 import CineLarkProfile
@@ -169,6 +170,191 @@ import CineLarkProfile
     #expect(result.topActors.isEmpty)
 }
 
+@Test func recommendationsArePrivateExplainableAndExcludeViewedLocators() throws {
+    let profileID = ProfileID(rawValue: UUID())
+    let sourceID = SourceID(rawValue: UUID())
+    let watched = MediaLocatorID(sourceID: sourceID, providerItemID: "watched")
+    let favorite = MediaLocatorID(sourceID: sourceID, providerItemID: "favorite")
+    let watchedKey = ProfileMediaKey(locator: watched)
+    let favoriteKey = ProfileMediaKey(locator: favorite)
+    let snapshots = [
+        watchedKey: snapshot(
+            key: watchedKey,
+            sourceID: sourceID,
+            title: "Watched",
+            genres: ["Drama"]
+        ),
+        favoriteKey: snapshot(
+            key: favoriteKey,
+            sourceID: sourceID,
+            title: "Favorite",
+            genres: ["Science Fiction"]
+        )
+    ]
+    let candidates = [
+        candidate(locator: watched, title: "Already Watched", genres: ["Drama"], rating: 10),
+        candidate(
+            locator: favorite,
+            title: "Already Favorited",
+            genres: ["Science Fiction"],
+            rating: 10
+        ),
+        candidate(
+            sourceID: sourceID,
+            id: "mixed",
+            title: "Mixed",
+            genres: ["Drama", "Science Fiction"],
+            rating: 7,
+            summaryID: "catalog-identity"
+        ),
+        candidate(
+            sourceID: sourceID,
+            id: "drama",
+            title: "Drama Only",
+            genres: ["Drama"],
+            rating: 9
+        ),
+        candidate(
+            sourceID: sourceID,
+            id: "irrelevant",
+            title: "Irrelevant",
+            genres: ["Comedy"],
+            rating: 10
+        )
+    ]
+    let recommendations = ViewingRecommendationProjector.project(
+        sessions: [
+            session(
+                profileID: profileID,
+                mediaKey: watchedKey,
+                at: date(2026, 8, 20),
+                watched: 3_600,
+                status: .completed
+            )
+        ],
+        favorites: [
+            ProfileFavoriteState(
+                profileID: profileID,
+                mediaKey: favoriteKey,
+                isFavorite: true,
+                modifiedAt: date(2026, 8, 21),
+                deviceID: "device"
+            )
+        ],
+        snapshots: snapshots,
+        candidates: candidates,
+        referenceDate: date(2026, 8, 27)
+    )
+
+    #expect(recommendations.map(\.summary.title) == ["Mixed", "Drama Only"])
+    #expect(recommendations.first?.summary.id == "mixed")
+    #expect(recommendations.first?.reasons == [
+        .matchingGenre("Drama"),
+        .matchingGenre("Science Fiction")
+    ])
+    #expect(recommendations.allSatisfy { $0.summary.userState == .empty })
+    #expect(!recommendations.contains { $0.locator == watched })
+    #expect(!recommendations.contains { $0.locator == favorite })
+}
+
+@Test func serviceEnrichesHistoryFromCatalogBeforeProjectingRecommendations() async throws {
+    let repository = try CoreDataProfileRepository(configuration: .init(inMemory: true))
+    let catalog = try CoreDataCatalogStore(inMemory: true)
+    let profileID = ProfileID(rawValue: UUID())
+    let clientID = ClientID(rawValue: UUID())
+    let sourceID = SourceID(rawValue: UUID())
+    let watched = MediaLocatorID(sourceID: sourceID, providerItemID: "watched")
+    let watchedKey = ProfileMediaKey(locator: watched)
+    let activityDate = date(2026, 8, 20)
+    let originalStamp = MutationStamp(date: activityDate, clientID: clientID.description)
+    try await repository.saveProfile(Profile(
+        id: profileID,
+        name: "Personal",
+        createdAt: activityDate,
+        modifiedAt: activityDate,
+        deviceID: clientID.description,
+        mutationStamp: originalStamp
+    ))
+    try await repository.savePlayback(ProfilePlaybackWrite(
+        state: ProfilePlaybackState(
+            profileID: profileID,
+            mediaKey: watchedKey,
+            state: UserPlaybackState(
+                played: true,
+                positionSeconds: 7_200,
+                progress: 1,
+                lastPlayedAt: activityDate
+            ),
+            modifiedAt: activityDate,
+            deviceID: clientID.description,
+            mutationStamp: originalStamp
+        ),
+        snapshot: ProfileMediaSnapshot(
+            key: watchedKey,
+            locator: watched,
+            title: "Watched",
+            kind: .movie,
+            artworkURL: nil,
+            modifiedAt: activityDate,
+            deviceID: clientID.description,
+            mutationStamp: originalStamp
+        ),
+        session: session(
+            profileID: profileID,
+            mediaKey: watchedKey,
+            at: activityDate,
+            watched: 7_200,
+            status: .completed
+        ),
+        event: nil,
+        deviceRecord: nil
+    ))
+    let artworkURL = URL(string: "https://example.invalid/poster.jpg")!
+    try await catalog.upsert([
+        candidate(locator: watched, title: "Watched", genres: ["Drama"], artworkURL: artworkURL),
+        candidate(
+            sourceID: sourceID,
+            id: "recommendation",
+            title: "Recommendation",
+            genres: ["Drama"]
+        )
+    ], refreshedAt: activityDate)
+
+    let service = ViewingInsightsService(
+        repository: repository,
+        catalog: catalog,
+        clientID: clientID
+    )
+    let result = try await service.snapshot(
+        profileID: profileID,
+        sourceID: sourceID,
+        period: .year,
+        containing: date(2026, 8, 27),
+        calendar: utcCalendar()
+    )
+
+    #expect(result.topGenres.map(\.name) == ["Drama"])
+    #expect(result.recommendations.map(\.summary.title) == ["Recommendation"])
+    let persisted = try #require(
+        try await repository.mediaSnapshots(keys: [watchedKey]).first
+    )
+    #expect(persisted.metadata?.genres.map(\.name) == ["Drama"])
+    #expect(persisted.artworkURL == artworkURL)
+    #expect(persisted.effectiveMutationStamp > originalStamp)
+
+    _ = try await service.snapshot(
+        profileID: profileID,
+        sourceID: sourceID,
+        period: .year,
+        containing: date(2026, 8, 28),
+        calendar: utcCalendar()
+    )
+    #expect(
+        try await repository.mediaSnapshots(keys: [watchedKey]).first?
+            .effectiveMutationStamp == persisted.effectiveMutationStamp
+    )
+}
+
 private func session(
     profileID: ProfileID,
     mediaKey: ProfileMediaKey,
@@ -214,6 +400,49 @@ private func snapshot(
         ),
         modifiedAt: date(2026, 8, 1),
         deviceID: "device"
+    )
+}
+
+private func candidate(
+    locator: MediaLocatorID,
+    title: String,
+    genres: [String],
+    rating: Double? = nil,
+    artworkURL: URL? = nil,
+    summaryID: String? = nil
+) -> LocatedMediaItem {
+    LocatedMediaItem(
+        locator: locator,
+        summary: MediaSummary(
+            id: summaryID ?? locator.providerItemID,
+            kind: .movie,
+            title: title,
+            rating: rating,
+            posterURL: artworkURL,
+            genres: genres.compactMap { Genre.normalized(name: $0) },
+            userState: UserPlaybackState(
+                played: true,
+                positionSeconds: 10,
+                progress: 1
+            )
+        )
+    )
+}
+
+private func candidate(
+    sourceID: SourceID,
+    id: String,
+    title: String,
+    genres: [String],
+    rating: Double? = nil,
+    summaryID: String? = nil
+) -> LocatedMediaItem {
+    candidate(
+        locator: MediaLocatorID(sourceID: sourceID, providerItemID: id),
+        title: title,
+        genres: genres,
+        rating: rating,
+        summaryID: summaryID
     )
 }
 
