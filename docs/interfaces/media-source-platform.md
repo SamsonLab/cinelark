@@ -30,6 +30,13 @@ must use an actor-owned queue when loss is unacceptable. Plugins return value
 types and never import TCA or expose a Store, Effect, Publisher, View, or managed
 object.
 
+Plugins normalize transport responses into `MediaSourceFailure`. The value's
+provider-neutral retry decision tells application orchestration whether time
+can heal the failure and may carry a bounded delay hint. Reducers never inspect
+HTTP status codes or provider response bodies. Retry remains opt-in per command:
+only declared desired-state assignments may use a durable retry queue, while
+ambiguous lifecycle commands are not replayed automatically.
+
 Artwork is a just-in-time transport capability. Presentation keeps only the
 secret-free fallback URL, exact media locator, and artwork kind. On a network
 cache miss, the image pipeline asks the account-bound runtime for an

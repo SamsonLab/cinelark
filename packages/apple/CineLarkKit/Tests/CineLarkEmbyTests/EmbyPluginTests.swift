@@ -18,6 +18,34 @@ private actor AttemptCounter {
     }
 }
 
+private actor SuspendedRequestRecorder {
+    private(set) var paths: [String] = []
+    private var releases: [CheckedContinuation<Void, Never>] = []
+    private var arrivals: [(Int, CheckedContinuation<Void, Never>)] = []
+
+    func recordAndSuspend(_ request: URLRequest) async {
+        paths.append(request.url!.path)
+        let count = paths.count
+        let ready = arrivals.filter { $0.0 <= count }
+        arrivals.removeAll { $0.0 <= count }
+        ready.forEach { $0.1.resume() }
+        await withCheckedContinuation { continuation in
+            releases.append(continuation)
+        }
+    }
+
+    func waitForCount(_ count: Int) async {
+        guard paths.count < count else { return }
+        await withCheckedContinuation { continuation in
+            arrivals.append((count, continuation))
+        }
+    }
+
+    func releaseNext() {
+        releases.removeFirst().resume()
+    }
+}
+
 private func fixtureData(_ name: String) throws -> Data {
     let url = try #require(Bundle.module.url(forResource: name, withExtension: "json"))
     return try Data(contentsOf: url)
@@ -29,6 +57,19 @@ private func response(for request: URLRequest, status: Int = 200) -> HTTPURLResp
         statusCode: status,
         httpVersion: nil,
         headerFields: nil
+    )!
+}
+
+private func response(
+    for request: URLRequest,
+    status: Int,
+    headers: [String: String]
+) -> HTTPURLResponse {
+    HTTPURLResponse(
+        url: request.url!,
+        statusCode: status,
+        httpVersion: nil,
+        headerFields: headers
     )!
 }
 
@@ -52,6 +93,110 @@ private func response(for request: URLRequest, status: Int = 200) -> HTTPURLResp
     let requests = await recorder.requests
     #expect(requests.first?.url?.path == "/media/emby/System/Info/Public")
     #expect(requests.first?.value(forHTTPHeaderField: "X-Emby-Authorization")?.contains("DeviceId=\"stable-device\"") == true)
+}
+
+@Test func mutationFailuresMapStatusAndBoundedRetryAfterWithoutResponseData() async throws {
+    let sourceID = SourceID(rawValue: UUID())
+    let rateLimited = EmbyHTTPClient { request in
+        HTTPResponse(
+            data: Data("private provider response".utf8),
+            response: response(
+                for: request,
+                status: 429,
+                headers: ["Retry-After": "99999"]
+            )
+        )
+    }
+    let rateLimitedRuntime = try await makeRuntime(sourceID: sourceID, http: rateLimited)
+    let locator = MediaLocatorID(sourceID: sourceID, providerItemID: "movie-1")
+
+    await #expect(throws: MediaSourceFailure.rateLimited(retryAfterSeconds: 3_600)) {
+        try await rateLimitedRuntime.remoteStateMirror!.mirrorState(
+            "user-1",
+            .favorite(locator, true)
+        )
+    }
+
+    let rejected = EmbyHTTPClient { request in
+        HTTPResponse(
+            data: Data("credential-bearing diagnostic".utf8),
+            response: response(for: request, status: 400)
+        )
+    }
+    let rejectedRuntime = try await makeRuntime(sourceID: sourceID, http: rejected)
+    await #expect(throws: MediaSourceFailure.requestRejected) {
+        try await rejectedRuntime.remoteStateMirror!.mirrorState(
+            "user-1",
+            .favorite(locator, true)
+        )
+    }
+}
+
+@Test func responseValidationSeparatesAuthenticationAndTransientServiceFailure() {
+    let request = URLRequest(url: URL(string: "https://example.test/emby")!)
+    #expect(throws: MediaSourceFailure.unauthorized) {
+        try EmbyResponseValidator.validate(response(for: request, status: 401))
+    }
+    #expect(throws: MediaSourceFailure.unavailable) {
+        try EmbyResponseValidator.validate(response(for: request, status: 503))
+    }
+}
+
+@Test func playbackCheckInsRemainOrderedAcrossSuspendedHTTPRequests() async throws {
+    let sourceID = SourceID(rawValue: UUID())
+    let recorder = SuspendedRequestRecorder()
+    let http = EmbyHTTPClient { request in
+        await recorder.recordAndSuspend(request)
+        return HTTPResponse(data: Data(), response: response(for: request))
+    }
+    let runtime = try await makeRuntime(sourceID: sourceID, http: http)
+    let session = try #require(runtime.playbackSession)
+    let locator = MediaLocatorID(sourceID: sourceID, providerItemID: "movie-1")
+
+    let started = Task {
+        try await session.report(.started(locator: locator, positionSeconds: 0))
+    }
+    await recorder.waitForCount(1)
+    let progress = Task {
+        try await session.report(.progress(
+            locator: locator,
+            positionSeconds: 12,
+            isPaused: false
+        ))
+    }
+    let stopped = Task {
+        try await session.report(.stopped(
+            locator: locator,
+            positionSeconds: 20,
+            reachedEOF: false
+        ))
+    }
+    for _ in 0..<20 { await Task.yield() }
+
+    var paths = await recorder.paths
+    #expect(paths == ["/emby/Sessions/Playing"])
+
+    await recorder.releaseNext()
+    await recorder.waitForCount(2)
+    paths = await recorder.paths
+    #expect(paths == [
+        "/emby/Sessions/Playing",
+        "/emby/Sessions/Playing/Progress"
+    ])
+
+    await recorder.releaseNext()
+    await recorder.waitForCount(3)
+    paths = await recorder.paths
+    #expect(paths == [
+        "/emby/Sessions/Playing",
+        "/emby/Sessions/Playing/Progress",
+        "/emby/Sessions/Playing/Stopped"
+    ])
+    await recorder.releaseNext()
+
+    try await started.value
+    try await progress.value
+    try await stopped.value
 }
 
 @Test func legacyUHDNowSourceProducesAnExplicitCanonicalReconnectProposal() {

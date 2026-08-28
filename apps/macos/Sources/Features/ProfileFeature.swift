@@ -14,6 +14,17 @@ struct ProfileFeature {
     struct MirrorPassOutcome: Equatable {
         let shouldContinue: Bool
         let retryDelaySeconds: Int?
+        let terminalFailure: ProfileClientFailure?
+
+        init(
+            shouldContinue: Bool,
+            retryDelaySeconds: Int?,
+            terminalFailure: ProfileClientFailure? = nil
+        ) {
+            self.shouldContinue = shouldContinue
+            self.retryDelaySeconds = retryDelaySeconds
+            self.terminalFailure = terminalFailure
+        }
     }
 
     @ObservableState
@@ -310,6 +321,9 @@ struct ProfileFeature {
 
             case let .internal(.mirrorPassFinished(.success(outcome))):
                 state.isProcessingMirrorQueue = false
+                if let failure = outcome.terminalFailure {
+                    state.failure = failure
+                }
                 if outcome.shouldContinue {
                     return .send(.view(.processMirrorQueue))
                 }
@@ -472,6 +486,7 @@ struct ProfileFeature {
                 let limit = 20
                 let entries = try await profiles.dueMirrorEntries(timestamp, limit)
                 var retryDelay: Int?
+                var terminalFailure: ProfileClientFailure?
                 for entry in entries {
                     guard let locator = entry.locator else {
                         try await profiles.completeMirrorEntry(entry.id)
@@ -493,6 +508,22 @@ struct ProfileFeature {
                         try await profiles.completeMirrorEntry(entry.id)
                     } catch is CancellationError {
                         throw CancellationError()
+                    } catch let failure as MediaSourceFailure {
+                        switch failure.retryDecision {
+                        case let .retry(retryAfterSeconds):
+                            let attempts = entry.attempts + 1
+                            let exponentialDelay = min(300, 1 << min(attempts, 8))
+                            let delay = max(1, retryAfterSeconds ?? exponentialDelay)
+                            try await profiles.rescheduleMirrorEntry(
+                                entry.id,
+                                attempts,
+                                timestamp.addingTimeInterval(TimeInterval(delay))
+                            )
+                            retryDelay = min(retryDelay ?? delay, delay)
+                        case .stop:
+                            try await profiles.completeMirrorEntry(entry.id)
+                            terminalFailure = terminalFailure ?? Self.mirrorFailure(failure)
+                        }
                     } catch {
                         let attempts = entry.attempts + 1
                         let delay = min(300, 1 << min(attempts, 8))
@@ -505,8 +536,9 @@ struct ProfileFeature {
                     }
                 }
                 await send(.internal(.mirrorPassFinished(.success(MirrorPassOutcome(
-                    shouldContinue: !entries.isEmpty && retryDelay == nil,
-                    retryDelaySeconds: retryDelay
+                    shouldContinue: entries.count == limit && retryDelay == nil,
+                    retryDelaySeconds: retryDelay,
+                    terminalFailure: terminalFailure
                 )))))
             } catch is CancellationError {
                 return
@@ -520,5 +552,18 @@ struct ProfileFeature {
     private static func normalize(_ error: Error) -> ProfileClientFailure {
         if let failure = error as? ProfileClientFailure { return failure }
         return .unavailable(String(describing: error))
+    }
+
+    private static func mirrorFailure(_ failure: MediaSourceFailure) -> ProfileClientFailure {
+        switch failure {
+        case .unauthorized:
+            return .unavailable(
+                "The media source needs authentication before mirroring can continue."
+            )
+        case .invalidResponse, .requestRejected, .unsupported:
+            return .unavailable("The media source rejected a mirrored state update.")
+        case .rateLimited, .transport, .unavailable:
+            return .unavailable("The media source is temporarily unavailable.")
+        }
     }
 }

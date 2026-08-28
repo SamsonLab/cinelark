@@ -65,9 +65,7 @@ public struct EmbyPluginFactory: MediaSourcePluginFactory {
         let request = try builder.request(path: "System/Info/Public")
         do {
             let response = try await http.send(request)
-            guard (200..<300).contains(response.response.statusCode) else {
-                throw MediaSourceFailure.unavailable
-            }
+            try EmbyResponseValidator.validate(response.response)
             let info = try JSONDecoder().decode(PublicSystemInfo.self, from: response.data)
             return SourceInstanceIdentity(pluginID: Self.pluginID, serverID: info.id)
         } catch is CancellationError {
@@ -86,6 +84,7 @@ public struct EmbyPluginFactory: MediaSourcePluginFactory {
             http: http,
             tokenVault: tokenVault
         )
+        let playbackReporter = EmbyPlaybackReporter(service: service)
         return MediaSourceRuntime(
             sourceID: configuration.sourceID,
             descriptor: descriptor,
@@ -115,7 +114,7 @@ public struct EmbyPluginFactory: MediaSourcePluginFactory {
                 try await service.playback(locator: locator)
             },
             playbackSession: PlaybackSessionClient { event in
-                try await service.report(event)
+                try await playbackReporter.report(event)
             },
             remoteStateImport: RemoteStateClient(
                 importState: { try await service.importRemoteState() },
@@ -145,5 +144,48 @@ public struct EmbyPluginFactory: MediaSourcePluginFactory {
         components.query = nil
         components.fragment = nil
         return components.url ?? legacyURL
+    }
+}
+
+private actor EmbyPlaybackReporter {
+    private enum Outcome: Sendable {
+        case success
+        case cancelled
+        case failure(MediaSourceFailure)
+    }
+
+    private let service: EmbyService
+    private var tail: Task<Void, Never>?
+
+    init(service: EmbyService) {
+        self.service = service
+    }
+
+    func report(_ event: PlaybackEvent) async throws {
+        let previous = tail
+        let service = service
+        let operation = Task<Outcome, Never> {
+            await previous?.value
+            do {
+                try await service.report(event)
+                return .success
+            } catch is CancellationError {
+                return .cancelled
+            } catch let failure as MediaSourceFailure {
+                return .failure(failure)
+            } catch {
+                return .failure(.transport("Network request failed"))
+            }
+        }
+        tail = Task { _ = await operation.value }
+
+        switch await operation.value {
+        case .success:
+            return
+        case .cancelled:
+            throw CancellationError()
+        case let .failure(failure):
+            throw failure
+        }
     }
 }

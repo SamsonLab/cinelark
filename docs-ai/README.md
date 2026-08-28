@@ -59,3 +59,4 @@ writing, amendment, and verification rules.
 | 019 | [Authenticated artwork delivery](019-authenticated-artwork-delivery/000-plan.md) | 2026-08-27 | Header-authenticated plugin artwork through a credential-free Kingfisher cache boundary |
 | 020 | [Legacy provider retirement](020-legacy-provider-retirement/000-plan.md) | 2026-08-28 | Removal of duplicate provider/session/cache ownership with narrow legacy artifact cleanup |
 | 021 | [Profile onboarding and sync health](021-profile-onboarding-and-sync-health/000-plan.md) | 2026-08-28 | Pending-import recovery, local-first continuation, and truthful CloudKit transport health |
+| 022 | [Emby mutation delivery](022-emby-mutation-delivery/000-plan.md) | 2026-08-28 | Domain failure classification, safe mirror retry, and ordered playback check-ins |

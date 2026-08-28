@@ -82,7 +82,17 @@ non-HTTP(S) references are rejected before the account header can be forwarded.
 
 Started is reported after the engine activates the item. Progress is sent on
 the reducer-controlled cadence and after interactions. Stopped always closes
-the session; only a natural EOF produces local played state automatically.
+the session; only a natural EOF produces local played state automatically. An
+account-bound ordered reporter serializes the three wire submissions even when
+the service actor suspends for HTTP. Check-ins remain best-effort and are not
+replayed after an ambiguous failure.
+
+Emby response normalization maps authentication failures, rate limiting,
+transient service failures, and permanent request rejection into stable domain
+failures without retaining response bodies. Optional Profile mirror delivery
+retries only the safely idempotent desired-state assignments. It honors a
+clamped delta-seconds `Retry-After` value or uses bounded exponential backoff;
+permanent failures stop retrying and never roll back CineLark's local state.
 
 ## Validation
 
@@ -93,8 +103,9 @@ image metadata, secret-free same-origin playback URLs, remote import/mirror
 endpoints, exact-user enforcement, and direct playback headers. Registry and
 TCA tests additionally cover legacy alias ownership, explicit reconnect state,
 identity preservation, successful cleanup, non-destructive validation failure,
-explicit Profile import, and episode playback identity. Private Postman
-responses and live account data are never repository fixtures.
+explicit Profile import, episode playback identity, response retry
+classification, permanent mirror failure, and suspended check-in ordering.
+Private Postman responses and live account data are never repository fixtures.
 
 The [`CineLark Emby Postman kit`](../../tools/postman/README.md) provides the
 same implemented surface as an importable collection, real-server environment

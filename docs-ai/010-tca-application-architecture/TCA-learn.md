@@ -601,3 +601,33 @@ Each entry uses a stable `LNNN` identifier and contains:
   reducers for an incoming action, while child effects emit later actions.
   Assert the completed action chain rather than relying on incidental same-pass
   mutation ordering.
+
+## L022 — Reducers consume domain retry decisions, not transport errors
+
+- **Problem / context:** the durable Profile mirror queue needs `TestClock`
+  scheduling and feature-scoped cancellation, but interpreting Emby 400, 429,
+  or 5xx responses in the reducer would leak provider transport semantics into
+  the Application layer and cause permanent failures to retry forever.
+- **TCA pattern applied:** the plugin converts transport responses into
+  `MediaSourceFailure` plus a provider-neutral retry decision. The reducer
+  switches only on retry versus stop, applies provider delay or exponential
+  backoff through its injected clock, and receives a value-typed
+  `MirrorPassOutcome` Action containing any terminal presentation failure.
+- **Why this boundary was chosen:** the plugin owns protocol meaning and
+  mutation idempotency; TCA owns observable recovery state, cancellation, and
+  time. Neither layer duplicates the other's policy.
+- **Minimal CineLark example:** Emby 429 becomes
+  `.retry(afterSeconds: 7)`, so `ProfileFeature` reschedules the persistent
+  entry and sleeps on `continuousClock`. Emby 400 becomes `.stop`; the entry is
+  completed, local favorite state remains unchanged, and the outcome sets a
+  redacted Feature failure.
+- **Test evidence:** `MediaSourceFailureTests` verifies the provider-neutral
+  decisions; Emby mutation tests verify status projection; and
+  `ProfileFeatureTests` verifies provider-directed delay with `TestClock` plus
+  terminal completion without rescheduling.
+- **Reuse rule:** dependencies must classify external failures before returning
+  them to a reducer. Reducers may schedule retry only from a stable domain
+  decision and only when the command contract declares replay safe.
+- **Version caveat:** TCA 1.26.1 cancellation and `TestClock` make scheduling
+  deterministic, but they do not make an external mutation idempotent. That
+  property must be established below the dependency boundary.

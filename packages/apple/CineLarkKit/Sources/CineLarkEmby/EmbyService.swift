@@ -381,8 +381,7 @@ actor EmbyService {
         ]
         let data = try JSONSerialization.data(withJSONObject: payload)
         let request = try builder.request(path: path, method: "POST", token: token, body: data)
-        let response = try await http.send(request)
-        try validate(response.response)
+        try await sendMutation(request)
     }
 
     func importRemoteState() async throws -> RemoteStateSnapshot {
@@ -444,7 +443,7 @@ actor EmbyService {
                 method: isFavorite ? "POST" : "DELETE",
                 token: token
             )
-            try validate((try await http.send(request)).response)
+            try await sendMutation(request)
 
         case let .playback(locator, state):
             try await report(.progress(
@@ -457,7 +456,7 @@ actor EmbyService {
                 method: state.played ? "POST" : "DELETE",
                 token: token
             )
-            try validate((try await http.send(request)).response)
+            try await sendMutation(request)
         }
     }
 
@@ -473,16 +472,34 @@ actor EmbyService {
     }
 
     private func response<Value: Decodable>(for request: URLRequest) async throws -> Value {
+        let response: HTTPResponse
         do {
-            let response = try await http.send(request)
-            try validate(response.response)
-            return try decoder.decode(Value.self, from: response.data)
+            response = try await http.send(request)
+            try EmbyResponseValidator.validate(response.response)
         } catch is CancellationError {
             throw CancellationError()
         } catch let failure as MediaSourceFailure {
             throw failure
         } catch {
-            throw MediaSourceFailure.transport(String(describing: error))
+            throw MediaSourceFailure.transport("Network request failed")
+        }
+        do {
+            return try decoder.decode(Value.self, from: response.data)
+        } catch {
+            throw MediaSourceFailure.invalidResponse
+        }
+    }
+
+    private func sendMutation(_ request: URLRequest) async throws {
+        do {
+            let response = try await http.send(request)
+            try EmbyResponseValidator.validate(response.response)
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let failure as MediaSourceFailure {
+            throw failure
+        } catch {
+            throw MediaSourceFailure.transport("Network request failed")
         }
     }
 
@@ -613,14 +630,6 @@ actor EmbyService {
             throw MediaSourceFailure.invalidResponse
         }
         return sanitizedURL
-    }
-
-    private func validate(_ response: HTTPURLResponse) throws {
-        switch response.statusCode {
-        case 200..<300: return
-        case 401, 403: throw MediaSourceFailure.unauthorized
-        default: throw MediaSourceFailure.unavailable
-        }
     }
 
     private func authorizationHeader(token: String) throws -> String {

@@ -138,7 +138,10 @@ preserving their existing local `SourceID`.
 
 Remote import remains explicit and idempotent. Outbound favorite/playback mirror
 remains opt-in per binding, with at most one local Profile owning a given
-`{sourceID, remoteUserID}` mirror.
+`{sourceID, remoteUserID}` mirror. The durable queue retries only provider
+failures classified as transient, honors bounded provider delay guidance, and
+uses exponential backoff otherwise. Permanent rejection removes the delivery
+entry and surfaces recovery guidance without rolling back the local Profile.
 
 ## Current implementation boundary
 

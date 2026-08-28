@@ -12,6 +12,7 @@ private actor ProfileSyncRecorder {
     var dueCalls = 0
     var mirrored: [RemoteStateMutation] = []
     var rescheduled: [(UUID, Int, Date)] = []
+    var completed: [UUID] = []
     let dueEntry: MirrorQueueEntry?
 
     init(dueEntry: MirrorQueueEntry? = nil) {
@@ -34,6 +35,10 @@ private actor ProfileSyncRecorder {
 
     func appendReschedule(_ id: UUID, _ attempts: Int, _ date: Date) {
         rescheduled.append((id, attempts, date))
+    }
+
+    func appendCompletion(_ id: UUID) {
+        completed.append(id)
     }
 }
 
@@ -112,7 +117,7 @@ struct ProfileFeatureTests {
         ])
     }
 
-    @Test("Mirror failures reschedule with TestClock backoff before retrying the queue")
+    @Test("Mirror retries honor provider delay through TestClock")
     func mirrorRetry() async {
         let clock = TestClock()
         let now = Date(timeIntervalSince1970: 1_800_000_000)
@@ -151,7 +156,7 @@ struct ProfileFeatureTests {
                 refreshPage: { _ in throw MediaSourceFailure.unavailable },
                 mirrorRemoteState: { _, _, mutation in
                     await recorder.appendMirror(mutation)
-                    throw MediaSourceFailure.unavailable
+                    throw MediaSourceFailure.rateLimited(retryAfterSeconds: 7)
                 }
             )
         }
@@ -162,7 +167,7 @@ struct ProfileFeatureTests {
         await store.receive(.internal(.mirrorPassFinished(.success(
             ProfileFeature.MirrorPassOutcome(
                 shouldContinue: false,
-                retryDelaySeconds: 2
+                retryDelaySeconds: 7
             )
         )))) {
             $0.isProcessingMirrorQueue = false
@@ -170,9 +175,9 @@ struct ProfileFeatureTests {
 
         let rescheduled = await recorder.rescheduled
         #expect(rescheduled.first?.1 == 1)
-        #expect(rescheduled.first?.2 == now.addingTimeInterval(2))
+        #expect(rescheduled.first?.2 == now.addingTimeInterval(7))
 
-        await clock.advance(by: .seconds(2))
+        await clock.advance(by: .seconds(7))
         await store.receive(.view(.processMirrorQueue)) {
             $0.isProcessingMirrorQueue = true
         }
@@ -184,6 +189,64 @@ struct ProfileFeatureTests {
         )))) {
             $0.isProcessingMirrorQueue = false
         }
+    }
+
+    @Test("Permanent mirror failures stop retrying without rolling back local state")
+    func terminalMirrorFailure() async {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let profileID = ProfileID(rawValue: UUID())
+        let sourceID = SourceID(rawValue: UUID())
+        let locator = MediaLocatorID(sourceID: sourceID, providerItemID: "movie-1")
+        let entry = MirrorQueueEntry(
+            id: UUID(),
+            profileID: profileID,
+            sourceID: sourceID,
+            remoteUserID: "user-1",
+            locator: locator,
+            mutation: .favorite(ProfileFavoriteState(
+                profileID: profileID,
+                mediaKey: ProfileMediaKey(locator: locator),
+                isFavorite: true,
+                modifiedAt: now,
+                deviceID: "device"
+            )),
+            nextAttemptAt: now
+        )
+        let recorder = ProfileSyncRecorder(dueEntry: entry)
+        let store = TestStore(initialState: ProfileFeature.State()) {
+            ProfileFeature()
+        } withDependencies: {
+            $0.date.now = now
+            $0.profiles = Self.profileClient(recorder: recorder)
+            $0.mediaPlatform = MediaPlatformClient(
+                descriptors: { [] },
+                cachedPage: { _ in throw MediaSourceFailure.unavailable },
+                refreshPage: { _ in throw MediaSourceFailure.unavailable },
+                mirrorRemoteState: { _, _, _ in
+                    throw MediaSourceFailure.requestRejected
+                }
+            )
+        }
+
+        await store.send(.view(.processMirrorQueue)) {
+            $0.isProcessingMirrorQueue = true
+        }
+        let failure = ProfileClientFailure.unavailable(
+            "The media source rejected a mirrored state update."
+        )
+        await store.receive(.internal(.mirrorPassFinished(.success(
+            ProfileFeature.MirrorPassOutcome(
+                shouldContinue: false,
+                retryDelaySeconds: nil,
+                terminalFailure: failure
+            )
+        )))) {
+            $0.isProcessingMirrorQueue = false
+            $0.failure = failure
+        }
+
+        #expect(await recorder.completed == [entry.id])
+        #expect(await recorder.rescheduled.isEmpty)
     }
 
     @Test("Profile resolution remains semantic feature state until the user chooses")
@@ -412,7 +475,7 @@ struct ProfileFeatureTests {
             enqueueMirror: { _ in },
             importRemoteState: { batch in await recorder.importBatch(batch) },
             dueMirrorEntries: { _, _ in await recorder.dueEntries() },
-            completeMirrorEntry: { _ in },
+            completeMirrorEntry: { id in await recorder.appendCompletion(id) },
             rescheduleMirrorEntry: { id, attempts, date in
                 await recorder.appendReschedule(id, attempts, date)
             },

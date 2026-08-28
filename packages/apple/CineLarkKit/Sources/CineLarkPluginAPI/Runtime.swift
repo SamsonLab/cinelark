@@ -58,8 +58,28 @@ public enum MediaSourceFailure: Error, Codable, Hashable, Sendable {
     case unavailable
     case unauthorized
     case invalidResponse
+    case rateLimited(retryAfterSeconds: Int?)
+    case requestRejected
     case unsupported(String)
     case transport(String)
+}
+
+public enum MediaSourceRetryDecision: Codable, Hashable, Sendable {
+    case retry(afterSeconds: Int?)
+    case stop
+}
+
+public extension MediaSourceFailure {
+    var retryDecision: MediaSourceRetryDecision {
+        switch self {
+        case .unavailable, .transport:
+            return .retry(afterSeconds: nil)
+        case let .rateLimited(retryAfterSeconds):
+            return .retry(afterSeconds: retryAfterSeconds)
+        case .unauthorized, .invalidResponse, .requestRejected, .unsupported:
+            return .stop
+        }
+    }
 }
 
 public typealias MediaSourceChangeStream = AsyncThrowingStream<MediaSourceChange, Error>

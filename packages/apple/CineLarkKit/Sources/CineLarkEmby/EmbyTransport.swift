@@ -48,3 +48,33 @@ public struct EmbyTokenVault: Sendable {
         remove: { _ in }
     )
 }
+
+enum EmbyResponseValidator {
+    private static let maximumRetryAfterSeconds = 3_600
+
+    static func validate(_ response: HTTPURLResponse) throws {
+        switch response.statusCode {
+        case 200..<300:
+            return
+        case 401, 403:
+            throw MediaSourceFailure.unauthorized
+        case 429:
+            throw MediaSourceFailure.rateLimited(
+                retryAfterSeconds: retryAfterSeconds(response)
+            )
+        case 408, 425, 500..<600:
+            throw MediaSourceFailure.unavailable
+        default:
+            throw MediaSourceFailure.requestRejected
+        }
+    }
+
+    private static func retryAfterSeconds(_ response: HTTPURLResponse) -> Int? {
+        guard
+            let value = response.value(forHTTPHeaderField: "Retry-After"),
+            let seconds = Int(value.trimmingCharacters(in: .whitespacesAndNewlines)),
+            seconds > 0
+        else { return nil }
+        return min(seconds, maximumRetryAfterSeconds)
+    }
+}
