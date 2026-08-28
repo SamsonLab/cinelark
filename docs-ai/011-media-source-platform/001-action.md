@@ -4,7 +4,7 @@
 | --- | --- |
 | **Status** | Implemented and verified |
 | **Date** | 2026-08-26 |
-| **Scope** | Plugin contracts, Catalog, Profile persistence, UHDNow, and Emby v1 |
+| **Scope** | Plugin contracts, Catalog, Profile persistence, and Emby v1 |
 
 ## Implemented
 
@@ -17,7 +17,8 @@
 - Added a local Core Data catalog with exact source isolation and one-to-many
   locator support. Matching external IDs do not merge records implicitly.
 - Added bounded `bufferingNewest(1)` catalog and source change streams.
-- Adapted UHDNow to the capability runtime without exposing TCA from the plugin.
+- Proved the initial capability runtime with UHDNow, then consolidated that
+  source into standard Emby with an explicit legacy reconnect migration.
 - Added Emby reverse-proxy-safe URL construction, public-system validation,
   device headers, user authentication, offset pagination, search/browse mapping,
   header-authenticated artwork, direct playback resolution, and playback
@@ -41,8 +42,12 @@
   identity, non-merging content keys, reverse proxy base paths, opaque-to-offset
   cursor mapping, stable device headers, discovery parsing, full hierarchy and
   image mapping, import/mirror endpoints, and token redaction from URLs.
-- The macOS composition root statically registers UHDNow and Emby and builds
-  against the new products.
+- The macOS composition root statically registers the standard Emby source and
+  builds against the new products. A legacy plugin ID is recognized only to
+  present a reconnect proposal; it does not install a separate runtime.
+
+Current aggregate verification on 2026-08-28 passes 67 Swift package tests, 38
+Swift Testing macOS tests, 6 macOS XCTest cases, and an unsigned Release build.
 
 ## Remaining integration checks
 

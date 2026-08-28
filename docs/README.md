@@ -19,12 +19,12 @@ Documents use the following status labels:
 | --- | --- | --- |
 | [Product specification](product-spec.md) | Draft | MVP scope, UX principles, and acceptance criteria |
 | [Viewing insights](product/viewing-insights.md) | Implemented local projection and recommendations | Period summaries, cached enrichment, affinity/recommendation semantics, ownership, and refresh rules |
-| [Architecture](architecture.md) | Accepted direction | Component boundaries and data ownership |
-| [Implementation plan](implementation-plan.md) | Draft | Swift/SwiftUI, Flutter, module, testing, and delivery plan |
+| [Architecture](architecture.md) | Implemented baseline | Component boundaries and data ownership |
+| [Implementation plan](implementation-plan.md) | Implemented baseline | Swift/SwiftUI, Flutter, module, testing, delivery state, and release gates |
 | [ADR-0001](decisions/0001-product-monorepo.md) | Accepted | Product monorepo and external IINA policy |
 | [ADR-0002](decisions/0002-native-macos-flutter-remote.md) | Accepted | Native macOS and cross-platform Remote stacks |
-| [ADR-0003](decisions/0003-bundled-rust-bridge-helper.md) | Accepted direction | Bundled Rust helper and thin IINA adapter |
-| [ADR-0004](decisions/0004-iina-bridge-pairing.md) | Phase 0 accepted | Keychain provisioning, authentication, replay resistance, and threat model |
+| [ADR-0003](decisions/0003-bundled-rust-bridge-helper.md) | Implemented; signed validation pending | Bundled Rust helper and thin IINA adapter |
+| [ADR-0004](decisions/0004-iina-bridge-pairing.md) | Implemented; signed validation pending | Keychain provisioning, authentication, replay resistance, and threat model |
 | [ADR-0005](decisions/0005-homebrew-distribution.md) | Accepted, signing superseded | Project Homebrew tap and quarantine-aware distribution |
 | [ADR-0006](decisions/0006-sparkle-updates.md) | Accepted | Signed Sparkle feeds and native in-app updates |
 | [ADR-0007](decisions/0007-local-automatic-release-signing.md) | Accepted | Local Xcode Automatic Signing, export verification, and publication boundary |
@@ -41,7 +41,7 @@ Documents use the following status labels:
 | [Media source platform](interfaces/media-source-platform.md) | Implemented v1 | Capability-based plugin, identity, query, and runtime contracts |
 | [Personal viewing memory and CloudKit](interfaces/profile-cloudkit-schema.md) | Implemented; physical convergence pending | Identity, dual-store bootstrap, sync health, conflict, merge, import, mirror, and redacted validation rules |
 | [Cache management](interfaces/metadata-cache.md) | Accepted implementation | Catalog/artwork accounting, purge, and user-data boundaries |
-| [Playback bridge](interfaces/playback-bridge.md) | Draft, Phase 0 implemented | Mac app ↔ IINA protocol |
+| [Playback bridge](interfaces/playback-bridge.md) | Implemented v1; signed validation pending | Mac app ↔ IINA protocol |
 | [Remote protocol](interfaces/remote-protocol.md) | Implemented v1 | Flutter Remote ↔ Rust gateway ↔ Mac protocol |
 | [`specs/common/playback.schema.json`](../specs/common/playback.schema.json) | Draft | Cross-language playback state types |
 | [`specs/bridge/envelope.schema.json`](../specs/bridge/envelope.schema.json) | Draft | Bridge message envelope schema |

@@ -1,6 +1,6 @@
 # ADR-0004: Keychain-provisioned IINA bridge pairing
 
-- **Status:** Accepted for Phase 0 implementation; signed-build validation required
+- **Status:** Implemented; signed-build validation required
 - **Date:** 2026-08-20
 
 ## Context

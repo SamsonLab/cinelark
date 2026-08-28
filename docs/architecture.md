@@ -1,7 +1,7 @@
 # CineLark Architecture
 
-- **Status:** Accepted direction; implementation details remain Draft
-- **Last updated:** 2026-08-26
+- **Status:** Implemented baseline; release validation gates remain explicit
+- **Last updated:** 2026-08-28
 
 ## 1. System context
 
@@ -271,8 +271,10 @@ and the serial synchronization worker retains only the latest pending progress
 snapshot for a slow provider. A terminal stopped snapshot forms an ordering
 barrier before a replacement item's first progress write. Successful terminal
 writes drive cache invalidation, observable playback revision, and serialized
-App refresh; failed writes do not advance local synchronization state. Exact
-retry policy is Open.
+App refresh; failed writes do not advance local synchronization state. Provider
+failures are normalized below TCA into retry or stop decisions. Replay-safe
+mutations use provider-directed delay or bounded exponential backoff through
+the durable mirror queue.
 
 ## 5. State and concurrency
 

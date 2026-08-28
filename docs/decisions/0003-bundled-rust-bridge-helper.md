@@ -1,6 +1,6 @@
 # ADR-0003: Bundled Rust helper for the IINA bridge
 
-- **Status:** Accepted direction; Phase 0 spike required
+- **Status:** Implemented; signed distribution validation required
 - **Date:** 2026-08-20
 
 ## Context
@@ -33,10 +33,11 @@ CineLark's product goals.
 - The IINA plugin uses a smaller attack surface and no inbound listener.
 - The app release must build, combine, sign, notarize, update, and supervise a
   universal helper binary.
-- HTTP long-poll latency and IINA plugin scheduling must be proven before the
-  protocol is frozen.
-- Pairing still requires a reviewed high-entropy credential flow and threat
-  model for untrusted local processes.
+- HTTP long-poll, plugin scheduling, dual-loopback binding, authenticated
+  process framing, and replacement playback have automated coverage.
+- Pairing uses the reviewed high-entropy Keychain/HMAC flow in
+  [ADR-0004](0004-iina-bridge-pairing.md). Signed stock-IINA behavior remains a
+  release validation gate.
 
 ## Fallback
 

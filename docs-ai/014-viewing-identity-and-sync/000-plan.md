@@ -2,9 +2,9 @@
 
 | | |
 | --- | --- |
-| **Status** | Active — runtime facts implemented; signed multi-device CloudKit validation pending |
+| **Status** | Implemented locally — signed physical convergence remains a release gate |
 | **Anchor date** | 2026-08-27 |
-| **Primary refs** | Pending |
+| **Primary refs** | [`005-action.md`](005-action.md), [`../021-profile-onboarding-and-sync-health/001-action.md`](../021-profile-onboarding-and-sync-health/001-action.md), [`../023-cloudkit-convergence-validation/001-action.md`](../023-cloudkit-convergence-validation/001-action.md), [`../024-local-recommendations/001-action.md`](../024-local-recommendations/001-action.md) |
 | **Related** | [`../../docs/decisions/0011-personal-viewing-memory.md`](../../docs/decisions/0011-personal-viewing-memory.md), [`../../docs/interfaces/profile-cloudkit-schema.md`](../../docs/interfaces/profile-cloudkit-schema.md), [`../011-media-source-platform/000-plan.md`](../011-media-source-platform/000-plan.md) |
 
 ## Background
@@ -105,6 +105,11 @@ independent remote playback record.
 - A signed two-device CloudKit smoke test remains required before release.
 
 ## Amendments
+
+- Updated 2026-08-28: Sync recovery, deterministic audit capture/comparison,
+  cached historical enrichment, and private local recommendations are
+  implemented. The repository has completed all automatable work for this
+  milestone; the remaining two-Mac signed runbook is an external release gate.
 
 - Updated 2026-08-27: The first vertical slice implemented typed client
   identity, persistent mutation stamps, manifests, deterministic bootstrap

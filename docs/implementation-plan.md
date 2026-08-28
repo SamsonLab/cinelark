@@ -1,7 +1,7 @@
 # Technical Implementation Plan
 
-- **Status:** Draft
-- **Last updated:** 2026-08-20
+- **Status:** Implemented baseline; signed physical-device release gates remain
+- **Last updated:** 2026-08-28
 - **Platform decision:** [ADR-0002](decisions/0002-native-macos-flutter-remote.md)
 
 ## 1. Guiding decisions
@@ -9,9 +9,10 @@
 - macOS is Apple-native: Swift 6, SwiftUI first, AppKit when justified by a
   concrete platform gap.
 - Remote is Flutter/Dart and targets iOS and Android.
-- The IINA bridge uses a bundled Rust helper plus a minimal JavaScript plugin;
-  Remote transport uses a separate bundled Rust TLS/WebSocket gateway. Users
-  never install a Rust runtime or configure a daemon.
+- The IINA bridge and Remote transport use independent centers inside one
+  bundled Rust helper. IINA uses a minimal JavaScript plugin; Remote uses a
+  pinned TLS/WebSocket endpoint. Users never install Rust or configure a
+  daemon.
 - The Mac app is the authority for provider, navigation, playback, and pairing
   state.
 - Shared contracts are designed before cross-runtime features. Do not attempt
@@ -23,7 +24,7 @@
 | Concern | Default |
 | --- | --- |
 | Language | Swift 6 with strict concurrency |
-| UI | SwiftUI and Observation |
+| UI | SwiftUI; TCA 1.26.1 owns Feature/Application state |
 | Platform escape hatch | focused AppKit adapters |
 | Concurrency | async/await, task groups, actors, cancellation |
 | Networking | `URLSession` with typed `Codable` DTOs |
@@ -33,8 +34,9 @@
 | Unit tests | Swift Testing; XCTest where platform/UI tooling requires it |
 | UI tests | XCUITest plus focused state-machine tests |
 
-The minimum macOS/Xcode/IINA versions remain open until two spikes validate
-SwiftUI focus behavior and the stock-IINA bridge.
+Minimum supported versions remain a release-policy decision. The current
+implementation and bridge behavior are covered by unit, conformance, and
+unsigned application build verification.
 
 ### 2.1 Swift package graph
 
@@ -75,7 +77,9 @@ Target rules:
 
 ### 2.2 UI and focus architecture
 
-- Feature models are `@MainActor` and use the Observation framework.
+- Reducers and scoped Stores own observable semantic application state. TCA
+  1.26.1 is pinned exactly; hover, animation, live geometry, and transient focus
+  remain SwiftUI-local.
 - Views render state and emit semantic actions; they do not start provider or
   bridge requests directly.
 - Directional navigation uses stable logical `FocusID` values and an explicit
@@ -92,18 +96,20 @@ reuse semantics without exposing SwiftUI implementation details.
 
 ### 2.3 State and services
 
-Use explicit actors for mutable I/O state:
+TCA orchestrates value-typed dependency clients while mutable I/O remains in
+independent actors and repositories:
 
-- `ProviderSessionActor` — token lifecycle and authenticated requests
-- `ImagePipelineActor` — request deduplication and bounded caches
-- `PlaybackSessionActor` — Rust helper process, bridge connection, and session ordering
-- `ProgressReporterActor` — coalescing, monotonic ordering, and retries
-- `RemoteGatewayActor` — paired devices, helper supervision, capabilities,
-  semantic authorization, and sanitized broadcasts
+- media-source runtimes own authenticated Emby requests and capability clients;
+- `CoreDataCatalogStore` owns recreatable, source-isolated metadata;
+- `CoreDataProfileRepository` owns Cloud/Local personal viewing memory;
+- the playback launcher owns Rust/IINA process and session ordering;
+- the mirror queue serializes retryable provider mutations;
+- the Remote coordinator owns pairing, semantic authorization, and sanitized
+  broadcasts.
 
-Do not add a database initially. Start with Keychain for secrets and bounded
-file caches for recreatable data. Introduce SQLite/GRDB only when offline state,
-querying, or migration requirements are demonstrated.
+Keychain stores secrets. Core Data backs the local Catalog plus CloudKit/local
+Profile configurations. Kingfisher owns the bounded artwork cache. None of
+these runtime objects enters TCA State.
 
 ### 2.4 Dependencies
 
@@ -111,9 +117,9 @@ Prefer Apple frameworks and small protocol seams first. Add a third-party
 library only after the responsible adapter has tests and the dependency reduces
 real lifecycle/security complexity. In particular:
 
-- evaluate an established image pipeline instead of growing a large custom one;
-- do not add a general architecture framework before feature state machines
-  demonstrate the need;
+- use Kingfisher for artwork delivery instead of growing a custom image stack;
+- expose TCA only to the application layer and keep domain/plugin/repository
+  modules on pure Swift concurrency;
 - isolate Keychain, database, and networking dependencies behind CineLark
   protocols.
 
@@ -124,22 +130,22 @@ real lifecycle/security complexity. In particular:
 | Framework | current stable Flutter |
 | Language | Dart 3 |
 | Targets | iOS and Android |
-| State | Riverpod, isolated behind feature/application boundaries |
-| Navigation | `go_router` if multiple product flows justify it |
+| State | application controller with isolated transport/storage services |
+| Navigation | focused screen state; no routing dependency required |
 | Serialization | generated contract models plus conformance tests |
 | Secrets | Keychain/Keystore through a narrow secure-storage adapter |
 | Tests | Dart unit, Flutter widget/golden, and device integration tests |
 
-Proposed structure:
+Current structure:
 
 ```text
 apps/remote/
   lib/
-    app/                 composition, routing, theme
-    application/         connection and command use cases
-    features/            pairing, login, navigation, text input, now playing, settings
-    protocol/            generated models and mapping adapters
-    infrastructure/      discovery, TLS transport, secure storage
+    controller/          connection and semantic command orchestration
+    models/              protocol and rendered state
+    screens/             device selection, pairing, and Remote surfaces
+    services/            TLS transport and secure credential storage
+    widgets/             directional and playback controls
   test/
   integration_test/
 ```
@@ -185,7 +191,7 @@ loopback listener used by the IINA plugin.
 | --- | --- |
 | Toolchain | pinned stable Rust with an explicit MSRV |
 | Runtime | self-contained native helper; no user-installed Rust runtime |
-| Async/HTTP | Tokio + Axum candidate, accepted only after size/latency spike |
+| Async/HTTP | Tokio + Axum |
 | Serialization | Serde/`serde_json` against shared conformance vectors |
 | Logging | `tracing` with mandatory structured redaction |
 | Supply chain | locked dependencies, `cargo audit`, `cargo deny` |
@@ -197,7 +203,7 @@ UI, updater, launch agent, or persistent background mode.
 
 ### 4.3 Plugin-facing local API
 
-Candidate endpoints are internal and versioned:
+The internal endpoints are versioned:
 
 ```text
 GET  /v1/health
@@ -226,9 +232,9 @@ user approves the detected CineLark plugin once; the plugin stores a random,
 revocable bridge credential in its IINA-scoped Keychain. Subsequent sessions
 authenticate automatically.
 
-Exact credential provisioning and message authentication remain part of
-`BRIDGE-SEC-001`. Pairing must not require copying configuration files, editing
-IINA preferences, or entering account credentials twice.
+Credential provisioning and HMAC request/envelope authentication implement
+`BRIDGE-SEC-001`. Pairing requires no copied configuration files, edited IINA
+preferences, or duplicate account entry.
 
 ### 4.5 Zero-configuration delivery
 
@@ -241,23 +247,19 @@ IINA preferences, or entering account credentials twice.
 - Offer clear one-action remediation and a degraded direct-open mode if the
   plugin is unavailable, without blocking library browsing.
 
-### 4.6 Required spike
+### 4.6 Release validation boundary
 
-Before freezing this topology, prove:
+Automated tests cover dual-loopback binding, bounded requests, authentication,
+replay resistance, process framing, replacement playback, and Remote pinned-WSS
+forwarding. Release candidates still require physical validation of:
 
 1. IINA `http` requests to both loopback families work with its domain allowlist.
 2. Bounded long-poll does not block the plugin queue or degrade playback.
 3. Command/event latency is acceptable for pause, seek, and position updates.
 4. Port discovery, helper crash recovery, sleep/wake, and multiple IINA windows
    are deterministic.
-5. Pairing resists unauthorized local clients within the documented threat
-   model.
-6. Universal binary size, signing, notarization, and update replacement work
+5. Universal binary size, signing, notarization, and update replacement work
    without user steps.
-
-If the spike fails, prefer a small upstream IINA IPC/WebSocket-client capability
-over exposing the current all-interface, no-TLS WebSocket server or requiring a
-persistent user-managed daemon.
 
 ## 5. Shared-first design
 
@@ -268,7 +270,7 @@ persistent user-managed daemon.
 | Playback state and track semantics | `specs/common/` | Swift, Rust, Dart, plugin |
 | App ↔ IINA envelope/messages | `specs/bridge/` | Swift, Rust, TypeScript/JavaScript |
 | Remote ↔ Mac envelope/messages | `specs/remote/` | Rust, Swift, Dart |
-| Provider observation | `specs/uhdnow/` | Swift provider adapter |
+| Archived provider observation | `specs/uhdnow/` | historical evidence only |
 | Compatibility fixtures | `fixtures/conformance/` | all protocol runtimes |
 | Color/type/spacing tokens | `shared/design/` | SwiftUI, Flutter |
 | Source logo/icon vectors | `shared/brand/` | all applications/plugins |
@@ -312,7 +314,8 @@ The recommended design is documented in
 [`interfaces/remote-protocol.md`](interfaces/remote-protocol.md):
 
 - Bonjour advertises service identity and protocol range, never secrets.
-- Remote transport is WebSocket over TLS in a separate bundled Rust child.
+- Remote transport is WebSocket over TLS in an isolated center of the bundled
+  Rust child.
 - Pairing uses a high-entropy one-time QR payload and certificate pinning.
 - Successful pairing issues a device-scoped revocable credential.
 - Remote snapshots exclude provider tokens, playback URLs, and provider DTOs.
@@ -344,67 +347,67 @@ iina-plugin-v0.1.0
 
 A shared protocol compatibility matrix is published with each release.
 
-## 8. Implementation phases
+## 8. Delivered phases
 
-### Phase 0 — de-risk foundations
+### Phase 0 — foundations implemented
 
-1. Prototype deterministic SwiftUI focus with keyboard/remote input and an
-   AppKit fallback.
-2. Validate the bundled Rust helper and outbound IINA HTTP/long-poll topology,
-   including `BRIDGE-SEC-001`.
-3. Validate JSON Schema generation/validation in Swift, Rust, Dart, and
-   TypeScript.
-4. Prototype Flutter Bonjour discovery, pinned WSS, secure storage, and local
-   network permission flows on both iOS and Android.
+- Deterministic macOS focus/navigation and AppKit input seams are implemented.
+- The authenticated loopback IINA center and pinned-WSS Remote center share one
+  process shell while retaining isolated protocols and secrets.
+- Swift, Rust, JavaScript, and Dart consume shared conformance vectors.
+- Flutter implements QR pairing, certificate pinning, secure storage, and
+  platform-local networking adapters.
 
-### Phase 1 — native vertical slice
+### Phase 1 — native application implemented
 
-- Create the Swift package/module graph and app shell.
-- Implement a synthetic `MediaLibraryProvider`.
-- Build one home row, detail page, focus restoration, and fake playback flow.
-- Establish design tokens and snapshot/focus tests.
+- The Swift package graph and TCA application shell are complete.
+- Catalog-backed Home, collection, search, favorite, detail, person, cache,
+  Profile, and Insights surfaces own their state through scoped Stores.
+- The temporary `MediaLibraryProvider` boundary and overlapping observable
+  models have been retired.
 
-### Phase 2 — standard Emby integration
+### Phase 2 — standard Emby implemented
 
-- Implement discovery, authentication, DTO mapping, collections/search/details/assets.
-- Add Keychain session restoration and complete redaction tests.
-- Add resume/progress behavior against standard Emby contract fixtures.
-- Route UHDNow subscriptions through Emby and offer an explicit reconnect path
-  for the retired private-adapter source identity.
+- Discovery, reverse-proxy setup, authentication, hierarchy, search, artwork,
+  PlaybackInfo resolution, and Keychain restoration are implemented.
+- Local personal state is independent from Emby. Explicit import and durable
+  outbound favorite/progress mutation delivery use standard Emby contracts.
+- UHDNow subscriptions use standard Emby; the retired source identity only
+  participates in an explicit reconnect migration.
 
-### Phase 3 — IINA playback
+### Phase 3 — IINA playback implemented
 
-- Implement, embed, sign, and supervise the Rust bridge helper.
-- Implement and package the provider-neutral thin IINA plugin.
-- Complete play/resume/state/track/progress integration.
-- Add stock-IINA compatibility tests and failure UX.
+- The universal Rust helper build, supervised process, provider-neutral IINA
+  plugin, resume, telemetry, track control, progress, and sequential episode
+  replacement are implemented and covered by automated tests.
+- Signed stock-IINA and notarized distribution exercises remain release
+  qualification, not missing application architecture.
 
-### Phase 4 — macOS MVP hardening
+### Phase 4 — macOS product baseline implemented
 
-- Complete TV-first surfaces and deterministic focus coverage.
-- Measure launch, image, memory, and navigation budgets.
-- Finalize signing, updates, and minimum platform versions.
+- Settings consolidates configuration into General, Profiles & Sources,
+  Remote, and Storage. Sidebar/navigation state, cache accounting/purge, source
+  setup, Profile recovery, and Viewing Insights are implemented.
+- Signing, notarization, performance budgets, accessibility review, and the
+  physical two-Mac CloudKit matrix remain release-operator gates.
 
-### Phase 5 — Flutter Remote
+### Phase 5 — Flutter Remote implemented
 
-- Freeze Remote protocol version 1 after the Phase 0 spike.
-- Implement pairing, Mac advertisement, reconnect, remote login, navigation, revisioned
-  search text entry, now playing, transport, seek/rate/fullscreen, episode and
-  track selection, volume, device management, and revocation.
-- Validate iOS and Android lifecycle/background behavior.
+- Protocol v1, pairing, multi-Mac credentials, reconnect, remote login,
+  navigation, revisioned search, playback/track/volume controls, and revocation
+  are implemented.
+- Real iOS and Android lifecycle, permission, VPN, and network-transition
+  scenarios remain in the physical-device release smoke matrix.
 
-The first implemented Flutter client reconnects to the QR endpoint. Bonjour
-endpoint recovery remains a follow-up for port or host changes.
+## 9. Intentional future boundaries
 
-## 9. Decisions intentionally left open
-
-- Minimum OS and toolchain versions
-- Swift/Rust/Dart/TypeScript schema generator
-- Rust MSRV and final minimal HTTP/async dependency set
-- Image pipeline and persistence dependencies
-- Whether the IINA bridge needs an upstream IINA API change
-- Remote TLS identity rotation and migration details
-- Flutter packages for mDNS, secure storage, and certificate pinning
-
-These decisions require measured spikes; they do not block the module and
-contract boundaries above.
+- SMB, NFS, WebDAV, DLNA, Plex, multi-source aggregation UI, and managed offline
+  downloads are future Source milestones; the current capability/identity/query
+  contracts reserve their extension points.
+- Collaborative or hosted recommendations require a separate privacy, consent,
+  ranking-quality, and backend decision. Current recommendations are local and
+  explainable.
+- Cross-Apple-ID sharing, child controls, and household permissions are outside
+  Profile v1.
+- Release policy still owns minimum supported versions, signing/notarization,
+  performance thresholds, and physical-device matrices.

@@ -2,7 +2,7 @@
 
 | | |
 | --- | --- |
-| **Status** | Active — contracts, catalog core, UHDNow adapter, and Emby transport slice implemented |
+| **Status** | Implemented v1 — standard Emby runtime, Catalog, and Profile projection complete |
 | **Anchor date** | 2026-08-26 |
 | **Primary refs** | [`001-action.md`](001-action.md), [`../../docs/interfaces/media-source-platform.md`](../../docs/interfaces/media-source-platform.md) |
 | **Related** | [`../010-tca-application-architecture/000-plan.md`](../010-tca-application-architecture/000-plan.md), [`../../docs/interfaces/media-library-provider.md`](../../docs/interfaces/media-library-provider.md), [`../../docs/product-spec.md`](../../docs/product-spec.md) |
@@ -48,8 +48,9 @@ substantially.
 6. Profile, favorite, and playback records use a CloudKit-backed Core Data
    configuration; source configuration, bindings, mirror queues, and catalog
    data use a local configuration. Secrets remain in Keychain.
-7. UHDNow is adapted first, followed by Emby discovery, authentication,
-   library mapping, playback resolution, and check-ins.
+7. Standard Emby discovery, authentication, library mapping, playback
+   resolution, and check-ins implement the first source. Legacy UHDNow source
+   identities receive an explicit reconnect migration into that same runtime.
 
 ## Alternatives & decisions
 
@@ -63,6 +64,12 @@ substantially.
   query shapes retain the necessary extension points.
 
 ## Amendments
+
+- Updated 2026-08-28: v1 is complete. UHDNow no longer exists as an independent
+  runtime; Profile state is local-first; all UI-facing metadata reads use the
+  Catalog; Emby mutations use the durable mirror queue; and CloudKit has a
+  redacted convergence harness. Physical signed-device execution remains a
+  release gate, not an application implementation dependency.
 
 - Updated 2026-08-27: the separate UHDNow runtime is being retired in favor of
   one standard Emby source plus explicit legacy reconnect migration — see

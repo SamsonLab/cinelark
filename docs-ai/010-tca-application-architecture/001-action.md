@@ -48,6 +48,15 @@
 - The macOS test run passes 6 XCTest cases and 15 Swift Testing cases across 8
   suites.
 
+The completed application boundary was revalidated on 2026-08-28 after the
+Profile, mutation-delivery, CloudKit-audit, and Insights milestones:
+
+- `swift test --package-path packages/apple/CineLarkKit` passes 67 tests.
+- Unsigned macOS tests pass 38 Swift Testing tests across 14 suites and 6
+  XCTest cases.
+- An unsigned macOS Release build, including the universal Rust helper embed,
+  succeeds.
+
 ## Operational caveat
 
 CloudKit entitlements require a provisioning profile for

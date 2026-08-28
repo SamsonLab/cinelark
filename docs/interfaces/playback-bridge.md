@@ -1,6 +1,6 @@
 # CineLark Playback Bridge Protocol
 
-- **Status:** Draft; Phase 0 implementation available
+- **Status:** Implemented protocol v1; signed stock-IINA validation pending
 - **Protocol version:** 1
 - **Security status:** Keychain/HMAC design implemented; signed-build validation pending
 

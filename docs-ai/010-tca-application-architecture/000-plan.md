@@ -2,7 +2,7 @@
 
 | | |
 | --- | --- |
-| **Status** | Active — root/navigation/sidebar vertical slice implemented |
+| **Status** | Implemented — application Feature ownership migration complete |
 | **Anchor date** | 2026-08-26 |
 | **Primary refs** | [`001-action.md`](001-action.md), [`../../docs/decisions/0010-tca-application-boundary.md`](../../docs/decisions/0010-tca-application-boundary.md) |
 | **Related** | [`TCA-learn.md`](TCA-learn.md), [`../003-keyboard-first-navigation/000-plan.md`](../003-keyboard-first-navigation/000-plan.md), [`../../docs/architecture.md`](../../docs/architecture.md) |
@@ -60,6 +60,12 @@ sources, playback orchestration, or future multi-protocol features.
   behavior contains verified lifecycle details that must migrate incrementally.
 
 ## Amendments
+
+- Updated 2026-08-28: Profile, Source, Library, Search, Detail, Playback,
+  Remote, Cache, and Insights are TCA-owned. The legacy observable application
+  models and `MediaLibraryProvider` boundary have been removed. The final
+  verified state is recorded in [`001-action.md`](001-action.md) and
+  [`002-feature-ownership-migration.md`](002-feature-ownership-migration.md).
 
 - Updated 2026-08-26: Continue the vertical migration through Profile, Search,
   Detail, Playback, and Remote, removing each legacy observable owner after its
