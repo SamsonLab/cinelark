@@ -34,5 +34,6 @@ jobs:
           -scheme CineLark
           -configuration Debug
           -destination 'platform=macOS'
+          -skipMacroValidation
           CODE_SIGNING_ALLOWED=NO
           build
