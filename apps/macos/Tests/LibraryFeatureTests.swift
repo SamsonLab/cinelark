@@ -9,6 +9,94 @@ import CineLarkProfile
 
 @MainActor
 struct LibraryFeatureTests {
+    @Test("Home collection shelves keep independent keyed results")
+    func collectionShelvesAreIndependent() async {
+        let sourceID = SourceID(rawValue: UUID())
+        let firstCollection = MediaCollection(
+            id: "movies",
+            name: "Movies",
+            mediaKind: .movie,
+            order: 0,
+            itemCount: 1
+        )
+        let secondCollection = MediaCollection(
+            id: "series",
+            name: "Series",
+            mediaKind: .series,
+            order: 1,
+            itemCount: 1
+        )
+        let firstID = CatalogItemID(rawValue: UUID())
+        let secondID = CatalogItemID(rawValue: UUID())
+        var state = LibraryFeature.State()
+        state.sourceID = sourceID
+        let store = TestStore(initialState: state) {
+            LibraryFeature()
+        }
+        store.exhaustivity = .off
+
+        await store.send(.internal(.shelfRefreshed(
+            .collection(firstCollection.id),
+            MediaQuery(
+                scope: SourceScope(sourceID: sourceID),
+                parent: MediaLocatorID(
+                    sourceID: sourceID,
+                    providerItemID: firstCollection.id
+                ),
+                limit: 18
+            ),
+            .success(Self.page(id: firstID, sourceID: sourceID, title: "Movie"))
+        )))
+        await store.send(.internal(.shelfRefreshed(
+            .collection(secondCollection.id),
+            MediaQuery(
+                scope: SourceScope(sourceID: sourceID),
+                parent: MediaLocatorID(
+                    sourceID: sourceID,
+                    providerItemID: secondCollection.id
+                ),
+                limit: 18
+            ),
+            .success(Self.page(id: secondID, sourceID: sourceID, title: "Series"))
+        )))
+
+        #expect(store.state.items(in: firstCollection).map(\.id) == [firstID])
+        #expect(store.state.items(in: secondCollection).map(\.id) == [secondID])
+    }
+
+    @Test("Continue Watching delegates playback from the local Profile position")
+    func resumePlaybackDelegate() async {
+        let sourceID = SourceID(rawValue: UUID())
+        let locator = MediaLocatorID(sourceID: sourceID, providerItemID: "episode-4")
+        let item = LibraryFeature.FavoriteSnapshot(
+            key: ProfileMediaKey(locator: locator),
+            locator: locator,
+            summary: MediaSummary(
+                id: "episode-4",
+                kind: .episode,
+                title: "Episode 4",
+                posterURL: URL(string: "https://example.com/poster.jpg"),
+                userState: UserPlaybackState(
+                    played: false,
+                    positionSeconds: 420,
+                    progress: 0.4
+                )
+            )
+        )
+        let store = TestStore(initialState: LibraryFeature.State()) {
+            LibraryFeature()
+        }
+
+        await store.send(.view(.playResume(item)))
+        await store.receive(.delegate(.play(
+            locator: locator,
+            title: "Episode 4",
+            kind: .episode,
+            artworkURL: URL(string: "https://example.com/poster.jpg"),
+            startPositionSeconds: 420
+        )))
+    }
+
     @Test("Local Profile state replaces provider user data and owns Resume")
     func localProfileStateIsAuthoritative() async {
         let profileID = ProfileID(rawValue: UUID())

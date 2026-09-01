@@ -5,24 +5,21 @@ import CineLarkProfile
 import CineLarkPluginAPI
 
 struct ProfileBootstrap: Equatable, Sendable {
-    let profiles: [Profile]
-    let manifests: [ProfileManifest]
-    let resolution: ProfileBootstrapResolution
+    let profile: Profile
+    let manifest: ProfileManifest
     let sources: [PersistedMediaSource]
     let selection: ActiveProfileSelection
     let bindings: [ProfileSourceBinding]
 
     init(
-        profiles: [Profile],
-        manifests: [ProfileManifest] = [],
-        resolution: ProfileBootstrapResolution,
+        profile: Profile,
+        manifest: ProfileManifest,
         sources: [PersistedMediaSource],
         selection: ActiveProfileSelection,
         bindings: [ProfileSourceBinding] = []
     ) {
-        self.profiles = profiles
-        self.manifests = manifests
-        self.resolution = resolution
+        self.profile = profile
+        self.manifest = manifest
         self.sources = sources
         self.selection = selection
         self.bindings = bindings
@@ -56,9 +53,7 @@ enum ProfileClientFailure: Error, Equatable, Sendable {
 struct ProfileClient: Sendable {
     var clientID: @Sendable () -> ClientID
     var load: @Sendable () async throws -> ProfileBootstrap
-    var resolveProfile: @Sendable (ProfileResolutionChoice) async throws -> ProfileBootstrap
     var cloudSyncStatus: @Sendable () async -> ProfileCloudSyncStatus
-    var saveProfile: @Sendable (Profile) async throws -> Void
     var setSelection: @Sendable (ActiveProfileSelection) async throws -> Void
     var saveSource: @Sendable (PluginID, SourceConfiguration) async throws -> Void
     var saveBinding: @Sendable (ProfileSourceBinding) async throws -> Void
@@ -89,11 +84,7 @@ extension ProfileClient: DependencyKey {
             )
         },
         load: { throw ProfileClientFailure.unavailable("Profile repository is not configured") },
-        resolveProfile: { _ in
-            throw ProfileClientFailure.unavailable("Profile repository is not configured")
-        },
         cloudSyncStatus: { .localOnly },
-        saveProfile: { _ in throw ProfileClientFailure.unavailable("Profile repository is not configured") },
         setSelection: { _ in throw ProfileClientFailure.unavailable("Profile repository is not configured") },
         saveSource: { _, _ in throw ProfileClientFailure.unavailable("Profile repository is not configured") },
         saveBinding: { _ in throw ProfileClientFailure.unavailable("Profile repository is not configured") },
@@ -143,88 +134,7 @@ extension ProfileClient {
                     platform: platform
                 )
             },
-            resolveProfile: { choice in
-                guard let provisional = try await repository.provisionalProfileManifest(
-                    clientID: clientID
-                ) else {
-                    throw ProfileClientFailure.unavailable("Provisional Profile no longer exists")
-                }
-                let previousSelection = try await repository.activeSelection(
-                    deviceID: clientID.description
-                )
-                let selectedProfileID: ProfileID
-                switch choice {
-                case let .useCloud(profileID):
-                    try await repository.discardProvisionalProfile(
-                        clientID: clientID,
-                        profileID: provisional.id
-                    )
-                    selectedProfileID = profileID
-                case let .mergeIntoCloud(profileID):
-                    let timestamp = now()
-                    let stamp = try await repository.nextMutationStamp(
-                        clientID: clientID,
-                        at: timestamp
-                    )
-                    _ = try await repository.mergeProvisionalProfile(
-                        clientID: clientID,
-                        request: ProfileMergeRequest(
-                            operationID: uuid(),
-                            sourceProfileID: provisional.id,
-                            targetProfileID: profileID,
-                            mergedAt: timestamp,
-                            mutationStamp: stamp
-                        )
-                    )
-                    selectedProfileID = profileID
-                case .keepSeparate:
-                    try await repository.promoteProvisionalProfile(
-                        clientID: clientID,
-                        profileID: provisional.id
-                    )
-                    selectedProfileID = provisional.id
-                }
-                try await repository.setActiveSelection(
-                    ActiveProfileSelection(
-                        profileID: selectedProfileID,
-                        sourceID: previousSelection.sourceID
-                    ),
-                    deviceID: clientID.description
-                )
-                return try await loadBootstrap(
-                    repository: repository,
-                    clientID: clientID,
-                    now: now,
-                    uuid: uuid,
-                    deviceName: deviceName,
-                    platform: platform
-                )
-            },
             cloudSyncStatus: { await repository.cloudSyncStatus() },
-            saveProfile: { profile in
-                let stamp: MutationStamp
-                if let existing = profile.mutationStamp {
-                    stamp = existing
-                } else {
-                    stamp = try await repository.nextMutationStamp(
-                        clientID: clientID,
-                        at: profile.modifiedAt
-                    )
-                }
-                let stamped = profile.withMutationStamp(stamp)
-                if let provisional = try await repository.provisionalProfileManifest(
-                    clientID: clientID
-                ) {
-                    guard provisional.id == profile.id else {
-                        throw ProfileClientFailure.unavailable(
-                            "Resolve iCloud Profile setup before creating another Profile"
-                        )
-                    }
-                    try await repository.saveProvisionalProfile(stamped, clientID: clientID)
-                    return
-                }
-                try await repository.saveProfile(stamped)
-            },
             setSelection: {
                 try await repository.setActiveSelection($0, deviceID: clientID.description)
             },
@@ -340,27 +250,21 @@ extension ProfileClient {
         deviceName: @Sendable () -> String,
         platform: @Sendable () -> String
     ) async throws -> ProfileBootstrap {
-        async let cloudManifestValues = repository.profileManifests()
         async let sourceValues = repository.sourceConfigurations()
         async let selectionValue = repository.activeSelection(deviceID: clientID.description)
-        var (cloudManifests, sources, selection) = try await (
-            cloudManifestValues,
-            sourceValues,
-            selectionValue
-        )
+        var cloudManifests = try await repository.profileManifests()
+        let (sources, previousSelection) = try await (sourceValues, selectionValue)
+        var selection = previousSelection
         var provisional = try await repository.provisionalProfileManifest(clientID: clientID)
 
-        let selectedCloudProfileExists = selection.profileID.map { profileID in
-            cloudManifests.contains { $0.id == profileID }
-        } ?? false
-        if provisional == nil && !selectedCloudProfileExists {
+        if provisional == nil && !cloudManifests.contains(where: { $0.id == .personal }) {
             let timestamp = now()
             let stamp = try await repository.nextMutationStamp(
                 clientID: clientID,
                 at: timestamp
             )
             let profile = Profile(
-                id: ProfileID(rawValue: uuid()),
+                id: .personal,
                 name: "Personal",
                 createdAt: timestamp,
                 modifiedAt: timestamp,
@@ -372,91 +276,147 @@ extension ProfileClient {
         }
 
         let availability = await repository.cloudProfileAvailability()
-        var resolution = ProfileBootstrapResolver.resolve(ProfileBootstrapInput(
-            provisionalProfile: provisional,
-            cloudProfiles: cloudManifests,
-            activeProfileID: selection.profileID,
-            cloudAvailability: availability
-        ))
-
-        if case let .promoteProvisional(manifest) = resolution {
-            try await repository.promoteProvisionalProfile(
+        if availability == .available {
+            (cloudManifests, provisional) = try await consolidatePersonalProfile(
+                repository: repository,
                 clientID: clientID,
-                profileID: manifest.id
+                cloudManifests: cloudManifests,
+                provisional: provisional,
+                now: now,
+                uuid: uuid
             )
-            selection = ActiveProfileSelection(
-                profileID: manifest.id,
-                sourceID: selection.sourceID
-            )
-            try await repository.setActiveSelection(selection, deviceID: clientID.description)
-            cloudManifests = try await repository.profileManifests()
-            provisional = nil
-            if let promoted = cloudManifests.first(where: { $0.id == manifest.id }) {
-                resolution = .synchronize(promoted)
-            }
-        } else {
-            let resolvedProfileID: ProfileID?
-            switch resolution {
-            case let .localOnly(manifest), let .synchronize(manifest):
-                resolvedProfileID = manifest.id
-            case .waitingForCloud, .promoteProvisional, .requiresChoice:
-                resolvedProfileID = nil
-            }
-            if let resolvedProfileID, selection.profileID != resolvedProfileID {
-                selection = ActiveProfileSelection(
-                    profileID: resolvedProfileID,
-                    sourceID: selection.sourceID
-                )
-                try await repository.setActiveSelection(selection, deviceID: clientID.description)
-            }
         }
 
-        var manifests = cloudManifests
-        if let provisional,
-           !manifests.contains(where: { $0.id == provisional.id }) {
-            manifests.append(provisional)
+        let cloudProfile = cloudManifests.first(where: { $0.id == .personal })
+            ?? cloudManifests.first
+        let manifest: ProfileManifest
+        switch availability {
+        case .available:
+            guard let cloudProfile = cloudManifests.first(where: { $0.id == .personal }) else {
+                throw ProfileClientFailure.unavailable("Personal Profile is unavailable")
+            }
+            manifest = cloudProfile
+        case .pendingInitialImport:
+            guard let local = provisional ?? cloudProfile else {
+                throw ProfileClientFailure.unavailable("Personal Profile is unavailable")
+            }
+            manifest = local
+        case .unavailable:
+            guard let local = provisional ?? cloudProfile else {
+                throw ProfileClientFailure.unavailable("Personal Profile is unavailable")
+            }
+            manifest = local
         }
-        var bindings: [ProfileSourceBinding] = []
-        for manifest in manifests {
-            bindings.append(contentsOf: try await repository.bindings(profileID: manifest.id))
+
+        selection = ActiveProfileSelection(
+            profileID: manifest.id,
+            sourceID: selection.sourceID
+        )
+        if selection != previousSelection {
+            try await repository.setActiveSelection(selection, deviceID: clientID.description)
         }
-        let registrationProfileID: ProfileID?
-        switch resolution {
-        case let .localOnly(manifest), let .synchronize(manifest):
-            registrationProfileID = manifest.id
-        case let .waitingForCloud(manifest):
-            registrationProfileID = manifest?.id
-        case let .requiresChoice(provisional, _):
-            registrationProfileID = provisional.id
-        case let .promoteProvisional(manifest):
-            registrationProfileID = manifest.id
+        let bindings = try await repository.bindings(profileID: manifest.id)
+        let timestamp = now()
+        let stamp = try await repository.nextMutationStamp(
+            clientID: clientID,
+            at: timestamp
+        )
+        try await repository.saveDeviceRecord(
+            DeviceRecord(
+                id: DeviceRecordID(clientID: clientID),
+                clientID: clientID,
+                displayName: deviceName(),
+                platform: platform(),
+                lastSeenAt: timestamp,
+                mutationStamp: stamp
+            ),
+            profileID: manifest.id
+        )
+        return ProfileBootstrap(
+            profile: manifest.profile,
+            manifest: manifest,
+            sources: sources,
+            selection: selection,
+            bindings: bindings
+        )
+    }
+
+    private static func consolidatePersonalProfile(
+        repository: any ProfileRepository,
+        clientID: ClientID,
+        cloudManifests: [ProfileManifest],
+        provisional: ProfileManifest?,
+        now: @Sendable () -> Date,
+        uuid: @Sendable () -> UUID
+    ) async throws -> ([ProfileManifest], ProfileManifest?) {
+        var cloudManifests = cloudManifests
+        var provisional = provisional
+        if !cloudManifests.contains(where: { $0.id == .personal }) {
+            if provisional?.id == .personal {
+                try await repository.promoteProvisionalProfile(
+                    clientID: clientID,
+                    profileID: .personal
+                )
+                provisional = nil
+            } else {
+                let timestamp = now()
+                let stamp = try await repository.nextMutationStamp(
+                    clientID: clientID,
+                    at: timestamp
+                )
+                try await repository.saveProfile(Profile(
+                    id: .personal,
+                    name: "Personal",
+                    createdAt: cloudManifests.map(\.profile.createdAt).min() ?? timestamp,
+                    modifiedAt: timestamp,
+                    deviceID: clientID.description,
+                    mutationStamp: stamp
+                ))
+            }
+            cloudManifests = try await repository.profileManifests()
         }
-        if let registrationProfileID {
+
+        for legacy in cloudManifests where legacy.id != .personal {
             let timestamp = now()
             let stamp = try await repository.nextMutationStamp(
                 clientID: clientID,
                 at: timestamp
             )
-            try await repository.saveDeviceRecord(
-                DeviceRecord(
-                    id: DeviceRecordID(clientID: clientID),
-                    clientID: clientID,
-                    displayName: deviceName(),
-                    platform: platform(),
-                    lastSeenAt: timestamp,
-                    mutationStamp: stamp
-                ),
-                profileID: registrationProfileID
-            )
+            _ = try await repository.mergeProfiles(ProfileMergeRequest(
+                operationID: uuid(),
+                sourceProfileID: legacy.id,
+                targetProfileID: .personal,
+                mergedAt: timestamp,
+                mutationStamp: stamp
+            ))
         }
-        return ProfileBootstrap(
-            profiles: manifests.map(\.profile),
-            manifests: manifests,
-            resolution: resolution,
-            sources: sources,
-            selection: selection,
-            bindings: bindings
-        )
+
+        if let provisionalManifest = provisional {
+            if provisionalManifest.id == .personal {
+                try await repository.promoteProvisionalProfile(
+                    clientID: clientID,
+                    profileID: .personal
+                )
+            } else {
+                let timestamp = now()
+                let stamp = try await repository.nextMutationStamp(
+                    clientID: clientID,
+                    at: timestamp
+                )
+                _ = try await repository.mergeProvisionalProfile(
+                    clientID: clientID,
+                    request: ProfileMergeRequest(
+                        operationID: uuid(),
+                        sourceProfileID: provisionalManifest.id,
+                        targetProfileID: .personal,
+                        mergedAt: timestamp,
+                        mutationStamp: stamp
+                    )
+                )
+            }
+            provisional = nil
+        }
+        return (try await repository.profileManifests(), provisional)
     }
 
     private static func enqueueMirrorIfEnabled(

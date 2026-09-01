@@ -249,12 +249,120 @@ import CineLarkProfile
     #expect(recommendations.map(\.summary.title) == ["Mixed", "Drama Only"])
     #expect(recommendations.first?.summary.id == "mixed")
     #expect(recommendations.first?.reasons == [
-        .matchingGenre("Drama"),
-        .matchingGenre("Science Fiction")
+        .matchingGenre("Science Fiction"),
+        .matchingGenre("Drama")
     ])
     #expect(recommendations.allSatisfy { $0.summary.userState == .empty })
     #expect(!recommendations.contains { $0.locator == watched })
     #expect(!recommendations.contains { $0.locator == favorite })
+}
+
+@Test func recommendationSignalsAreBoundedAndTimeAware() throws {
+    let profileID = ProfileID(rawValue: UUID())
+    let sourceID = SourceID(rawValue: UUID())
+    let referenceDate = date(2026, 8, 27)
+    let oldDate = referenceDate.addingTimeInterval(-180 * 86_400)
+    let evidence: [(String, String, Double, ViewingSessionStatus, Date)] = [
+        ("long", "Long", 14_400, .stopped, referenceDate),
+        ("old", "Old", 7_200, .completed, oldDate),
+        ("completed", "Completed", 300, .completed, referenceDate),
+        ("short", "Short", 60, .stopped, referenceDate)
+    ]
+    var snapshots: [ProfileMediaKey: ProfileMediaSnapshot] = [:]
+    let sessions = evidence.map { id, genre, watched, status, timestamp in
+        let locator = MediaLocatorID(sourceID: sourceID, providerItemID: id)
+        let key = ProfileMediaKey(locator: locator)
+        snapshots[key] = snapshot(
+            key: key,
+            sourceID: sourceID,
+            title: id,
+            genres: [genre]
+        )
+        return session(
+            profileID: profileID,
+            mediaKey: key,
+            at: timestamp,
+            watched: watched,
+            status: status
+        )
+    }
+    let favoriteLocator = MediaLocatorID(sourceID: sourceID, providerItemID: "favorite")
+    let favoriteKey = ProfileMediaKey(locator: favoriteLocator)
+    snapshots[favoriteKey] = snapshot(
+        key: favoriteKey,
+        sourceID: sourceID,
+        title: "favorite",
+        genres: ["Favorite"]
+    )
+    let candidates = ["Favorite", "Long", "Old", "Completed", "Short"].map {
+        candidate(sourceID: sourceID, id: "candidate-\($0.lowercased())", title: $0, genres: [$0])
+    }
+
+    let recommendations = ViewingRecommendationProjector.project(
+        sessions: sessions,
+        favorites: [
+            ProfileFavoriteState(
+                profileID: profileID,
+                mediaKey: favoriteKey,
+                isFavorite: true,
+                modifiedAt: referenceDate,
+                deviceID: "device"
+            )
+        ],
+        snapshots: snapshots,
+        candidates: candidates,
+        referenceDate: referenceDate
+    )
+
+    #expect(recommendations.map(\.summary.title) == [
+        "Favorite", "Long", "Old", "Completed", "Short"
+    ])
+    #expect(abs((recommendations.first { $0.summary.title == "Long" }?.score ?? 0) - 2) < 0.000_1)
+    #expect(abs((recommendations.first { $0.summary.title == "Old" }?.score ?? 0) - 1.75) < 0.000_1)
+    #expect((recommendations.last?.score ?? 1) < 0.02)
+}
+
+@Test func recommendationRankingDiscountsSecondaryGenreMatches() throws {
+    let profileID = ProfileID(rawValue: UUID())
+    let sourceID = SourceID(rawValue: UUID())
+    let referenceDate = date(2026, 8, 27)
+    let evidence: [(String, String, Double)] = [
+        ("strong", "Strong", 7_200),
+        ("weak-a", "Weak A", 3_600),
+        ("weak-b", "Weak B", 3_600)
+    ]
+    var snapshots: [ProfileMediaKey: ProfileMediaSnapshot] = [:]
+    let sessions = evidence.map { id, genre, watched in
+        let locator = MediaLocatorID(sourceID: sourceID, providerItemID: id)
+        let key = ProfileMediaKey(locator: locator)
+        snapshots[key] = snapshot(
+            key: key,
+            sourceID: sourceID,
+            title: id,
+            genres: [genre]
+        )
+        return session(
+            profileID: profileID,
+            mediaKey: key,
+            at: referenceDate,
+            watched: watched,
+            status: .stopped
+        )
+    }
+
+    let recommendations = ViewingRecommendationProjector.project(
+        sessions: sessions,
+        favorites: [],
+        snapshots: snapshots,
+        candidates: [
+            candidate(sourceID: sourceID, id: "broad", title: "Broad", genres: ["Weak A", "Weak B"]),
+            candidate(sourceID: sourceID, id: "focused", title: "Focused", genres: ["Strong"])
+        ],
+        referenceDate: referenceDate
+    )
+
+    #expect(recommendations.map(\.summary.title) == ["Focused", "Broad"])
+    #expect(recommendations.map(\.score) == [2, 1.35])
 }
 
 @Test func serviceEnrichesHistoryFromCatalogBeforeProjectingRecommendations() async throws {

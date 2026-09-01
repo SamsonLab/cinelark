@@ -125,17 +125,75 @@ struct PlaybackInfoDTO: Decodable {
 
     struct MediaSourceDTO: Decodable {
         let id: String?
+        let name: String?
         let path: String?
+        let container: String?
+        let size: Int64?
+        let runTimeTicks: Int64?
+        let bitRate: Int64?
+        let mediaStreams: [MediaStreamDTO]?
         let directStreamURL: String?
         let supportsDirectPlay: Bool?
         let supportsDirectStream: Bool?
 
         enum CodingKeys: String, CodingKey {
             case id = "Id"
+            case name = "Name"
             case path = "Path"
+            case container = "Container"
+            case size = "Size"
+            case runTimeTicks = "RunTimeTicks"
+            case bitRate = "Bitrate"
+            case mediaStreams = "MediaStreams"
             case directStreamURL = "DirectStreamUrl"
             case supportsDirectPlay = "SupportsDirectPlay"
             case supportsDirectStream = "SupportsDirectStream"
+        }
+    }
+
+    struct MediaStreamDTO: Decodable {
+        let index: Int?
+        let type: String?
+        let codec: String?
+        let profile: String?
+        let bitRate: Int64?
+        let channels: Int?
+        let channelLayout: String?
+        let sampleRate: Int?
+        let language: String?
+        let title: String?
+        let displayTitle: String?
+        let isDefault: Bool?
+        let width: Int?
+        let height: Int?
+        let realFrameRate: Double?
+        let pixelFormat: String?
+        let colorSpace: String?
+        let colorTransfer: String?
+        let colorPrimaries: String?
+        let videoRange: String?
+
+        enum CodingKeys: String, CodingKey {
+            case index = "Index"
+            case type = "Type"
+            case codec = "Codec"
+            case profile = "Profile"
+            case bitRate = "BitRate"
+            case channels = "Channels"
+            case channelLayout = "ChannelLayout"
+            case sampleRate = "SampleRate"
+            case language = "Language"
+            case title = "Title"
+            case displayTitle = "DisplayTitle"
+            case isDefault = "IsDefault"
+            case width = "Width"
+            case height = "Height"
+            case realFrameRate = "RealFrameRate"
+            case pixelFormat = "PixelFormat"
+            case colorSpace = "ColorSpace"
+            case colorTransfer = "ColorTransfer"
+            case colorPrimaries = "ColorPrimaries"
+            case videoRange = "VideoRange"
         }
     }
 

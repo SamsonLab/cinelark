@@ -4,7 +4,7 @@
 | --- | --- |
 | **Status** | Implemented and verified locally |
 | **Anchor date** | 2026-08-28 |
-| **Primary refs** | [Action](001-action.md), [Viewing insights](../../docs/product/viewing-insights.md) |
+| **Primary refs** | [Action](001-action.md), [Balanced weighting](002-balanced-recommendation-weighting.md), [Viewing insights](../../docs/product/viewing-insights.md) |
 | **Related** | [Viewing insights](../../docs/product/viewing-insights.md), [Personal viewing memory](../../docs/decisions/0011-personal-viewing-memory.md), [Media source platform](../../docs/interfaces/media-source-platform.md) |
 
 ## Background
@@ -98,4 +98,6 @@ not redefine the user's durable preference model.
 
 ## Amendments
 
-- None.
+- Updated 2026-08-28: Rebalanced durable preference signals and removed
+  multi-genre cardinality bias — see
+  [002-balanced-recommendation-weighting.md](002-balanced-recommendation-weighting.md).

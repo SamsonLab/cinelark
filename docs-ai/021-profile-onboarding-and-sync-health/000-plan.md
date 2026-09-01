@@ -4,14 +4,15 @@
 | --- | --- |
 | **Status** | Implemented and verified locally |
 | **Anchor date** | 2026-08-28 |
-| **Primary refs** | Pending |
+| **Primary refs** | [Action](001-action.md), [Single Personal Profile](../025-single-personal-profile/001-action.md) |
 | **Related** | [Viewing identity and sync](../014-viewing-identity-and-sync/000-plan.md), [Profile CloudKit schema](../../docs/interfaces/profile-cloudkit-schema.md), [TCA application architecture](../010-tca-application-architecture/000-plan.md) |
 
 ## Background
 
-The repository already keeps a fresh Profile provisional until CloudKit import
-readiness is known and presents an explicit merge/attach/keep-separate choice
-when multiple histories exist. Two product gaps remain:
+This plan originally addressed a repository that kept a fresh Profile
+provisional until CloudKit import readiness was known and presented an explicit
+merge/attach/keep-separate choice when multiple histories existed. Two product
+gaps remained at that point:
 
 - an available iCloud account with a still-pending initial import leaves the
   root on a generic launch spinner with no local-first recovery path;
@@ -88,5 +89,9 @@ still transition to normal synchronization or the explicit Profile-choice UI.
 - Signed two-device validation remains a separate milestone.
 
 ## Amendments
+
+- Updated 2026-08-28: Manual Profile choice was replaced by local-first,
+  automatic consolidation into one account-scoped personal Profile — see
+  [025 — Single personal Profile](../025-single-personal-profile/000-plan.md).
 
 - None.

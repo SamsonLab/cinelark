@@ -356,25 +356,22 @@ Each entry uses a stable `LNNN` identifier and contains:
 
 - **Problem / context:** the first root implementation sent
   `bootstrapCompleted` from `appeared`, so Library could render before CloudKit
-  had resolved the active Profile or Source runtimes had been restored. Elapsed
+  had loaded the Personal Profile or Source runtimes had been restored. Elapsed
   lifecycle time was being treated as business readiness.
-- **Pattern applied:** `ProfileFeature.State` retains the value-typed
-  `ProfileBootstrapResolution`. `AppFeature` maps `waitingForCloud` and
-  `requiresChoice` to distinct root resolution surfaces, and routes
-  `localOnly`/`synchronize` through Source restoration. `sourcesRestored` is the
-  sole transition to `BootstrapState.ready`.
+- **Pattern applied:** `ProfileFeature` loads one value-typed Personal Profile
+  bootstrap. `AppFeature` retains its selection while routing configured
+  Sources through restoration. `sourcesRestored` is the sole transition to
+  `BootstrapState.ready`; CloudKit checking remains non-blocking status.
 - **Why this boundary was chosen:** Profile owns its resolution state and Source
   owns runtime installation. Only the parent owns the fact that both are
   prerequisites for the application shell, so neither child mutates sibling
   state or declares the whole app ready.
-- **Minimal CineLark example:** receiving
-  `.profile(.internal(.loaded(.requiresChoice(...))))` changes root bootstrap to
-  `.resolvingProfile` without applying Library context. After a resolution
-  action reloads `.synchronize`, the parent restores sources and then fans out
-  the selected context.
+- **Minimal CineLark example:** receiving a successful Personal Profile
+  bootstrap retains its canonical selection but does not apply Library context.
+  The parent restores Sources and then fans out the selected context.
 - **Test evidence:**
-  `AppFeatureTests.bootstrapWaitsForProfileResolution` proves unresolved Profile
-  state cannot reveal Library, while
+  `AppFeatureTests.bootstrapProceedsWithPersonalProfile` proves the single
+  Profile needs no choice flow, while
   `AppFeatureTests.bootstrapAppliesContextAfterSourceRestore` proves Source
   restoration is the final readiness transition.
 - **Reuse rule:** model readiness as the conjunction of named semantic
@@ -402,8 +399,8 @@ Each entry uses a stable `LNNN` identifier and contains:
   intent and is therefore the right place to distinguish an invalidation from
   permission to replace the in-flight transaction orchestration.
 - **Minimal CineLark example:** `.repositoryChanged(.profiles)` received during
-  `resolveProfile(.mergeIntoCloud(...))` records a deferred reload. Only after
-  `.loaded(.success(...))` completes the selection transaction does one new
+  automatic legacy consolidation records a deferred reload. Only after
+  `.loaded(.success(...))` completes the bootstrap transaction does one new
   `profiles.load()` begin.
 - **Test evidence:**
   `ProfileFeatureTests.repositoryInvalidationDefersReload` verifies that an
@@ -560,7 +557,8 @@ Each entry uses a stable `LNNN` identifier and contains:
   `MediaLocatorID`, while `ArtworkRequestModifier` resolves the account-bound
   descriptor after a cache miss and attaches headers to one request.
 - **Test evidence:** `ArtworkRequestTests` verifies ephemeral header injection,
-  unsafe URL/origin rejection, and credential-free cache identity.
+  unsafe URL/origin rejection, safe same-origin redirect handling, and
+  credential-free cache identity.
   `platformRoutesArtworkThroughTheAccountBoundRuntime` verifies capability
   routing, and the full unsigned macOS suite passes with authenticated artwork
   enabled across Library, Detail, and Insights.
@@ -572,30 +570,28 @@ Each entry uses a stable `LNNN` identifier and contains:
   sensitive return values from entering State. The boundary depends on the
   client being consumed by transport infrastructure instead of a reducer.
 
-## L021 — Recovery paths must re-enter the original readiness barrier
+## L021 — Degraded bootstrap must re-enter the original readiness barrier
 
 - **Problem / context:** a pending initial CloudKit import is not ordinary
-  loading. Users need to continue with a provisional local Profile, but letting
-  that button set the application directly to ready would bypass account-bound
-  Source restoration and create a second bootstrap path.
-- **TCA pattern applied:** `ProfileFeature` persists the provisional selection
-  and emits its existing `selectionChanged` delegate. While
-  `AppFeature.BootstrapState` is `.waitingForCloud`, the parent routes that
-  delegate back through `SourceFeature.restoreSources`; only
-  `sourcesRestored` transitions to `.ready` and applies context.
-- **Why this boundary was chosen:** the child owns the local-first selection,
-  Source owns runtime installation, and the parent owns their conjunction. The
-  recovery intent changes which prerequisite is acceptable, not who owns
-  readiness.
-- **Minimal CineLark example:** **Continue Offline** selects the Local-store
-  `ProfileID`. It does not publish the Profile or reveal Library immediately;
-  the same Source-restoration response used by normal bootstrap completes the
+  loading, but it also should not require a Profile choice. Proceeding directly
+  to ready would bypass account-bound Source restoration and create a second
+  bootstrap path.
+- **TCA pattern applied:** `ProfileClient` returns the canonical provisional
+  Personal Profile as normal bootstrap data. `AppFeature` always routes that
+  selection through `SourceFeature.restoreSources`; only `sourcesRestored`
+  transitions to `.ready` and applies context.
+- **Why this boundary was chosen:** the repository owns canonical identity,
+  Source owns runtime installation, and the parent owns their conjunction.
+  Cloud availability changes persistence placement and sync status, not the
+  readiness path.
+- **Minimal CineLark example:** pending initial import returns `.personal` from
+  the Local store. It is not published merely because CloudKit is late, and the
+  same Source-restoration response used by cloud-ready bootstrap completes the
   transition.
 - **Test evidence:**
-  `ProfileFeatureTests.continueOffline` verifies the provisional selection and
-  delegate. `AppFeatureTests.bootstrapWaitsForCloudWithRecovery` verifies that
-  Library stays hidden before the choice, then becomes ready only after the
-  emitted actions traverse Source restoration.
+  `ProfileFeatureTests.pendingImportUsesPersonalProfile` verifies canonical
+  local-first identity. `AppFeatureTests.bootstrapProceedsWithPersonalProfile`
+  verifies that readiness still completes only after Source restoration.
 - **Reuse rule:** a recovery or degraded-mode action may relax a prerequisite,
   but it must re-enter the same parent-owned completion barrier as the primary
   path. Do not add a second action that directly marks the application ready.

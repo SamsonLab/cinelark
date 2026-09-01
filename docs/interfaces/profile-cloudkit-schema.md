@@ -16,15 +16,15 @@ becomes an implicit fallback for the active Profile.
 | --- | --- | --- | --- |
 | `ClientID` | One CineLark installation | Local preferences | Generated before network access; used as Emby `DeviceId`; never replaced by Profile resolution |
 | `DeviceRecordID` | Synced device presentation record | Cloud | Records device name and last-seen activity without containing credentials |
-| `ProfileID` | One durable viewing history | Cloud | Multiple Profiles may coexist in one iCloud private database |
+| `ProfileID` | One durable viewing history | Cloud | Fixed canonical Personal identity within each iCloud private database |
 | `SourceID` | One configured media source | Local configuration | Stable app identity; connection details and credentials do not enter CloudKit |
 | `RemoteUserID` | Provider account within a Source | Local binding | Never substitutes for `ProfileID` |
 | `ContentKey` | Optional canonical content evidence | Cloud snapshot/Catalog | Supports future cross-source matching; never replaces a locator |
 | `MediaLocatorID` | Exact provider item/path | Cloud snapshot/Local Catalog | Required to play or mirror a provider mutation |
 
 The active `{profileID, sourceID}` selection is keyed by `ClientID` and remains
-local. Choosing or merging a cloud Profile changes this binding, not the
-client identity.
+local. Bootstrap always repairs its Profile component to `.personal`; Source
+selection remains device-local. This never changes the client identity.
 
 ## Store topology
 
@@ -40,34 +40,29 @@ remote credentials remain in Keychain.
 
 ## Bootstrap state machine
 
-A fresh installation creates `ClientID` and a provisional local Profile before
-CloudKit availability is known. The provisional Profile must not be published
-merely because the local cloud replica is temporarily empty.
+A fresh installation creates `ClientID` and a provisional local Personal
+Profile with the canonical `ProfileID` before CloudKit availability is known.
+It is usable immediately but is not published merely because the local cloud
+replica is temporarily empty.
 
 | Cloud state | Profile state | Resolution |
 | --- | --- | --- |
-| Unavailable | Any | Continue local-only and retry discovery later |
-| Initial import pending | Any | Keep provisional local; show checking state |
-| Confirmed empty | Provisional only | Promote provisional Profile to Cloud |
-| Available | Matching `ProfileID` | Normal synchronization |
-| Available | Different Profiles | Present attach/merge/keep-separate choice |
-
-The choice surface presents Profile name, recent activity, last device, title
-and favorite counts, session count, and total watch time. These manifest values
-are eventually consistent presentation summaries; durable viewing facts remain
-the rebuildable source of truth.
+| Unavailable | Canonical provisional | Continue local-only and retry discovery later |
+| Initial import pending | Canonical provisional | Continue locally; show checking status |
+| Confirmed empty | Canonical provisional | Promote it to Cloud |
+| Available | Canonical cloud Profile | Normal synchronization |
+| Available | Legacy Profile IDs | Automatically consolidate them into `.personal` |
 
 Merge is idempotent. A `ProfileMergeMarker` records the operation, source, and
 target. Cloud-to-cloud merge retains the source as a hidden tombstone-like
-record. Provisional-to-cloud merge copies facts and import markers with their
-original mutation stamps, migrates local bindings, and removes the local
-provisional graph only after the Cloud-store save succeeds.
+record. Consolidation copies facts and import markers with their original
+mutation stamps, migrates local bindings, selections, and mirror-queue entries,
+and removes a provisional graph only after the Cloud-store save succeeds.
 
-While initial import remains pending, the root presents a dedicated iCloud
-checking surface. **Continue Offline** selects the provisional Local-store
-Profile and restores configured Source runtimes without promoting, publishing,
-or merging that Profile. A later successful import still invalidates bootstrap
-and may produce normal synchronization or the explicit resolution choice.
+While initial import remains pending, the app restores configured Source
+runtimes against the canonical provisional graph without a blocking choice.
+A later successful import invalidates bootstrap and automatically consolidates
+the graph into the same identity.
 
 ## Synchronization health
 
@@ -151,14 +146,14 @@ Implemented and covered by package tests:
 - persistent hybrid logical mutation-clock entity;
 - mutation-stamp conflict ordering with legacy fallback;
 - Profile manifests over current snapshot/projection data;
-- bootstrap resolution as a pure contract;
+- stable canonical Personal Profile identity across devices;
 - idempotent Profile merge markers and non-destructive source retention;
 - tombstoned Profile deletion.
 - Local-store provisional Profile, favorite, playback, media-snapshot, and
   import-marker routing;
 - CloudKit account status and completed initial-import readiness checks;
 - idempotent provisional promotion and merge;
-- TCA application-readiness barrier and root Profile-resolution surface.
+- automatic legacy/provisional consolidation and the TCA application-readiness barrier.
 - Cloud and provisional `DeviceRecord`, `ViewingSession`, and
   `ProfilePlaybackEvent` persistence;
 - atomic playback projection/session/event/device writes before independent
@@ -173,8 +168,8 @@ Implemented and covered by package tests:
   Profile-owned facts. Derived snapshots remain outside Core Data and CloudKit.
 - exact-locator cached enrichment for missing snapshot genres/artwork, persisted
   with the mutation clock without storing recommendation projections;
-- explicit pending-import recovery and local-first continuation through the
-  application readiness barrier;
+- automatic pending-import local-first continuation through the application
+  readiness barrier;
 - Settings sync health over account status plus setup/import/export events.
 - privacy-preserving Profile fact audits and a signed-app convergence harness;
   see the [CloudKit convergence runbook](../runbooks/cloudkit-convergence-validation.md).

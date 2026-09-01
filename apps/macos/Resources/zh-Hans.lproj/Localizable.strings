@@ -1,6 +1,7 @@
 "language.label" = "语言";
 "language.help" = "切换界面语言";
 "general.dismiss" = "关闭";
+"general.retry" = "重试";
 "general.refresh" = "刷新";
 "general.view_all" = "查看全部";
 "general.selected" = "已选择";
@@ -130,6 +131,9 @@
 "asset.choose_hint" = "选择这个片源版本的播放选项";
 
 "playback.loading" = "正在载入可用片源…";
+"playback.preparing" = "正在准备播放…";
+"playback.unavailable" = "暂时无法播放";
+"error.iina_load_timeout" = "IINA 未能及时载入媒体。请重新连接 CineLark Bridge 后重试。";
 "playback.none" = "没有可播放的片源";
 "playback.none_description" = "服务提供方没有返回媒体资源。";
 "playback.title" = "播放选项";
@@ -207,7 +211,7 @@
 "error.iina_plugin_install" = "请完成并启用 IINA Bridge 安装，然后重试。";
 "error.iina_plugin_setup_quit" = "CineLark 需要安装或更新 IINA Bridge。请完全退出 IINA 后再次播放，CineLark 将安全完成操作。";
 "error.iina_plugin_install_failed" = "CineLark 无法安全安装内置的 IINA Bridge，请重新安装 CineLark 后重试。";
-"error.iina_plugin_unavailable" = "CineLark IINA Bridge 尚未启用，请在 IINA 中启用后重试。";
+"error.iina_plugin_unavailable" = "CineLark IINA Bridge 未连接。请在 IINA 中选择“插件 > CineLark Bridge > Reconnect CineLark Bridge”，然后重试。";
 "error.bridge_helper" = "CineLark 无法启动内置播放辅助程序，请重新安装 CineLark 后重试。";
 "error.bridge_authentication" = "IINA 无法与 CineLark 完成认证，请重新安装 Bridge 以再次配对。";
 "error.bridge_unavailable" = "CineLark IINA Bridge 当前不可用，请启动 IINA 后重试。";

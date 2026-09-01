@@ -123,11 +123,10 @@ function playbackEntry(payload, sessionID) {
 }
 
 function applyHTTPHeaders(headers) {
-  const value = Object.entries(headers || {})
+  const values = Object.entries(headers || {})
     .filter(([name, headerValue]) => name && typeof headerValue === 'string')
-    .map(([name, headerValue]) => `${name}: ${headerValue}`)
-    .join(',');
-  mpv.set('http-header-fields', value);
+    .map(([name, headerValue]) => `${name}: ${headerValue}`);
+  mpv.set('file-local-options/http-header-fields', values);
 }
 
 function activatePlayingEntry() {
@@ -480,6 +479,7 @@ function handleCommand(command) {
     // IINA applies its normal close-at-end window policy.
     keepManagedPlayerOpen();
     applyHTTPHeaders(entry.httpHeaders);
+    mpv.set('force-media-title', entry.title);
     core.open(payload.url);
     return;
   }

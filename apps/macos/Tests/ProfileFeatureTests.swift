@@ -249,84 +249,57 @@ struct ProfileFeatureTests {
         #expect(await recorder.rescheduled.isEmpty)
     }
 
-    @Test("Profile resolution remains semantic feature state until the user chooses")
-    func profileResolutionChoice() async {
+    @Test("Bootstrap consolidates legacy Profiles into the stable Personal Profile")
+    func bootstrapConsolidatesLegacyProfiles() async throws {
         let clientID = ClientID(rawValue: UUID())
         let date = Date(timeIntervalSince1970: 100)
-        let provisional = ProfileManifest(
-            profile: Profile(
-                id: ProfileID(rawValue: UUID()),
-                name: "This Mac",
-                createdAt: date,
+        let repository = try CoreDataProfileRepository(configuration: .init(inMemory: true))
+        let first = ProfileID(rawValue: UUID())
+        let second = ProfileID(rawValue: UUID())
+        try await repository.saveProfile(Profile(
+            id: first,
+            name: "Legacy A",
+            createdAt: date,
+            modifiedAt: date,
+            deviceID: "device-a"
+        ))
+        try await repository.saveProfile(Profile(
+            id: second,
+            name: "Legacy B",
+            createdAt: date.addingTimeInterval(1),
+            modifiedAt: date.addingTimeInterval(1),
+            deviceID: "device-b"
+        ))
+        try await repository.saveFavorite(
+            ProfileFavoriteState(
+                profileID: first,
+                mediaKey: ProfileMediaKey(rawValue: "legacy:a"),
+                isFavorite: true,
                 modifiedAt: date,
-                deviceID: clientID.description
+                deviceID: "device-a"
             ),
-            lastActivityAt: date,
-            lastDeviceName: "This Mac",
-            titleCount: 1,
-            viewingSessionCount: 1,
-            favoriteCount: 0,
-            totalWatchSeconds: 120
+            snapshot: nil
         )
-        let cloud = ProfileManifest(
-            profile: Profile(
-                id: ProfileID(rawValue: UUID()),
-                name: "iCloud",
-                createdAt: date,
-                modifiedAt: date,
-                deviceID: "other-device"
+        try await repository.saveFavorite(
+            ProfileFavoriteState(
+                profileID: second,
+                mediaKey: ProfileMediaKey(rawValue: "legacy:b"),
+                isFavorite: true,
+                modifiedAt: date.addingTimeInterval(1),
+                deviceID: "device-b"
             ),
-            lastActivityAt: date,
-            lastDeviceName: "Other Mac",
-            titleCount: 20,
-            viewingSessionCount: 8,
-            favoriteCount: 3,
-            totalWatchSeconds: 3_600
+            snapshot: nil
         )
-        let unresolved = ProfileBootstrap(
-            profiles: [provisional.profile, cloud.profile],
-            manifests: [provisional, cloud],
-            resolution: .requiresChoice(
-                provisional: provisional,
-                cloudProfiles: [cloud]
-            ),
-            sources: [],
-            selection: ActiveProfileSelection(profileID: nil, sourceID: nil)
-        )
-        let resolved = ProfileBootstrap(
-            profiles: [cloud.profile],
-            manifests: [cloud],
-            resolution: .synchronize(cloud),
-            sources: [],
-            selection: ActiveProfileSelection(profileID: cloud.id, sourceID: nil)
-        )
-        let recorder = ProfileSyncRecorder()
-        var client = Self.profileClient(recorder: recorder)
-        client.resolveProfile = { choice in
-            #expect(choice == .mergeIntoCloud(cloud.id))
-            return resolved
-        }
-        let store = TestStore(initialState: ProfileFeature.State()) {
-            ProfileFeature()
-        } withDependencies: {
-            $0.profiles = client
-        }
+        let client = ProfileClient.live(repository: repository, clientID: clientID)
 
-        await store.send(.internal(.loaded(.success(unresolved)))) {
-            $0.profiles = unresolved.profiles
-            $0.manifests = unresolved.manifests
-            $0.bootstrapResolution = unresolved.resolution
-        }
-        await store.send(.view(.resolveProfile(.mergeIntoCloud(cloud.id)))) {
-            $0.isLoading = true
-        }
-        await store.receive(.internal(.loaded(.success(resolved)))) {
-            $0.isLoading = false
-            $0.profiles = resolved.profiles
-            $0.manifests = resolved.manifests
-            $0.activeProfileID = cloud.id
-            $0.bootstrapResolution = resolved.resolution
-        }
+        let firstBootstrap = try await client.load()
+        let secondBootstrap = try await client.load()
+
+        #expect(firstBootstrap.profile.id == .personal)
+        #expect(firstBootstrap.selection.profileID == .personal)
+        #expect(secondBootstrap.profile.id == .personal)
+        #expect(try await repository.profiles().map(\.id) == [.personal])
+        #expect(try await repository.favorites(profileID: .personal).count == 2)
     }
 
     @Test("Repository invalidations coalesce behind an active bootstrap load")
@@ -349,9 +322,8 @@ struct ProfileFeatureTests {
             totalWatchSeconds: 0
         )
         let bootstrap = ProfileBootstrap(
-            profiles: [profile],
-            manifests: [manifest],
-            resolution: .synchronize(manifest),
+            profile: profile,
+            manifest: manifest,
             sources: [],
             selection: ActiveProfileSelection(profileID: profile.id, sourceID: nil)
         )
@@ -370,10 +342,9 @@ struct ProfileFeatureTests {
             $0.needsReloadAfterCurrentLoad = true
         }
         await store.send(.internal(.loaded(.success(bootstrap)))) {
-            $0.profiles = bootstrap.profiles
-            $0.manifests = bootstrap.manifests
+            $0.profile = bootstrap.profile
+            $0.manifest = bootstrap.manifest
             $0.activeProfileID = profile.id
-            $0.bootstrapResolution = bootstrap.resolution
             $0.needsReloadAfterCurrentLoad = false
         }
         await store.receive(.internal(.loaded(.success(bootstrap)))) {
@@ -409,52 +380,25 @@ struct ProfileFeatureTests {
         }
     }
 
-    @Test("Pending initial import can continue with the provisional local Profile")
-    func continueOffline() async {
-        let date = Date(timeIntervalSince1970: 100)
-        let provisional = ProfileManifest(
-            profile: Profile(
-                id: ProfileID(rawValue: UUID()),
-                name: "Personal",
-                createdAt: date,
-                modifiedAt: date,
-                deviceID: "this-mac"
-            ),
-            lastActivityAt: nil,
-            lastDeviceName: "This Mac",
-            titleCount: 0,
-            viewingSessionCount: 0,
-            favoriteCount: 0,
-            totalWatchSeconds: 0
+    @Test("Pending initial import uses the Personal Profile locally")
+    func pendingImportUsesPersonalProfile() async throws {
+        let clientID = ClientID(rawValue: UUID())
+        let repository = try CoreDataProfileRepository(configuration: .init(
+            inMemory: true,
+            cloudAvailabilityOverride: .pendingInitialImport
+        ))
+        let client = ProfileClient.live(
+            repository: repository,
+            clientID: clientID,
+            now: { Date(timeIntervalSince1970: 100) }
         )
-        let bootstrap = ProfileBootstrap(
-            profiles: [provisional.profile],
-            manifests: [provisional],
-            resolution: .waitingForCloud(provisional),
-            sources: [],
-            selection: ActiveProfileSelection(profileID: nil, sourceID: nil)
-        )
-        let recorder = ProfileSyncRecorder()
-        let store = TestStore(initialState: ProfileFeature.State()) {
-            ProfileFeature()
-        } withDependencies: {
-            $0.profiles = Self.profileClient(recorder: recorder)
-        }
 
-        await store.send(.internal(.loaded(.success(bootstrap)))) {
-            $0.profiles = bootstrap.profiles
-            $0.manifests = bootstrap.manifests
-            $0.bootstrapResolution = bootstrap.resolution
-        }
-        await store.send(.view(.continueOffline))
-        let selection = ActiveProfileSelection(
-            profileID: provisional.id,
-            sourceID: nil
-        )
-        await store.receive(.internal(.selectionSaved(selection, .success))) {
-            $0.activeProfileID = provisional.id
-        }
-        await store.receive(.delegate(.selectionChanged(selection)))
+        let bootstrap = try await client.load()
+
+        #expect(bootstrap.profile.id == .personal)
+        #expect(bootstrap.selection.profileID == .personal)
+        #expect(try await repository.profiles().isEmpty)
+        #expect(try await repository.provisionalProfileManifest(clientID: clientID)?.id == .personal)
     }
 
     private static func profileClient(recorder: ProfileSyncRecorder) -> ProfileClient {
@@ -463,9 +407,7 @@ struct ProfileFeatureTests {
                 ClientID(rawValue: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!)
             },
             load: { throw ProfileClientFailure.unavailable("unused") },
-            resolveProfile: { _ in throw ProfileClientFailure.unavailable("unused") },
             cloudSyncStatus: { .localOnly },
-            saveProfile: { _ in },
             setSelection: { _ in },
             saveSource: { _, _ in },
             saveBinding: { _ in },

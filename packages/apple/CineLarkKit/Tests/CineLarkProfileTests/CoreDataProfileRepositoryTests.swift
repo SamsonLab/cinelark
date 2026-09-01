@@ -4,6 +4,11 @@ import CineLarkDomain
 import CineLarkPluginAPI
 @testable import CineLarkProfile
 
+@Test func personalProfileIdentityIsStableAcrossDevices() {
+    #expect(ProfileID.personal == ProfileID.personal)
+    #expect(ProfileID.personal.rawValue.uuidString == "43494E45-4C41-5B50-8052-4F46494C4501")
+}
+
 @Test func legacyMediaSnapshotDecodesWithoutInsightMetadata() throws {
     let snapshot = ProfileMediaSnapshot(
         key: ProfileMediaKey(rawValue: "legacy:movie"),
@@ -422,42 +427,6 @@ import CineLarkPluginAPI
     #expect(afterRemote.clientID == clientID.description)
 }
 
-@Test func bootstrapResolutionDistinguishesCloudStateAndProfileIdentity() {
-    let provisional = manifest(id: "00000000-0000-0000-0000-000000000001", name: "This Mac")
-    let cloud = manifest(id: "00000000-0000-0000-0000-000000000002", name: "Personal")
-
-    #expect(ProfileBootstrapResolver.resolve(ProfileBootstrapInput(
-        provisionalProfile: provisional,
-        cloudProfiles: [],
-        activeProfileID: nil,
-        cloudAvailability: .unavailable
-    )) == .localOnly(provisional))
-    #expect(ProfileBootstrapResolver.resolve(ProfileBootstrapInput(
-        provisionalProfile: provisional,
-        cloudProfiles: [],
-        activeProfileID: nil,
-        cloudAvailability: .pendingInitialImport
-    )) == .waitingForCloud(provisional))
-    #expect(ProfileBootstrapResolver.resolve(ProfileBootstrapInput(
-        provisionalProfile: provisional,
-        cloudProfiles: [],
-        activeProfileID: nil,
-        cloudAvailability: .available
-    )) == .promoteProvisional(provisional))
-    #expect(ProfileBootstrapResolver.resolve(ProfileBootstrapInput(
-        provisionalProfile: provisional,
-        cloudProfiles: [provisional],
-        activeProfileID: provisional.id,
-        cloudAvailability: .available
-    )) == .synchronize(provisional))
-    #expect(ProfileBootstrapResolver.resolve(ProfileBootstrapInput(
-        provisionalProfile: provisional,
-        cloudProfiles: [cloud],
-        activeProfileID: nil,
-        cloudAvailability: .available
-    )) == .requiresChoice(provisional: provisional, cloudProfiles: [cloud]))
-}
-
 @Test func cloudSyncStatusProjectsAccountAndTransportFacts() {
     let completedAt = Date(timeIntervalSince1970: 200)
 
@@ -537,16 +506,18 @@ import CineLarkPluginAPI
         ))
     }
     let mediaKey = ProfileMediaKey(rawValue: "movie:merge")
-    try await repository.saveFavorite(ProfileFavoriteState(
+    let favorite = ProfileFavoriteState(
         profileID: sourceID,
         mediaKey: mediaKey,
         isFavorite: true,
         modifiedAt: createdAt,
         deviceID: "client-a",
         mutationStamp: baseStamp
-    ), snapshot: nil)
+    )
+    try await repository.saveFavorite(favorite, snapshot: nil)
+    let mediaSourceID = SourceID(rawValue: UUID())
     let locator = MediaLocatorID(
-        sourceID: SourceID(rawValue: UUID()),
+        sourceID: mediaSourceID,
         providerItemID: "movie-merge"
     )
     try await repository.savePlayback(playbackWrite(
@@ -558,6 +529,42 @@ import CineLarkPluginAPI
         clientID: ClientID(rawValue: UUID()),
         watchedSeconds: 25
     ))
+    try await repository.saveBinding(ProfileSourceBinding(
+        profileID: targetID,
+        sourceID: mediaSourceID,
+        remoteUserID: "emby-user",
+        mirrorsRemoteState: false
+    ))
+    try await repository.saveBinding(ProfileSourceBinding(
+        profileID: sourceID,
+        sourceID: mediaSourceID,
+        remoteUserID: "emby-user",
+        mirrorsRemoteState: true
+    ))
+    try await repository.setActiveSelection(
+        ActiveProfileSelection(profileID: sourceID, sourceID: mediaSourceID),
+        deviceID: "client-a"
+    )
+    let queueID = UUID()
+    try await repository.enqueueMirror(MirrorQueueEntry(
+        id: queueID,
+        profileID: sourceID,
+        sourceID: mediaSourceID,
+        remoteUserID: "emby-user",
+        locator: locator,
+        mutation: .favorite(favorite),
+        nextAttemptAt: createdAt
+    ))
+    let importBatch = RemoteStateImportBatch(
+        marker: "merge-import",
+        profileID: sourceID,
+        sourceID: mediaSourceID,
+        remoteUserID: "emby-user",
+        snapshots: [],
+        favorites: [],
+        playback: []
+    )
+    #expect(try await repository.importRemoteState(importBatch))
 
     let request = ProfileMergeRequest(
         operationID: UUID(),
@@ -577,6 +584,34 @@ import CineLarkPluginAPI
     #expect(try await repository.favorite(profileID: sourceID, mediaKey: mediaKey)?.isFavorite == true)
     #expect(try await repository.viewingSessions(profileID: targetID).count == 1)
     #expect(try await repository.playbackEvents(profileID: targetID).count == 1)
+    #expect(try await repository.bindings(profileID: targetID) == [
+        ProfileSourceBinding(
+            profileID: targetID,
+            sourceID: mediaSourceID,
+            remoteUserID: "emby-user",
+            mirrorsRemoteState: true
+        )
+    ])
+    #expect(try await repository.activeSelection(deviceID: "client-a").profileID == targetID)
+    let queued = try #require(
+        try await repository.dueMirrorEntries(at: createdAt, limit: 1).first
+    )
+    #expect(queued.id == queueID)
+    #expect(queued.profileID == targetID)
+    if case let .favorite(state) = queued.mutation {
+        #expect(state.profileID == targetID)
+    } else {
+        Issue.record("Expected migrated favorite mutation")
+    }
+    #expect(try await !repository.importRemoteState(RemoteStateImportBatch(
+        marker: importBatch.marker,
+        profileID: targetID,
+        sourceID: mediaSourceID,
+        remoteUserID: importBatch.remoteUserID,
+        snapshots: [],
+        favorites: [],
+        playback: []
+    )))
 }
 
 @Test func provisionalStateStaysLocalUntilIdempotentPromotion() async throws {

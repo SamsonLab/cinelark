@@ -28,10 +28,16 @@ struct MediaPlatformClient: Sendable {
     var resume: @Sendable (MediaQuery) async throws -> MediaPage
     var detail: @Sendable (MediaLocatorID, MediaSummary) async throws -> MediaDetail
     var seasons: @Sendable (MediaLocatorID) async throws -> [Season]
+    var seriesPlayback: @Sendable (MediaLocatorID) async throws -> SeriesPlaybackState
     var episodes: @Sendable (MediaLocatorID, String, PageRequest) async throws -> Page<Episode>
     var person: @Sendable (SourceID, String) async throws -> PersonDetail
     var works: @Sendable (String, MediaQuery) async throws -> MediaPage
+    var playbackVariants: @Sendable (MediaLocatorID) async throws -> [PlaybackVariant]
     var resolvePlayback: @Sendable (MediaLocatorID) async throws -> SourcePlaybackDescriptor
+    var resolvePlaybackVariant: @Sendable (
+        MediaLocatorID,
+        String?
+    ) async throws -> SourcePlaybackDescriptor
     var reportPlayback: @Sendable (SourceID, CineLarkPluginAPI.PlaybackEvent) async throws -> Void
     var importRemoteState: @Sendable (SourceID) async throws -> RemoteStateSnapshot
     var mirrorRemoteState: @Sendable (SourceID, String, RemoteStateMutation) async throws -> Void
@@ -78,6 +84,9 @@ struct MediaPlatformClient: Sendable {
         seasons: @escaping @Sendable (MediaLocatorID) async throws -> [Season] = { _ in
             throw MediaSourceFailure.unsupported("seasons")
         },
+        seriesPlayback: @escaping @Sendable (MediaLocatorID) async throws -> SeriesPlaybackState = { _ in
+            SeriesPlaybackState(resume: nil, nextUp: nil)
+        },
         episodes: @escaping @Sendable (MediaLocatorID, String, PageRequest) async throws -> Page<Episode> = { _, _, _ in
             throw MediaSourceFailure.unsupported("episodes")
         },
@@ -87,9 +96,16 @@ struct MediaPlatformClient: Sendable {
         works: @escaping @Sendable (String, MediaQuery) async throws -> MediaPage = { _, _ in
             throw MediaSourceFailure.unsupported("works")
         },
+        playbackVariants: @escaping @Sendable (MediaLocatorID) async throws -> [PlaybackVariant] = { _ in
+            []
+        },
         resolvePlayback: @escaping @Sendable (MediaLocatorID) async throws -> SourcePlaybackDescriptor = { _ in
             throw MediaSourceFailure.unsupported("playback")
         },
+        resolvePlaybackVariant: (@Sendable (
+            MediaLocatorID,
+            String?
+        ) async throws -> SourcePlaybackDescriptor)? = nil,
         reportPlayback: @escaping @Sendable (SourceID, CineLarkPluginAPI.PlaybackEvent) async throws -> Void = { _, _ in },
         importRemoteState: @escaping @Sendable (SourceID) async throws -> RemoteStateSnapshot = { _ in
             throw MediaSourceFailure.unsupported("remoteStateImport")
@@ -114,10 +130,15 @@ struct MediaPlatformClient: Sendable {
         self.resume = resume
         self.detail = detail
         self.seasons = seasons
+        self.seriesPlayback = seriesPlayback
         self.episodes = episodes
         self.person = person
         self.works = works
+        self.playbackVariants = playbackVariants
         self.resolvePlayback = resolvePlayback
+        self.resolvePlaybackVariant = resolvePlaybackVariant ?? { locator, _ in
+            try await resolvePlayback(locator)
+        }
         self.reportPlayback = reportPlayback
         self.importRemoteState = importRemoteState
         self.mirrorRemoteState = mirrorRemoteState
@@ -206,6 +227,9 @@ extension MediaPlatformClient {
             seasons: { locator in
                 try await platform.hierarchy(for: locator.sourceID).seasons(locator)
             },
+            seriesPlayback: { locator in
+                try await platform.hierarchy(for: locator.sourceID).seriesPlayback(locator)
+            },
             episodes: { locator, seasonID, page in
                 try await platform.hierarchy(for: locator.sourceID).episodes(locator, seasonID, page)
             },
@@ -219,7 +243,11 @@ extension MediaPlatformClient {
                     catalog: catalog
                 )
             },
+            playbackVariants: { try await platform.playbackVariants(for: $0) },
             resolvePlayback: { try await platform.playback(for: $0) },
+            resolvePlaybackVariant: {
+                try await platform.playback(for: $0, variantID: $1)
+            },
             reportPlayback: { try await platform.reportPlayback(sourceID: $0, event: $1) },
             importRemoteState: { try await platform.importRemoteState(sourceID: $0) },
             mirrorRemoteState: {

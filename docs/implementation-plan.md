@@ -385,7 +385,7 @@ A shared protocol compatibility matrix is published with each release.
 
 ### Phase 4 — macOS product baseline implemented
 
-- Settings consolidates configuration into General, Profiles & Sources,
+- Settings consolidates configuration into General, Viewing & Sources,
   Remote, and Storage. Sidebar/navigation state, cache accounting/purge, source
   setup, Profile recovery, and Viewing Insights are implemented.
 - Signing, notarization, performance budgets, accessibility review, and the

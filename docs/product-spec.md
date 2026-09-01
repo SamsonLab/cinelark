@@ -144,8 +144,25 @@ follow without changing the architecture.
   queue.
 - The app remains navigable while IINA is absent or the bridge is disconnected.
 
-Numeric launch, focus, and cache budgets remain **Open** until the first
-prototype is measurable.
+Initial development budgets use privacy-safe monotonic intervals and distinguish a
+target from a critical ceiling. They are regression signals, not shared-CI wall-clock
+test gates:
+
+| Interval | Target | Critical ceiling |
+| --- | ---: | ---: |
+| App bootstrap to restored Profile and Source readiness | 1,500 ms | 4,000 ms |
+| Safe cached library page applied to state | 150 ms | 400 ms |
+| Provider-refreshed library page applied or failed | 1,500 ms | 5,000 ms |
+| Primary media detail applied or failed | 800 ms | 2,500 ms |
+| Playback request to matching IINA file load | 3,000 ms | 10,000 ms |
+| Authenticated Remote command execution and queued acknowledgement | 100 ms | 300 ms |
+| Semantic directional focus mutation | 16.67 ms | 33.34 ms |
+
+Local directional focus mutation targets one 60 Hz display frame. Its interval is
+measured on the semantic UI path rather than reducer timing; Instruments remains the
+authority for confirming that the corresponding visual frame is presented. Artwork
+completion does not define semantic content readiness. Physical-device baselines may
+revise these values with a documented measurement sample.
 
 ## 8. Security and privacy requirements
 

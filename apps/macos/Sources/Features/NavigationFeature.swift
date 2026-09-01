@@ -139,7 +139,8 @@ struct NavigationFeature {
                 kind: MediaKind,
                 artworkURL: URL?,
                 metadata: ProfileMediaMetadataSnapshot?,
-                startPositionSeconds: Double
+                startPositionSeconds: Double,
+                variantID: String?
             )
         }
     }
@@ -153,7 +154,8 @@ struct NavigationFeature {
                 kind,
                 artworkURL,
                 metadata,
-                startPositionSeconds
+                startPositionSeconds,
+                variantID
             )))))):
                 return .send(.delegate(.play(
                     locator: locator,
@@ -161,7 +163,8 @@ struct NavigationFeature {
                     kind: kind,
                     artworkURL: artworkURL,
                     metadata: metadata,
-                    startPositionSeconds: startPositionSeconds
+                    startPositionSeconds: startPositionSeconds,
+                    variantID: variantID
                 )))
 
             case .path, .delegate:

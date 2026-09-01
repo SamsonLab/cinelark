@@ -69,6 +69,10 @@ function makeHarness({ label = 'cinelark:6f55936d-5950-44fd-a696-f989d41785cc' }
         getString: (name) => name === 'keep-open' ? 'yes' : '',
         set: (name, value) => {
           if (name === 'keep-open') calls.push(['mpv.set', name, value]);
+          if (name === 'force-media-title') calls.push(['mpv.set', name, value]);
+          if (name === 'file-local-options/http-header-fields') {
+            calls.push(['mpv.set', name, value]);
+          }
           if (name === 'fullscreen') core.window.fullscreen = Boolean(value);
           if (name === 'sid') calls.push(['mpv.set', name, value]);
         },
@@ -147,6 +151,7 @@ function playCommand({
   sessionID = '6f55936d-5950-44fd-a696-f989d41785cc',
   url = currentEpisode.asset.playbackURL,
   startPositionSeconds = 42.5,
+  httpHeaders,
 } = {}) {
   return {
     id: '4ff6c27e-1415-473f-8764-451d6a3369cb',
@@ -158,9 +163,32 @@ function playCommand({
       title: currentEpisode.title,
       startPositionSeconds,
       presentation: { fullscreen: true },
+      ...(httpHeaders ? { httpHeaders } : {}),
     },
   };
 }
+
+test('authenticated playback uses file-local mpv header fields', () => {
+  const harness = makeHarness();
+  harness.messageHandlers.get('cinelark.command')(playCommand({
+    httpHeaders: {
+      'X-Emby-Token': 'synthetic-token',
+      Authorization: 'synthetic-delivery-token',
+    },
+  }));
+  harness.runTimeouts();
+
+  const headerCall = harness.calls.find(
+    (call) => call[0] === 'mpv.set'
+      && call[1] === 'file-local-options/http-header-fields'
+  );
+  assert.equal(headerCall[0], 'mpv.set');
+  assert.equal(headerCall[1], 'file-local-options/http-header-fields');
+  assert.deepEqual(Array.from(headerCall[2]), [
+    'X-Emby-Token: synthetic-token',
+    'Authorization: synthetic-delivery-token',
+  ]);
+});
 
 test('managed-player teardown cancels timers and quiesces racing callbacks', () => {
   const harness = makeHarness();
@@ -193,15 +221,17 @@ test('player opens the opaque URL and applies resume only after file-loaded', ()
   harness.messageHandlers.get('cinelark.command')(playCommand());
   assert.deepEqual(harness.calls, []);
   harness.runTimeouts();
-  assert.deepEqual(harness.calls, [
+  assert.equal(JSON.stringify(harness.calls), JSON.stringify([
     ['mpv.set', 'keep-open', 'yes'],
+    ['mpv.set', 'file-local-options/http-header-fields', []],
+    ['mpv.set', 'force-media-title', currentEpisode.title],
     ['open', currentEpisode.asset.playbackURL],
-  ]);
+  ]));
 
   harness.eventHandlers.get('iina.file-loaded')();
-  assert.deepEqual(harness.calls[2], ['seekTo', 42.5]);
-  assert.deepEqual(harness.calls[3], ['resume']);
-  assert.deepEqual(harness.calls[4], ['mpv.set', 'keep-open', 'yes']);
+  assert.deepEqual(harness.calls[4], ['seekTo', 42.5]);
+  assert.deepEqual(harness.calls[5], ['resume']);
+  assert.deepEqual(harness.calls[6], ['mpv.set', 'keep-open', 'yes']);
   assert.equal(harness.core.window.fullscreen, true);
 
   const events = harness.emitted.map(([, value]) => value);

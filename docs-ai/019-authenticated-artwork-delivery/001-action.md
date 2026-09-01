@@ -8,8 +8,9 @@
 | 2026-08-27 | Added a just-in-time Kingfisher request modifier and credential-free cache identity | [`000-plan.md`](000-plan.md) |
 | 2026-08-27 | Added exact artwork locators to Library, Detail, and Insights presentation | [`viewing-insights.md`](../../docs/product/viewing-insights.md) |
 | 2026-08-27 | Archived the validated protected-resource state boundary as TCA learning L020 | [`TCA-learn.md`](../010-tca-application-architecture/TCA-learn.md#l020--credential-bearing-presentation-resources-stay-below-store-state) |
+| 2026-08-28 | Allowed validated same-origin redirects while preserving the cross-origin credential boundary | [Provider content restoration](../026-provider-content-restoration/001-action.md) |
 
-## Outcome & current state (as of 2026-08-27)
+## Outcome & current state (as of 2026-08-28)
 
 - `MediaSourcePlatform` resolves artwork against the installed account-bound
   runtime and preserves the capability's optional nature.
@@ -23,8 +24,10 @@
   headers, and descriptors never enter TCA state, Catalog, Profile, or cache
   identity.
 - The request policy rejects non-HTTP(S), URL credentials, known token query
-  names, cross-origin header forwarding, and redirects. Public header-free
-  descriptors may still select another origin without forwarding credentials.
+  names, cross-origin header forwarding, and cross-origin redirects. Safe
+  same-origin redirects are followed for immutable image delivery. Public
+  header-free descriptors may still select another origin without forwarding
+  credentials.
 - Existing Settings cache size and one-click clear behavior continues to cover
   the authenticated artwork cache.
 

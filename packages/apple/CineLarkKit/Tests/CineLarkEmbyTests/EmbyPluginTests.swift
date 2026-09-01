@@ -73,6 +73,14 @@ private func response(
     )!
 }
 
+@Test func descriptorAdvertisesOnlyImplementedAuthentication() {
+    let factory = EmbyPluginFactory(
+        device: EmbyDeviceIdentity(id: "stable-device", appVersion: "1.0")
+    )
+
+    #expect(factory.descriptor.authenticationModes == [.usernamePassword])
+}
+
 @Test func validationPreservesReverseProxyBasePath() async throws {
     let recorder = RequestRecorder()
     let http = EmbyHTTPClient { request in
@@ -397,8 +405,12 @@ private func response(
             json = #"{"Items":[{"Id":"season-1","Name":"Season 1","Type":"Season","IndexNumber":1,"ChildCount":8}],"TotalRecordCount":1}"#
         case "/emby/Shows/series-1/Episodes":
             json = #"{"Items":[{"Id":"episode-1","Name":"Pilot","Type":"Episode","SeriesId":"series-1","SeasonId":"season-1","IndexNumber":1,"RunTimeTicks":36000000000}],"TotalRecordCount":1}"#
+        case "/emby/Users/user-1/Items/Resume":
+            json = #"{"Items":[{"Id":"episode-4","Name":"Continue","Type":"Episode","SeriesId":"series-1","SeasonId":"season-2","ParentIndexNumber":2,"IndexNumber":4,"RunTimeTicks":36000000000,"UserData":{"PlaybackPositionTicks":9000000000}}],"TotalRecordCount":1}"#
+        case "/emby/Shows/NextUp":
+            json = #"{"Items":[{"Id":"episode-5","Name":"Next","Type":"Episode","SeriesId":"series-1","SeasonId":"season-2","ParentIndexNumber":2,"IndexNumber":5,"RunTimeTicks":36000000000}],"TotalRecordCount":1}"#
         case "/emby/Items/movie-1/PlaybackInfo":
-            json = #"{"MediaSources":[{"Id":"source-1","DirectStreamUrl":"Videos/movie-1/stream","SupportsDirectPlay":true,"SupportsDirectStream":true}]}"#
+            json = #"{"MediaSources":[{"Id":"source-1","SupportsDirectPlay":true,"SupportsDirectStream":true}]}"#
         default:
             Issue.record("Unexpected Emby path: \(path)")
             json = "{}"
@@ -424,15 +436,49 @@ private func response(
     let series = MediaLocatorID(sourceID: sourceID, providerItemID: "series-1")
     #expect(try await hierarchy.seasons(series).first?.number == 1)
     #expect(try await hierarchy.episodes(series, "season-1", PageRequest(number: 1, size: 20)).items.first?.durationSeconds == 3_600)
+    let seriesPlayback = try await hierarchy.seriesPlayback(series)
+    #expect(seriesPlayback.resumableItem?.item.id == "episode-4")
+    #expect(seriesPlayback.resumableItem?.seasonNumber == 2)
+    #expect(seriesPlayback.resumableItem?.episodeNumber == 4)
+    #expect(seriesPlayback.resumableItem?.userState.positionSeconds == 900)
+    #expect(seriesPlayback.nextUp?.item.id == "episode-5")
 
     let descriptor = try await runtime.playback!.resolve(movie)
     #expect(descriptor.mode == .directPlay)
     #expect(descriptor.url.path == "/emby/Videos/movie-1/stream")
+    #expect(descriptor.url.query?.contains("static=true") == true)
+    #expect(descriptor.url.query?.contains("MediaSourceId=source-1") == true)
     #expect(descriptor.url.absoluteString.contains("secret-token") == false)
-    #expect(descriptor.headers["X-Emby-Authorization"]?.contains("secret-token") == true)
+    #expect(descriptor.headers["X-Emby-Token"] == "secret-token")
 }
 
-@Test func playbackFixtureResolvesRootRelativeURLAndRemovesQueryCredentials() async throws {
+@Test func playbackVariantsPreserveEveryEmbyMediaSourceAndResolveTheSelection() async throws {
+    let sourceID = SourceID(rawValue: UUID())
+    let http = EmbyHTTPClient { request in
+        let json = #"{"MediaSources":[{"Id":"source-1080p","Name":"1080p AVC","Container":"mkv","Size":1000,"RunTimeTicks":72000000000,"Bitrate":8000000,"DirectStreamUrl":"Videos/movie-1/stream?MediaSourceId=source-1080p","SupportsDirectPlay":true,"MediaStreams":[{"Index":0,"Type":"Video","Codec":"h264","Profile":"High","BitRate":7000000,"Width":1920,"Height":1080,"RealFrameRate":23.976,"PixelFormat":"yuv420p","VideoRange":"SDR"},{"Index":1,"Type":"Audio","Codec":"aac","Channels":2,"Language":"eng","DisplayTitle":"English AAC","IsDefault":true}]},{"Id":"source-4k","Name":"4K HEVC","Container":"mkv","Size":2000,"RunTimeTicks":72000000000,"Bitrate":20000000,"DirectStreamUrl":"Videos/movie-1/stream?MediaSourceId=source-4k","SupportsDirectStream":true,"MediaStreams":[{"Index":0,"Type":"Video","Codec":"hevc","Profile":"Main 10","BitRate":18000000,"Width":3840,"Height":2160,"RealFrameRate":24,"PixelFormat":"yuv420p10le","VideoRange":"HDR10"},{"Index":2,"Type":"Subtitle","Codec":"ass","Language":"zho","DisplayTitle":"Chinese","IsDefault":true}]}]}"#
+        return HTTPResponse(data: Data(json.utf8), response: response(for: request))
+    }
+    let runtime = try await makeRuntime(sourceID: sourceID, http: http)
+    let playback = try #require(runtime.playback)
+    let locator = MediaLocatorID(sourceID: sourceID, providerItemID: "movie-1")
+
+    let variants = try await playback.variants(locator)
+
+    #expect(variants.map(\.id) == ["source-1080p", "source-4k"])
+    #expect(variants.first?.isPreferred == true)
+    #expect(variants.first?.audioTracks.first?.title == "English AAC")
+    #expect(variants.last?.width == 3_840)
+    #expect(variants.last?.height == 2_160)
+    #expect(variants.last?.videoCodec == "hevc")
+    #expect(variants.last?.videoRange == "HDR10")
+    #expect(variants.last?.subtitleTracks.first?.title == "Chinese")
+
+    let descriptor = try await playback.resolveVariant(locator, "source-4k")
+    #expect(descriptor.mediaSourceID == "source-4k")
+    #expect(descriptor.url.query?.contains("MediaSourceId=source-4k") == true)
+}
+
+@Test func playbackFixturePreservesTheProviderIssuedQueryCapability() async throws {
     let sourceID = SourceID(rawValue: UUID())
     let data = try fixtureData("playback-info")
     let http = EmbyHTTPClient { request in
@@ -451,18 +497,18 @@ private func response(
     #expect(descriptor.url.host == "example.com")
     #expect(descriptor.url.path == "/play/synthetic/stream")
     #expect(components.queryItems == [
-        URLQueryItem(name: "MediaSourceId", value: "source-synthetic-1")
+        URLQueryItem(name: "MediaSourceId", value: "source-synthetic-1"),
+        URLQueryItem(name: "api_key", value: "fixture-secret")
     ])
-    #expect(descriptor.url.absoluteString.contains("fixture-secret") == false)
     #expect(descriptor.url.absoluteString.contains("secret-token") == false)
-    #expect(descriptor.headers["X-Emby-Authorization"]?.contains("secret-token") == true)
+    #expect(descriptor.headers["X-Emby-Token"] == "secret-token")
     #expect(descriptor.mode == .directStream)
 }
 
 @Test func playbackRejectsCrossOriginDirectStreamBeforeForwardingAuthorization() async throws {
     let sourceID = SourceID(rawValue: UUID())
     let http = EmbyHTTPClient { request in
-        let json = #"{"MediaSources":[{"Id":"source-synthetic-1","DirectStreamUrl":"https://cdn.invalid/play/stream","SupportsDirectPlay":true}]}"#
+        let json = #"{"MediaSources":[{"Id":"source-synthetic-1","DirectStreamUrl":"https://cdn.invalid/play/stream","SupportsDirectStream":true}]}"#
         return HTTPResponse(data: Data(json.utf8), response: response(for: request))
     }
     let runtime = try await makeRuntime(sourceID: sourceID, http: http)
@@ -474,10 +520,10 @@ private func response(
     }
 }
 
-@Test func playbackAcceptsASecretFreeSameOriginAbsoluteDirectStream() async throws {
+@Test func playbackPreservesAProviderCapabilityOnAnAbsoluteSameOriginStream() async throws {
     let sourceID = SourceID(rawValue: UUID())
     let http = EmbyHTTPClient { request in
-        let json = #"{"MediaSources":[{"Id":"source-synthetic-1","DirectStreamUrl":"https://example.com/play/stream?api_key=fixture-secret&MediaSourceId=source-synthetic-1","SupportsDirectPlay":true}]}"#
+        let json = #"{"MediaSources":[{"Id":"source-synthetic-1","DirectStreamUrl":"https://example.com/play/stream?api_key=fixture-secret&MediaSourceId=source-synthetic-1","SupportsDirectStream":true}]}"#
         return HTTPResponse(data: Data(json.utf8), response: response(for: request))
     }
     let runtime = try await makeRuntime(sourceID: sourceID, http: http)
@@ -486,8 +532,55 @@ private func response(
         MediaLocatorID(sourceID: sourceID, providerItemID: "movie-synthetic-1")
     )
 
-    #expect(descriptor.url.absoluteString == "https://example.com/play/stream?MediaSourceId=source-synthetic-1")
-    #expect(descriptor.headers["X-Emby-Authorization"]?.contains("secret-token") == true)
+    #expect(
+        descriptor.url.absoluteString ==
+            "https://example.com/play/stream?api_key=fixture-secret&MediaSourceId=source-synthetic-1"
+    )
+    #expect(descriptor.headers["X-Emby-Token"] == "secret-token")
+}
+
+@Test func playbackPreservesSameOriginStreamTokenAndAlsoForwardsAuthorization() async throws {
+    let sourceID = SourceID(rawValue: UUID())
+    let http = EmbyHTTPClient { request in
+        let json = #"{"MediaSources":[{"Id":"source-synthetic-1","DirectStreamUrl":"/play/video/asset-1?token=stream-token&MediaSourceId=source-synthetic-1","SupportsDirectStream":true}]}"#
+        return HTTPResponse(data: Data(json.utf8), response: response(for: request))
+    }
+    let runtime = try await makeRuntime(sourceID: sourceID, http: http)
+
+    let descriptor = try await runtime.playback!.resolve(
+        MediaLocatorID(sourceID: sourceID, providerItemID: "movie-synthetic-1")
+    )
+
+    #expect(
+        descriptor.url.absoluteString ==
+            "https://example.com/play/video/asset-1?token=stream-token&MediaSourceId=source-synthetic-1"
+    )
+    #expect(descriptor.headers["Authorization"] == "stream-token")
+    #expect(descriptor.headers["X-Emby-Token"] == "secret-token")
+}
+
+@Test func directPlayPreservesAProviderIssuedQueryCapability() async throws {
+    let sourceID = SourceID(rawValue: UUID())
+    let http = EmbyHTTPClient { request in
+        let json = #"{"MediaSources":[{"Id":"source-synthetic-1","DirectStreamUrl":"/play/video/asset-1?api_key=secret-token","SupportsDirectPlay":true,"SupportsDirectStream":true}]}"#
+        return HTTPResponse(data: Data(json.utf8), response: response(for: request))
+    }
+    let runtime = try await makeRuntime(sourceID: sourceID, http: http)
+
+    let descriptor = try await runtime.playback!.resolve(
+        MediaLocatorID(sourceID: sourceID, providerItemID: "movie-synthetic-1")
+    )
+
+    let components = try #require(
+        URLComponents(url: descriptor.url, resolvingAgainstBaseURL: false)
+    )
+    #expect(descriptor.url.path == "/play/video/asset-1")
+    #expect(components.queryItems == [
+        URLQueryItem(name: "api_key", value: "secret-token")
+    ])
+    #expect(descriptor.headers == ["X-Emby-Token": "secret-token"])
+    #expect(descriptor.mode == .directPlay)
+    #expect(descriptor.mediaSourceID == "source-synthetic-1")
 }
 
 @Test func remoteStateImportAndMirrorUseExplicitUserAndMutationEndpoints() async throws {

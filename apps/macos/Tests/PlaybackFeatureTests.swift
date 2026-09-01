@@ -38,9 +38,7 @@ struct PlaybackFeatureTests {
                 ClientID(rawValue: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!)
             },
             load: { throw ProfileClientFailure.unavailable("unused") },
-            resolveProfile: { _ in throw ProfileClientFailure.unavailable("unused") },
             cloudSyncStatus: { .localOnly },
-            saveProfile: { _ in },
             setSelection: { _ in },
             saveSource: { _, _ in },
             saveBinding: { _ in },
@@ -71,6 +69,16 @@ struct PlaybackFeatureTests {
             durationSeconds: 120,
             isPaused: false
         )
+        initialState.isStarting = true
+        initialState.lastRequest = PlaybackFeature.Request(
+            locator: locator,
+            title: "Movie",
+            kind: .movie,
+            artworkURL: artworkURL,
+            metadata: metadata,
+            startPositionSeconds: 12,
+            variantID: nil
+        )
         let store = TestStore(initialState: initialState) {
             PlaybackFeature()
         } withDependencies: {
@@ -90,6 +98,8 @@ struct PlaybackFeatureTests {
             playbackID: playbackID,
             resumedAtSeconds: 12
         )))) {
+            $0.lastRequest = nil
+            $0.isStarting = false
             $0.active?.didReportStarted = true
             $0.active?.sessionStartedAt = now
             $0.active?.sessionStartPositionSeconds = 12
@@ -154,9 +164,7 @@ struct PlaybackFeatureTests {
                 ClientID(rawValue: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!)
             },
             load: { throw ProfileClientFailure.unavailable("unused") },
-            resolveProfile: { _ in throw ProfileClientFailure.unavailable("unused") },
             cloudSyncStatus: { .localOnly },
-            saveProfile: { _ in },
             setSelection: { _ in },
             saveSource: { _, _ in },
             saveBinding: { _ in },
@@ -252,6 +260,143 @@ struct PlaybackFeatureTests {
             .started, .paused, .resumed, .checkpoint, .stopped
         ])
         #expect(localWrites.last?.session?.watchedSeconds == 20)
+    }
+
+    @Test("Playback launch failures retain a retryable request and a user-facing message")
+    func launchFailureIsRetryable() async {
+        let fixedID = UUID(uuidString: "00000000-0000-0000-0000-000000000028")!
+        let sourceID = SourceID(rawValue: UUID())
+        let locator = MediaLocatorID(sourceID: sourceID, providerItemID: "episode")
+        let descriptor = SourcePlaybackDescriptor(
+            url: URL(string: "https://example.test/video")!,
+            mode: .directPlay
+        )
+        let request = PlaybackFeature.Request(
+            locator: locator,
+            title: "Episode",
+            kind: .episode,
+            artworkURL: nil,
+            metadata: nil,
+            startPositionSeconds: 42,
+            variantID: nil
+        )
+        let store = TestStore(initialState: PlaybackFeature.State()) {
+            PlaybackFeature()
+        } withDependencies: {
+            $0.uuid = .constant(fixedID)
+            $0.mediaPlatform = MediaPlatformClient(
+                descriptors: { [] },
+                cachedPage: { _ in throw MediaSourceFailure.unavailable },
+                refreshPage: { _ in throw MediaSourceFailure.unavailable },
+                resolvePlayback: { _ in descriptor }
+            )
+            $0.playbackEngine = PlaybackEngineClient(
+                events: { AsyncStream { $0.finish() } },
+                open: { _, _, _, _ in throw PlaybackLaunchError.pluginUnavailable },
+                send: { _, _ in }
+            )
+        }
+
+        await store.send(.view(.play(
+            locator: locator,
+            title: "Episode",
+            kind: .episode,
+            artworkURL: nil,
+            metadata: nil,
+            startPositionSeconds: 42,
+            variantID: nil
+        ))) {
+            $0.lastRequest = request
+            $0.isStarting = true
+            $0.pendingRequestID = fixedID
+        }
+        await store.receive(.internal(.descriptorResolved(
+            requestID: fixedID,
+            locator: locator,
+            title: "Episode",
+            kind: .episode,
+            artworkURL: nil,
+            metadata: nil,
+            startPositionSeconds: 42,
+            .success(descriptor)
+        ))) {
+            $0.pendingRequestID = nil
+            $0.active = PlaybackFeature.Active(
+                id: fixedID,
+                locator: locator,
+                mediaKey: ProfileMediaKey(locator: locator),
+                title: "Episode",
+                kind: .episode,
+                positionSeconds: 42,
+                durationSeconds: 0,
+                isPaused: false
+            )
+        }
+        await store.receive(.internal(.openCompleted(
+            fixedID,
+            .failure(.unavailable(
+                "The CineLark IINA Bridge did not connect. In IINA, choose Plugins > CineLark Bridge > Reconnect CineLark Bridge, then retry."
+            ))
+        ))) {
+            $0.isStarting = false
+            $0.active = nil
+            $0.failure = .unavailable(
+                "The CineLark IINA Bridge did not connect. In IINA, choose Plugins > CineLark Bridge > Reconnect CineLark Bridge, then retry."
+            )
+        }
+        #expect(store.state.canRetry)
+
+        await store.send(.view(.dismissFailure)) {
+            $0.failure = nil
+        }
+    }
+
+    @Test("A queued player command cannot remain in preparing indefinitely")
+    func fileLoadTimeoutIsRetryable() async {
+        let clock = TestClock()
+        let playbackID = UUID(uuidString: "00000000-0000-0000-0000-000000000029")!
+        let locator = MediaLocatorID(
+            sourceID: SourceID(rawValue: UUID()),
+            providerItemID: "episode"
+        )
+        let request = PlaybackFeature.Request(
+            locator: locator,
+            title: "Episode",
+            kind: .episode,
+            artworkURL: nil,
+            metadata: nil,
+            startPositionSeconds: 0,
+            variantID: "source-1"
+        )
+        var initialState = PlaybackFeature.State()
+        initialState.active = PlaybackFeature.Active(
+            id: playbackID,
+            locator: locator,
+            mediaKey: ProfileMediaKey(locator: locator),
+            title: "Episode",
+            kind: .episode,
+            positionSeconds: 0,
+            durationSeconds: 0,
+            isPaused: false
+        )
+        initialState.lastRequest = request
+        initialState.isStarting = true
+        let store = TestStore(initialState: initialState) {
+            PlaybackFeature()
+        } withDependencies: {
+            $0.continuousClock = clock
+        }
+
+        await store.send(.internal(.openCompleted(playbackID, .success(true))))
+        await clock.advance(by: .seconds(20))
+        await store.receive(.internal(.startupTimedOut(playbackID))) {
+            $0.active = nil
+            $0.isStarting = false
+            $0.failure = .unavailable(
+                "IINA did not load the media in time. Reconnect the CineLark Bridge, then retry."
+            )
+        }
+        #expect(store.state.canRetry)
     }
 }
 

@@ -9,32 +9,37 @@ struct RemoteSettingsView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
-                header
-                Divider()
-                content
-                Divider()
-                pairedDevices
+            VStack(alignment: .leading, spacing: 18) {
+                CineLarkSettingsPageHeader(
+                    title: "CineLark Remote",
+                    subtitle: statusText,
+                    systemImage: "iphone.and.arrow.forward"
+                )
+
+                CineLarkSettingsCard(
+                    "Pair a Device",
+                    subtitle: "Pairing secrets are short-lived and require approval on this Mac.",
+                    systemImage: "qrcode.viewfinder"
+                ) {
+                    content
+                }
+
+                CineLarkSettingsCard(
+                    "Paired Devices",
+                    systemImage: "iphone.gen3"
+                ) {
+                    pairedDevices
+                }
             }
             .padding(28)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .background(CineLarkPageBackground())
         .task {
             store.send(.view(.settingsAppeared))
         }
         .onDisappear {
             store.send(.view(.settingsDisappeared))
-        }
-    }
-
-    private var header: some View {
-        HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 5) {
-                Text("CineLark Remote")
-                    .font(.title2.bold())
-                Text(statusText)
-                    .foregroundStyle(.secondary)
-            }
         }
     }
 
@@ -108,8 +113,6 @@ struct RemoteSettingsView: View {
 
     private var pairedDevices: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Paired Devices")
-                .font(.headline)
             if store.pairedDevices.isEmpty {
                 Text("No phones paired yet.")
                     .foregroundStyle(.secondary)

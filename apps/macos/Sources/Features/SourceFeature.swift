@@ -288,6 +288,7 @@ struct SourceFeature {
 
             case let .internal(.validationCompleted(.success(configuration))):
                 state.setup?.isValidating = false
+                state.setup?.baseURL = configuration.baseURL.absoluteString
                 state.setup?.validatedConfiguration = configuration
                 return .none
 
@@ -316,8 +317,56 @@ struct SourceFeature {
     }
 
     private static func normalizedURL(_ value: String) -> URL? {
-        if let url = URL(string: value), url.scheme != nil { return url }
-        return URL(string: "http://\(value)")
+        let schemeLessComponents = URLComponents(string: "//\(value)")
+        let hasExplicitScheme = value.contains("://")
+        let candidate: String
+        if hasExplicitScheme {
+            candidate = value
+        } else {
+            let scheme = schemeLessComponents?.host.map(defaultScheme(for:)) ?? "https"
+            candidate = "\(scheme)://\(value)"
+        }
+        guard var components = URLComponents(string: candidate) else { return nil }
+        components.scheme = components.scheme?.lowercased()
+        guard
+            components.scheme == "http" || components.scheme == "https",
+            components.host?.isEmpty == false,
+            components.user == nil,
+            components.password == nil,
+            components.query == nil,
+            components.fragment == nil
+        else { return nil }
+        while components.percentEncodedPath.count > 1,
+              components.percentEncodedPath.hasSuffix("/") {
+            components.percentEncodedPath.removeLast()
+        }
+        return components.url
+    }
+
+    private static func defaultScheme(for host: String) -> String {
+        isLocalHost(host) ? "http" : "https"
+    }
+
+    private static func isLocalHost(_ host: String) -> Bool {
+        let normalized = host.lowercased()
+        if normalized == "localhost" || normalized.hasSuffix(".local") {
+            return true
+        }
+        if normalized == "::1"
+            || normalized.hasPrefix("fe80:")
+            || normalized.hasPrefix("fc")
+            || normalized.hasPrefix("fd") {
+            return true
+        }
+        let octets = normalized.split(separator: ".").compactMap { Int($0) }
+        guard octets.count == 4, octets.allSatisfy({ (0...255).contains($0) }) else {
+            return false
+        }
+        return octets[0] == 10
+            || octets[0] == 127
+            || (octets[0] == 169 && octets[1] == 254)
+            || (octets[0] == 172 && (16...31).contains(octets[1]))
+            || (octets[0] == 192 && octets[1] == 168)
     }
 
     private static func normalize(_ error: Error) -> MediaSourceFailure {

@@ -62,3 +62,9 @@ writing, amendment, and verification rules.
 | 022 | [Emby mutation delivery](022-emby-mutation-delivery/000-plan.md) | 2026-08-28 | Domain failure classification, safe mirror retry, and ordered playback check-ins |
 | 023 | [CloudKit convergence validation](023-cloudkit-convergence-validation/000-plan.md) | 2026-08-28 | Signed-app preflight, redacted replica audits, and a two-device convergence runbook |
 | 024 | [Local metadata enrichment and recommendations](024-local-recommendations/000-plan.md) | 2026-08-28 | Cached historical enrichment and private explainable active-Source discovery |
+| 025 | [Single personal Profile](025-single-personal-profile/000-plan.md) | 2026-08-28 | One stable private-iCloud viewing identity with automatic legacy consolidation and simplified sync UX |
+| 026 | [Provider content restoration](026-provider-content-restoration/000-plan.md) | 2026-08-28 | Safe same-origin artwork redirects and authoritative Series hierarchy recovery |
+| 027 | [UHDNow presentation restoration](027-uhdnow-presentation-restoration/000-plan.md) | 2026-08-28 | UHDNow Home, detail, catalog, and settings presentation restored over current TCA/Profile/Emby ownership |
+| 028 | [Playback and interaction fidelity](028-playback-and-interaction-fidelity/000-plan.md) | 2026-08-28 | Reliable IINA replay, visible playback state, and pre-TCA directional Home/series-detail interaction on current TCA ownership |
+| 029 | [Maintainability boundaries](029-maintainability-boundaries/000-plan.md) | 2026-08-31 | Responsibility-oriented decomposition of Profile, Emby, Remote, and macOS presentation hotspots |
+| 030 | [Performance budgets](030-performance-budgets/000-plan.md) | 2026-08-31 | Named privacy-safe runtime intervals, initial responsiveness budgets, and repeatable local baselines |

@@ -6,7 +6,10 @@ import CineLarkProfile
 
 @Reducer
 struct LibraryFeature {
-    enum Shelf: String, Equatable, Sendable { case latest }
+    enum Shelf: Equatable, Hashable, Sendable {
+        case latest
+        case collection(String)
+    }
 
     struct ItemSnapshot: Equatable, Sendable, Identifiable {
         let id: CatalogItemID
@@ -35,6 +38,7 @@ struct LibraryFeature {
         var nextCursor: MediaCursor?
         var total: Int?
         var latestIDs: [CatalogItemID] = []
+        var collectionItemIDs: [String: [CatalogItemID]] = [:]
         var resumeItems: [FavoriteSnapshot] = []
         var snapshots: [CatalogItemID: ItemSnapshot] = [:]
         var favorites: [FavoriteSnapshot] = []
@@ -46,6 +50,10 @@ struct LibraryFeature {
 
         var orderedItems: [ItemSnapshot] { itemIDs.compactMap { snapshots[$0] } }
         var latestItems: [ItemSnapshot] { latestIDs.compactMap { snapshots[$0] } }
+
+        func items(in collection: MediaCollection) -> [ItemSnapshot] {
+            collectionItemIDs[collection.id, default: []].compactMap { snapshots[$0] }
+        }
     }
 
     enum Action: Equatable {
@@ -60,6 +68,8 @@ struct LibraryFeature {
             case loadCollection(MediaCollection, MediaSort)
             case load(MediaQuery)
             case loadMore
+            case play(ItemSnapshot)
+            case playResume(FavoriteSnapshot)
             case reload
         }
 
@@ -79,6 +89,13 @@ struct LibraryFeature {
 
         enum Delegate: Equatable {
             case mediaSelected(ItemSnapshot)
+            case play(
+                locator: MediaLocatorID,
+                title: String,
+                kind: MediaKind,
+                artworkURL: URL?,
+                startPositionSeconds: Double
+            )
         }
     }
 
@@ -86,6 +103,7 @@ struct LibraryFeature {
 
     @Dependency(\.mediaPlatform) private var mediaPlatform
     @Dependency(\.profiles) private var profiles
+    @Dependency(\.performance) private var performance
 
     var body: some ReducerOf<Self> {
         Reduce { state, action in
@@ -155,6 +173,28 @@ struct LibraryFeature {
                 state.isLoadingMore = true
                 return loadMore(baseQuery: baseQuery, requestQuery: requestQuery)
 
+            case let .view(.playResume(item)):
+                return .send(.delegate(.play(
+                    locator: item.locator,
+                    title: item.summary.title,
+                    kind: item.summary.kind,
+                    artworkURL: item.summary.backdropURL ?? item.summary.posterURL,
+                    startPositionSeconds: item.summary.userState.played
+                        ? 0
+                        : item.summary.userState.positionSeconds
+                )))
+
+            case let .view(.play(item)):
+                return .send(.delegate(.play(
+                    locator: item.locator,
+                    title: item.summary.title,
+                    kind: item.summary.kind,
+                    artworkURL: item.summary.backdropURL ?? item.summary.posterURL,
+                    startPositionSeconds: item.summary.userState.played
+                        ? 0
+                        : item.summary.userState.positionSeconds
+                )))
+
             case .view(.reload):
                 return .merge(
                     state.sourceID == nil ? .none : .send(.view(.loadOverview)),
@@ -164,8 +204,18 @@ struct LibraryFeature {
             case let .internal(.collectionsLoaded(sourceID, .success(collections))):
                 guard state.sourceID == sourceID else { return .none }
                 state.collections = collections
+                state.collectionItemIDs = state.collectionItemIDs.filter { key, _ in
+                    collections.contains { $0.id == key }
+                }
                 state.isLoadingOverview = false
-                return .none
+                return .merge(
+                    collections.prefix(8).map { collection in
+                        shelf(
+                            .collection(collection.id),
+                            query: shelfQuery(collection, sourceID: sourceID)
+                        )
+                    }
+                )
 
             case let .internal(.collectionsLoaded(sourceID, .failure(failure))):
                 guard state.sourceID == sourceID else { return .none }
@@ -332,7 +382,12 @@ struct LibraryFeature {
             guard !Task.isCancelled else { return }
             do {
                 let page: MediaPage
-                page = try await mediaPlatform.latest(query)
+                switch shelf {
+                case .latest:
+                    page = try await mediaPlatform.latest(query)
+                case .collection:
+                    page = try await mediaPlatform.refreshPage(query)
+                }
                 await send(.internal(.shelfRefreshed(shelf, query, .success(page))))
             } catch {
                 await send(.internal(.shelfRefreshed(
@@ -346,25 +401,33 @@ struct LibraryFeature {
 
     private func load(_ query: MediaQuery) -> Effect<Action> {
         .run { send in
+            let cachedInterval = performance.start(.cachedLibraryPage)
             do {
                 await send(.internal(.cachedPageLoaded(
                     query,
                     .success(try await mediaPlatform.cachedPage(query))
                 )))
+                performance.finish(cachedInterval, .success)
             } catch is CancellationError {
+                performance.finish(cachedInterval, .cancelled)
                 return
             } catch {
+                performance.finish(cachedInterval, .failure)
                 await send(.internal(.cachedPageLoaded(query, .failure(Self.normalize(error)))))
             }
             guard !Task.isCancelled else { return }
+            let refreshedInterval = performance.start(.refreshedLibraryPage)
             do {
                 await send(.internal(.refreshedPageLoaded(
                     query,
                     .success(try await mediaPlatform.refreshPage(query))
                 )))
+                performance.finish(refreshedInterval, .success)
             } catch is CancellationError {
+                performance.finish(refreshedInterval, .cancelled)
                 return
             } catch {
+                performance.finish(refreshedInterval, .failure)
                 await send(.internal(.refreshedPageLoaded(query, .failure(Self.normalize(error)))))
             }
         }
@@ -393,10 +456,23 @@ struct LibraryFeature {
     }
 
     private func shelfQuery(_ shelf: Shelf, sourceID: SourceID) -> MediaQuery {
+        precondition(shelf == .latest)
+        return MediaQuery(
+            scope: SourceScope(sourceID: sourceID),
+            filters: [.provider(name: "cinelark.list", value: "latest")],
+            limit: 30
+        )
+    }
+
+    private func shelfQuery(_ collection: MediaCollection, sourceID: SourceID) -> MediaQuery {
         MediaQuery(
             scope: SourceScope(sourceID: sourceID),
-            filters: [.provider(name: "cinelark.list", value: shelf.rawValue)],
-            limit: 30
+            parent: MediaLocatorID(
+                sourceID: sourceID,
+                providerItemID: collection.id
+            ),
+            sort: MediaSort(field: .releaseDate, order: .descending),
+            limit: 18
         )
     }
 
@@ -407,6 +483,7 @@ struct LibraryFeature {
         state.nextCursor = nil
         state.total = nil
         state.latestIDs = []
+        state.collectionItemIDs = [:]
         state.resumeItems = []
         state.snapshots = [:]
         state.favorites = []
@@ -423,6 +500,7 @@ struct LibraryFeature {
         state.nextCursor = nil
         state.total = nil
         state.latestIDs = []
+        state.collectionItemIDs = [:]
         state.snapshots = [:]
         state.isLoadingOverview = false
         state.isRefreshing = false
@@ -447,7 +525,12 @@ struct LibraryFeature {
 
     private func applyShelf(_ page: MediaPage, shelf: Shelf, to state: inout State) {
         let ids = ingest(page.items, into: &state)
-        state.latestIDs = ids
+        switch shelf {
+        case .latest:
+            state.latestIDs = ids
+        case let .collection(collectionID):
+            state.collectionItemIDs[collectionID] = ids
+        }
     }
 
     private func ingest(_ items: [LocatedMediaItem], into state: inout State) -> [CatalogItemID] {

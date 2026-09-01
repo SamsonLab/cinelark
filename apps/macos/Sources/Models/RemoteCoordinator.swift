@@ -48,18 +48,7 @@ final class RemoteCoordinator {
         category: "Remote"
     )
     private static let pairingDuration: TimeInterval = 5 * 60
-    private static let allCapabilities = [
-        "navigation.basic",
-        "navigation.sections",
-        "textInput.remote",
-        "playback.transport",
-        "playback.seek",
-        "playback.rate",
-        "playback.fullscreen",
-        "playback.trackSelection",
-        "playback.closeAndActivate",
-        "audio.volume"
-    ]
+    private static let allCapabilities = RemoteCapabilityPolicy.advertised
 
     private(set) var status: Status = .stopped
     private(set) var pairingDisplay: PairingDisplay?
@@ -334,6 +323,11 @@ final class RemoteCoordinator {
         from connectionID: UUID,
         deviceID: UUID
     ) async {
+        let interval = CineLarkPerformanceMonitor.shared.start(.remoteCommand)
+        var performanceOutcome = CineLarkPerformanceOutcome.success
+        defer {
+            CineLarkPerformanceMonitor.shared.finish(interval, outcome: performanceOutcome)
+        }
         do {
             try await execute(envelope, connectionID: connectionID, deviceID: deviceID)
             try await sendAcknowledgement(
@@ -343,6 +337,7 @@ final class RemoteCoordinator {
                 code: nil
             )
         } catch let error as RemoteCommandError {
+            performanceOutcome = .failure
             try? await sendAcknowledgement(
                 connectionID: connectionID,
                 replyTo: envelope.id,
@@ -350,6 +345,7 @@ final class RemoteCoordinator {
                 code: error.code
             )
         } catch {
+            performanceOutcome = .failure
             try? await sendAcknowledgement(
                 connectionID: connectionID,
                 replyTo: envelope.id,
@@ -518,34 +514,14 @@ final class RemoteCoordinator {
         guard pairedDevices.contains(where: { $0.id == deviceID }) else {
             throw RemoteCommandError("unauthenticated")
         }
-        guard let requiredCapability = Self.requiredCapability(for: messageType) else { return }
+        guard let requiredCapability = RemoteCapabilityPolicy.requiredCapability(
+            for: messageType
+        ) else { return }
         guard capabilities.contains(requiredCapability),
               pairedDevices.contains(where: {
                   $0.id == deviceID && $0.capabilities.contains(requiredCapability)
               }) else {
             throw RemoteCommandError("unsupportedCapability")
-        }
-    }
-
-    private static func requiredCapability(for messageType: String) -> String? {
-        switch messageType {
-        case "app.requestSnapshot", "playback.requestSnapshot": nil
-        case "app.activate", "navigation.move", "navigation.select", "navigation.back":
-            "navigation.basic"
-        case "navigation.openSection": "navigation.sections"
-        case "auth.submitCredentials": nil
-        case "textInput.update", "textInput.commit", "textInput.cancel": "textInput.remote"
-        case "playback.togglePause", "playback.pause", "playback.resume", "playback.stop":
-            "playback.transport"
-        case "playback.seekRelative", "playback.seekAbsolute": "playback.seek"
-        case "playback.setRate": "playback.rate"
-        case "playback.setFullscreen": "playback.fullscreen"
-        case "playback.playPrevious", "playback.playNext": nil
-        case "playback.selectAudioTrack", "playback.selectSubtitleTrack":
-            "playback.trackSelection"
-        case "playback.closeAndActivateApp": "playback.closeAndActivate"
-        case "audio.setVolume", "audio.adjustVolume", "audio.setMuted": "audio.volume"
-        default: nil
         }
     }
 

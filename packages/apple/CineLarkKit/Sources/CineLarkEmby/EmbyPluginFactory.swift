@@ -14,7 +14,7 @@ public struct EmbyPluginFactory: MediaSourcePluginFactory {
         displayName: "Emby",
         roles: [.mediaSource],
         setupModes: [.manualURL, .localDiscovery],
-        authenticationModes: [.usernamePassword, .token],
+        authenticationModes: [.usernamePassword],
         capabilities: CapabilityDescriptor(
             itemKinds: [.movie, .series, .episode],
             sortFields: Set(MediaSort.Field.allCases),
@@ -103,6 +103,7 @@ public struct EmbyPluginFactory: MediaSourcePluginFactory {
                 resume: { try await service.resume(query: $0) },
                 detail: { locator, _ in try await service.detail(locator: locator) },
                 seasons: { try await service.seasons(series: $0) },
+                seriesPlayback: { try await service.seriesPlayback(series: $0) },
                 episodes: { try await service.episodes(series: $0, seasonID: $1, page: $2) },
                 person: { try await service.person(id: $0) },
                 works: { try await service.works(personID: $0, query: $1) }
@@ -110,9 +111,14 @@ public struct EmbyPluginFactory: MediaSourcePluginFactory {
             artwork: ArtworkClient { locator, kind in
                 try await service.artwork(locator: locator, kind: kind)
             },
-            playback: PlaybackResolutionClient { locator in
-                try await service.playback(locator: locator)
-            },
+            playback: PlaybackResolutionClient(
+                variants: { locator in
+                    try await service.playbackVariants(locator: locator)
+                },
+                resolve: { locator, variantID in
+                    try await service.playback(locator: locator, variantID: variantID)
+                }
+            ),
             playbackSession: PlaybackSessionClient { event in
                 try await playbackReporter.report(event)
             },

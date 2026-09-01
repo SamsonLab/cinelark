@@ -29,13 +29,12 @@ struct ProfileFeature {
 
     @ObservableState
     struct State: Equatable {
-        var profiles: [Profile] = []
-        var manifests: [ProfileManifest] = []
+        var profile: Profile?
+        var manifest: ProfileManifest?
         var sources: [PersistedMediaSource] = []
         var bindings: [ProfileSourceBinding] = []
         var activeProfileID: ProfileID?
         var activeSourceID: SourceID?
-        var bootstrapResolution: ProfileBootstrapResolution?
         var cloudSyncStatus: ProfileCloudSyncStatus = .checking
         var isLoading = false
         var isRefreshingCloudSyncStatus = false
@@ -62,10 +61,6 @@ struct ProfileFeature {
             case appeared
             case reload
             case refreshCloudSyncStatus
-            case continueOffline
-            case createProfile(String)
-            case resolveProfile(ProfileResolutionChoice)
-            case selectProfile(ProfileID)
             case selectSource(SourceID?)
             case setRemoteMirrorEnabled(Bool)
             case importRemoteState
@@ -75,7 +70,6 @@ struct ProfileFeature {
         enum Internal: Equatable {
             case loaded(Result<ProfileBootstrap, ProfileClientFailure>)
             case cloudSyncStatusLoaded(ProfileCloudSyncStatus)
-            case defaultProfileSaved(Result<Profile, ProfileClientFailure>)
             case selectionSaved(
                 ActiveProfileSelection,
                 SelectionSaveResult
@@ -88,7 +82,6 @@ struct ProfileFeature {
         }
 
         enum Delegate: Equatable {
-            case profileSelectionRequested(ProfileID)
             case sourceSelectionRequested(SourceID?)
             case selectionChanged(ActiveProfileSelection)
         }
@@ -105,7 +98,6 @@ struct ProfileFeature {
 
     @Dependency(\.profiles) private var profiles
     @Dependency(\.date.now) private var now
-    @Dependency(\.uuid) private var uuid
     @Dependency(\.continuousClock) private var clock
     @Dependency(\.mediaPlatform) private var mediaPlatform
 
@@ -129,46 +121,6 @@ struct ProfileFeature {
 
             case .view(.refreshCloudSyncStatus):
                 return refreshCloudSyncStatus(&state)
-
-            case .view(.continueOffline):
-                guard case let .waitingForCloud(manifest?) = state.bootstrapResolution else {
-                    return .none
-                }
-                return persistSelection(ActiveProfileSelection(
-                    profileID: manifest.id,
-                    sourceID: state.activeSourceID
-                ))
-
-            case let .view(.createProfile(name)):
-                let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !trimmed.isEmpty else { return .none }
-                let profile = Profile(
-                    id: ProfileID(rawValue: uuid()),
-                    name: trimmed,
-                    createdAt: now,
-                    modifiedAt: now,
-                    deviceID: profiles.deviceID()
-                )
-                state.isLoading = true
-                return saveDefault(profile)
-
-            case let .view(.resolveProfile(choice)):
-                guard !state.isLoading else { return .none }
-                state.isLoading = true
-                state.failure = nil
-                return .run { send in
-                    do {
-                        await send(.internal(.loaded(.success(
-                            try await profiles.resolveProfile(choice)
-                        ))))
-                    } catch {
-                        await send(.internal(.loaded(.failure(Self.normalize(error)))))
-                    }
-                }
-                .cancellable(id: CancelID.load, cancelInFlight: true)
-
-            case let .view(.selectProfile(profileID)):
-                return .send(.delegate(.profileSelectionRequested(profileID)))
 
             case let .view(.selectSource(sourceID)):
                 return .send(.delegate(.sourceSelectionRequested(sourceID)))
@@ -221,13 +173,12 @@ struct ProfileFeature {
             case let .internal(.loaded(.success(bootstrap))):
                 state.isLoading = false
                 state.failure = nil
-                state.profiles = bootstrap.profiles
-                state.manifests = bootstrap.manifests
+                state.profile = bootstrap.profile
+                state.manifest = bootstrap.manifest
                 state.sources = bootstrap.sources
                 state.bindings = bootstrap.bindings
                 state.activeProfileID = bootstrap.selection.profileID
                 state.activeSourceID = bootstrap.selection.sourceID
-                state.bootstrapResolution = bootstrap.resolution
                 if state.needsReloadAfterCurrentLoad {
                     state.needsReloadAfterCurrentLoad = false
                     return load(&state)
@@ -246,21 +197,6 @@ struct ProfileFeature {
             case let .internal(.cloudSyncStatusLoaded(status)):
                 state.isRefreshingCloudSyncStatus = false
                 state.cloudSyncStatus = status
-                return .none
-
-            case let .internal(.defaultProfileSaved(.success(profile))):
-                let selection = ActiveProfileSelection(
-                    profileID: profile.id,
-                    sourceID: state.activeSourceID
-                )
-                return .concatenate(
-                    persistSelection(selection),
-                    .send(.view(.reload))
-                )
-
-            case let .internal(.defaultProfileSaved(.failure(failure))):
-                state.isLoading = false
-                state.failure = failure
                 return .none
 
             case let .internal(.selectionSaved(selection, .success)):
@@ -397,17 +333,6 @@ struct ProfileFeature {
             )))
         }
         .cancellable(id: CancelID.cloudSyncStatus, cancelInFlight: true)
-    }
-
-    private func saveDefault(_ profile: Profile) -> Effect<Action> {
-        .run { send in
-            do {
-                try await profiles.saveProfile(profile)
-                await send(.internal(.defaultProfileSaved(.success(profile))))
-            } catch {
-                await send(.internal(.defaultProfileSaved(.failure(Self.normalize(error)))))
-            }
-        }
     }
 
     private func importRemoteState(

@@ -1,6 +1,7 @@
 "language.label" = "Language";
 "language.help" = "Change the interface language";
 "general.dismiss" = "Dismiss";
+"general.retry" = "Retry";
 "general.refresh" = "Refresh";
 "general.view_all" = "View all";
 "general.selected" = "Selected";
@@ -130,6 +131,9 @@
 "asset.choose_hint" = "Choose playback options for this version";
 
 "playback.loading" = "Loading available versions…";
+"playback.preparing" = "Preparing playback…";
+"playback.unavailable" = "Playback Unavailable";
+"error.iina_load_timeout" = "IINA did not load the media in time. Reconnect the CineLark Bridge, then retry.";
 "playback.none" = "No playable versions";
 "playback.none_description" = "The provider returned no media assets.";
 "playback.title" = "Playback options";
@@ -207,7 +211,7 @@
 "error.iina_plugin_install" = "Complete the IINA Bridge installation and enable it, then try again.";
 "error.iina_plugin_setup_quit" = "CineLark needs to install or update its IINA Bridge. Fully quit IINA, then play again so CineLark can finish safely.";
 "error.iina_plugin_install_failed" = "CineLark could not safely install the bundled IINA Bridge. Reinstall CineLark, then try again.";
-"error.iina_plugin_unavailable" = "The CineLark IINA Bridge is not enabled. Enable it in IINA, then try again.";
+"error.iina_plugin_unavailable" = "The CineLark IINA Bridge did not connect. In IINA, choose Plugins > CineLark Bridge > Reconnect CineLark Bridge, then retry.";
 "error.bridge_helper" = "CineLark could not start its bundled playback helper. Reinstall CineLark, then try again.";
 "error.bridge_authentication" = "IINA could not authenticate with CineLark. Reinstall the bridge to pair it again.";
 "error.bridge_unavailable" = "The CineLark IINA Bridge is unavailable. Start IINA and try again.";

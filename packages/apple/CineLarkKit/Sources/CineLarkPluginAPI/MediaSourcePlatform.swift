@@ -117,12 +117,23 @@ public actor MediaSourcePlatform {
         return try await artwork.resolve(locator, kind)
     }
 
-    public func playback(for locator: MediaLocatorID) async throws -> SourcePlaybackDescriptor {
+    public func playbackVariants(for locator: MediaLocatorID) async throws -> [PlaybackVariant] {
         let runtime = try runtime(for: locator.sourceID)
         guard let playback = runtime.playback else {
             throw MediaSourcePlatformError.capabilityUnavailable("playback")
         }
-        return try await playback.resolve(locator)
+        return try await playback.variants(locator)
+    }
+
+    public func playback(
+        for locator: MediaLocatorID,
+        variantID: String? = nil
+    ) async throws -> SourcePlaybackDescriptor {
+        let runtime = try runtime(for: locator.sourceID)
+        guard let playback = runtime.playback else {
+            throw MediaSourcePlatformError.capabilityUnavailable("playback")
+        }
+        return try await playback.resolveVariant(locator, variantID)
     }
 
     public func reportPlayback(sourceID: SourceID, event: PlaybackEvent) async throws {

@@ -8,6 +8,7 @@
 | 2026-08-27 | Added first-class episode identity and provider-count offset pagination | [`EmbyService.swift`](../../packages/apple/CineLarkKit/Sources/CineLarkEmby/EmbyService.swift) |
 | 2026-08-27 | Added same-origin, secret-free direct-stream URL normalization | [`docs/integrations/emby.md`](../../docs/integrations/emby.md) |
 | 2026-08-27 | Added synthetic real-shape resume and playback fixtures | [`CineLarkEmbyTests`](../../packages/apple/CineLarkKit/Tests/CineLarkEmbyTests) |
+| 2026-08-29 | Amended ephemeral playback to preserve a validated provider query capability for IINA compatibility | [`028.006`](../028-playback-and-interaction-fidelity/006-provider-query-capability.md) |
 
 ## Outcome & current state (as of 2026-08-27)
 
@@ -22,9 +23,10 @@
   invalid response, preventing non-terminating imports.
 - Direct-stream references resolve correctly for absolute, root-relative, and
   reverse-proxy-relative forms. Only same-origin HTTP(S) results are accepted.
-- Playback descriptors remove credential-bearing query items, URL credentials,
-  and fragments. The Emby account token is sent only through the separate
-  `X-Emby-Authorization` header.
+- Playback descriptors remove URL credentials and fragments and reject
+  cross-origin targets. Amendment 028.006 preserves a provider-issued query
+  capability only on the ephemeral player URL; account authentication remains
+  available through a separate header in parallel.
 - Repository fixtures contain synthetic IDs, names, hosts, and secrets only.
   The private Postman collection and live account data remain outside the
   repository.

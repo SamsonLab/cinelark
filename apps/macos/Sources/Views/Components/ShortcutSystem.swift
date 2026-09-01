@@ -71,6 +71,19 @@ enum CineLarkInputModality: Equatable {
     case keyboard
 }
 
+enum CineLarkNavigationSurfaceLevel: Int, Comparable {
+    case page
+    case route
+    case modal
+
+    static func < (
+        lhs: CineLarkNavigationSurfaceLevel,
+        rhs: CineLarkNavigationSurfaceLevel
+    ) -> Bool {
+        lhs.rawValue < rhs.rawValue
+    }
+}
+
 @Observable
 @MainActor
 final class ShortcutCoordinator {
@@ -86,6 +99,7 @@ final class ShortcutCoordinator {
     private struct NavigationSurface {
         let owner: UUID
         let registrationOrder: UInt64
+        let level: CineLarkNavigationSurfaceLevel
         let handlesPresentedModal: Bool
         let handoffToKeyboard: (() -> Void)?
         let move: (CineLarkFocusDirection) -> Bool
@@ -164,6 +178,7 @@ final class ShortcutCoordinator {
 
     func setNavigationSurface(
         owner: UUID,
+        level: CineLarkNavigationSurfaceLevel = .page,
         handlesPresentedModal: Bool = false,
         handoffToKeyboard: (() -> Void)? = nil,
         move: @escaping (CineLarkFocusDirection) -> Bool,
@@ -180,6 +195,7 @@ final class ShortcutCoordinator {
         navigationSurfaces[owner] = NavigationSurface(
             owner: owner,
             registrationOrder: registrationOrder,
+            level: level,
             handlesPresentedModal: handlesPresentedModal,
             handoffToKeyboard: handoffToKeyboard,
             move: move,
@@ -231,11 +247,16 @@ final class ShortcutCoordinator {
     @discardableResult
     func moveFocus(_ direction: CineLarkFocusDirection) -> Bool {
         guard !isEditingText else { return false }
-        let surface = activeNavigationSurface
-        if hasPresentedModal, surface?.handlesPresentedModal != true { return false }
+        guard let surface = activeNavigationSurface else { return false }
+        if hasPresentedModal, !surface.handlesPresentedModal { return false }
+        let interval = CineLarkPerformanceMonitor.shared.start(.focusMutation)
         handoffSelectionIfNeeded(to: surface)
-        guard surface?.move(direction) == true else { return false }
+        guard surface.move(direction) else {
+            CineLarkPerformanceMonitor.shared.finish(interval, outcome: .failure)
+            return false
+        }
         setInputModality(.keyboard)
+        CineLarkPerformanceMonitor.shared.finish(interval, outcome: .success)
         return true
     }
 
@@ -406,7 +427,10 @@ final class ShortcutCoordinator {
 
     private var activeNavigationSurface: NavigationSurface? {
         navigationSurfaces.values.max {
-            $0.registrationOrder < $1.registrationOrder
+            if $0.level != $1.level {
+                return $0.level < $1.level
+            }
+            return $0.registrationOrder < $1.registrationOrder
         }
     }
 

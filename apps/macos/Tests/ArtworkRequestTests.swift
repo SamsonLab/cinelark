@@ -86,4 +86,18 @@ struct ArtworkRequestTests {
         #expect(!key.contains("secret"))
         #expect(!key.contains("fragment"))
     }
+
+    @Test("Authenticated artwork follows only safe same-origin redirects")
+    func redirectScope() {
+        let original = URL(string: "https://example.test/items/movie-1/images/primary")!
+        let sameOrigin = URL(string: "https://example.test/img/poster/movie-1.jpg")!
+        let crossOrigin = URL(string: "https://cdn.example.test/poster/movie-1.jpg")!
+        let queryCredential = URL(
+            string: "https://example.test/poster/movie-1.jpg?access_token=synthetic"
+        )!
+
+        #expect(ArtworkRequestPolicy.allowsRedirect(from: original, to: sameOrigin))
+        #expect(!ArtworkRequestPolicy.allowsRedirect(from: original, to: crossOrigin))
+        #expect(!ArtworkRequestPolicy.allowsRedirect(from: original, to: queryCredential))
+    }
 }

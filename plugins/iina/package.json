@@ -1,6 +1,6 @@
 {
   "name": "@samsonlab/cinelark-iina-bridge",
-  "version": "0.1.17",
+  "version": "0.1.19",
   "private": true,
   "description": "Provider-neutral CineLark playback bridge for IINA",
   "license": "MIT",

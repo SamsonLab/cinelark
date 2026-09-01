@@ -21,6 +21,7 @@ Documents use the following status labels:
 | [Viewing insights](product/viewing-insights.md) | Implemented local projection and recommendations | Period summaries, cached enrichment, affinity/recommendation semantics, ownership, and refresh rules |
 | [Architecture](architecture.md) | Implemented baseline | Component boundaries and data ownership |
 | [Implementation plan](implementation-plan.md) | Implemented baseline | Swift/SwiftUI, Flutter, module, testing, delivery state, and release gates |
+| [Performance budgets and baselines](performance.md) | Implemented development baseline | Privacy-safe intervals, numeric budgets, and repeatable local capture workflow |
 | [ADR-0001](decisions/0001-product-monorepo.md) | Accepted | Product monorepo and external IINA policy |
 | [ADR-0002](decisions/0002-native-macos-flutter-remote.md) | Accepted | Native macOS and cross-platform Remote stacks |
 | [ADR-0003](decisions/0003-bundled-rust-bridge-helper.md) | Implemented; signed validation pending | Bundled Rust helper and thin IINA adapter |

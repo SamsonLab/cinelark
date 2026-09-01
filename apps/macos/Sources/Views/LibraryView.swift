@@ -35,12 +35,12 @@ struct LibraryView: View {
             VStack(spacing: 0) {
                 List(selection: selection) {
                     Section {
-                        navigationLink(.home, titleKey: "nav.home", symbol: "house", shortcut: 1)
-                        navigationLink(.movies, titleKey: "nav.movies", symbol: "film.stack", shortcut: 2)
-                        navigationLink(.series, titleKey: "nav.series", symbol: "tv", shortcut: 3)
-                        navigationLink(.favorites, titleKey: "nav.favorites", symbol: "heart", shortcut: 4)
-                        navigationLink(.search, titleKey: "nav.search", symbol: "magnifyingglass", shortcut: 5)
-                        navigationLink(.insights, titleKey: "nav.insights", symbol: "chart.bar.xaxis", shortcut: 6)
+                        navigationRow(.home, titleKey: "nav.home", symbol: "house", shortcut: 1)
+                        navigationRow(.movies, titleKey: "nav.movies", symbol: "film.stack", shortcut: 2)
+                        navigationRow(.series, titleKey: "nav.series", symbol: "tv", shortcut: 3)
+                        navigationRow(.favorites, titleKey: "nav.favorites", symbol: "heart", shortcut: 4)
+                        navigationRow(.search, titleKey: "nav.search", symbol: "magnifyingglass", shortcut: 5)
+                        navigationRow(.insights, titleKey: "nav.insights", symbol: "chart.bar.xaxis", shortcut: 6)
                     }
                 }
                 .listStyle(.sidebar)
@@ -55,7 +55,10 @@ struct LibraryView: View {
                 switch store.case {
                 case .media(let routeStore):
                     if let detailStore = routeStore.scope(state: \.detail, action: \.detail) {
-                        CatalogMediaDetailView(store: detailStore)
+                        CatalogMediaDetailView(
+                            store: detailStore,
+                            transitionID: routeStore.transitionID
+                        )
                     } else {
                         ContentUnavailableView(
                             "Media source unavailable",
@@ -234,22 +237,21 @@ struct LibraryView: View {
         )
     }
 
-    private func navigationLink(
+    private func navigationRow(
         _ value: LibrarySelection,
         titleKey: String,
         symbol: String,
         shortcut: Int
     ) -> some View {
-        NavigationLink(value: value) {
-            Label(
-                language.localized(titleKey),
-                systemImage: store.selection == value && symbol != "magnifyingglass"
-                    ? "\(symbol).fill"
-                    : symbol
-            )
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
-        }
+        Label(
+            language.localized(titleKey),
+            systemImage: store.selection == value && symbol != "magnifyingglass"
+                ? "\(symbol).fill"
+                : symbol
+        )
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .tag(value)
         .cineLarkShortcut(.command(shortcut))
     }
 

@@ -7,11 +7,17 @@
 ## Setup and authentication
 
 The setup flow accepts a manual URL, including a reverse-proxy base path, or
-discovers servers by broadcasting `who is EmbyServer?` over UDP port 7359. A
-candidate is verified through `System/Info/Public`; its returned server ID is
-the stable `SourceInstanceIdentity` component.
+discovers servers by broadcasting `who is EmbyServer?` over UDP port 7359.
+Scheme-less public hosts default to HTTPS; localhost, `.local`, private/link-
+local IP literals, and IPv6 local addresses default to HTTP. Manual URLs accept
+only HTTP(S) with a host and reject embedded credentials, query items, and
+fragments. Ports and reverse-proxy paths are preserved, and the normalized URL
+is persisted after validation. A candidate is verified through
+`System/Info/Public`; its returned server ID is the stable
+`SourceInstanceIdentity` component.
 
-Authentication uses a stable device ID and `X-Emby-Authorization`. The selected
+Setup currently advertises username/password authentication only. Authentication
+uses a stable device ID and `X-Emby-Authorization`. The selected
 remote user ID is stored in `SourceConfiguration`; the access token is stored
 under the Source ID in Keychain. Tokens are never appended to metadata,
 artwork, or playback URLs.
@@ -67,8 +73,9 @@ authorization header. On a Kingfisher cache miss, the macOS image pipeline
 resolves that capability just in time and attaches the header to the ephemeral
 request. Headers never enter SwiftUI/TCA state, Catalog/Profile values, URLs, or
 cache keys. Capability-resolved artwork rejects credential-bearing URLs,
-cross-origin header forwarding, and redirects; a future authenticated CDN needs
-an explicit credential-scope contract rather than relaxed validation.
+cross-origin header forwarding, and cross-origin redirects. Safe same-origin
+redirects are allowed for immutable image delivery; an authenticated CDN still
+needs an explicit credential-scope contract rather than relaxed validation.
 
 ## Playback semantics
 
@@ -77,8 +84,20 @@ stream. Otherwise the plugin returns an unsupported domain failure and does not
 launch IINA. Playback descriptors are ephemeral and carry authorization headers
 separately from the URL. Absolute, root-relative, and reverse-proxy-relative
 direct-stream references are normalized to the configured server origin.
-Credential-bearing query items and fragments are removed; cross-origin and
-non-HTTP(S) references are rejected before the account header can be forwarded.
+Fragments and user info are removed; cross-origin and non-HTTP(S) references
+are rejected before an account header can be forwarded. Provider-issued query
+capabilities remain on the ephemeral playback URL for IINA compatibility, but
+must not enter presentation state, persistence, caches, or diagnostics.
+For every playable source, a non-empty `DirectStreamUrl` is authoritative even
+when the source also advertises direct play. CineLark uses the canonical
+`Videos/{itemId}/stream?static=true&MediaSourceId={sourceId}` route only when
+the provider omits that target. Playback authenticates with the player-safe
+`X-Emby-Token` header. If a same-origin reference supplies a provider `token`,
+CineLark also forwards its validated raw value as the ephemeral `Authorization`
+header without removing the provider capability from the URL. The player bridge
+applies these values as file-local native headers immediately before opening
+the stream. Credentials do not enter logs, reducer state, Catalog, Profile, or
+caches.
 
 Started is reported after the engine activates the item. Progress is sent on
 the reducer-controlled cadence and after interactions. Stopped always closes
@@ -99,7 +118,7 @@ permanent failures stop retrying and never roll back CineLark's local state.
 Synthetic real-shape fixture tests cover reverse-proxy URL preservation, UDP
 response parsing and deduplication, raw offset cursor mapping, episode resume
 identity, metadata normalization, series counts, content/detail hierarchy,
-image metadata, secret-free same-origin playback URLs, remote import/mirror
+image metadata, same-origin ephemeral playback capabilities, remote import/mirror
 endpoints, exact-user enforcement, and direct playback headers. Registry and
 TCA tests additionally cover legacy alias ownership, explicit reconnect state,
 identity preservation, successful cleanup, non-destructive validation failure,

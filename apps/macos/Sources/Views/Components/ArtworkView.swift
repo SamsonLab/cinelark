@@ -112,7 +112,7 @@ struct ArtworkView: View {
     }
 
     private var redirectHandler: ArtworkRedirectHandler {
-        ArtworkRedirectHandler(rejectsRedirects: reference != nil)
+        ArtworkRedirectHandler(enforcesSameOrigin: reference != nil)
     }
 
     private func imageSource(_ url: URL) -> Source {

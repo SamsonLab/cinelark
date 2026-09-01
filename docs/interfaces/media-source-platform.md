@@ -47,13 +47,37 @@ The macOS cache identity is scoped by Source, provider item, artwork kind, and
 a URL with user info, query, and fragment removed. Cached images can therefore
 render without an installed runtime, while credentials never enter cache
 metadata. Header-authenticated descriptors are restricted to the fallback
-origin and capability-resolved requests reject redirects until a future
-credential-scope contract supports authenticated CDNs safely.
+origin. Capability-resolved requests follow only safe same-origin redirects;
+cross-origin redirects remain blocked until a future credential-scope contract
+supports authenticated CDNs safely.
+
+Detail hierarchy includes a provider-neutral `SeriesPlaybackState` in addition
+to seasons and paged episodes. It identifies the resumable or next-up episode
+across every season, so the hero action is independent of whichever season the
+user currently has open. Providers that do not implement this optional context
+return an empty state and the application falls back to the loaded episode list.
+
+Playback choice is also split from stream resolution. `PlaybackVariant` carries
+metadata-only media-source facts such as display name, container, dimensions,
+bitrate, video characteristics, and audio/subtitle tracks. Detail views may
+retain those values, but resolve a preferred or explicitly selected variant to
+an ephemeral `SourcePlaybackDescriptor` only when playback begins. Stream URLs,
+headers, and tokens therefore remain outside reducer state.
+
+Playback descriptors prefer the playable target declared by the provider for
+the selected source, regardless of whether it advertises direct play, direct
+stream, or both. The target must be same-origin HTTP(S) and is sanitized before
+use; canonical provider protocol endpoints are fallback targets when the
+provider omits one. Provider-issued query capabilities may remain on this
+ephemeral target when IINA requires them; account credentials continue in
+player-safe headers in parallel. Neither form enters reducer state, Catalog,
+Profile, caches, or diagnostics.
 
 ## Implemented providers
 
 Emby v1 implements manual/reverse-proxy setup, UDP discovery, authentication,
-Views/Items/Latest/Resume, detail hierarchy, people, artwork descriptors,
+Views/Items/Latest/Resume, season/episode hierarchy, series Resume/NextUp,
+people, artwork descriptors, multi-source playback variants,
 direct-play/direct-stream resolution, playback check-ins, explicit user-state
 import, and optional outbound mirror. See
 [`../integrations/emby.md`](../integrations/emby.md).

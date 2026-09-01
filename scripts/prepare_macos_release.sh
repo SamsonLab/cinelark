@@ -103,12 +103,14 @@ CineLark $VERSION for macOS 26 or later.
 
 ## Highlights
 
-- Consolidated the IINA bridge and Remote gateway into one native helper while
-  preserving independent playback and remote centers in the app architecture.
-- Added remembered-device selection to CineLark R, with device-scoped pairing,
-  removal, and a dedicated add-device entry.
-- Improved Remote navigation so mobile system Back closes the active Mac panel,
-  and pairing now presents the real host name with an explicit platform icon.
+- Simplified viewing identity to one local-first personal Profile with stronger
+  CloudKit convergence, sync recovery, and ordered provider mutations.
+- Restored provider-backed Home, catalog, hierarchy, metadata, and authenticated
+  artwork presentation on the current Emby media-source boundary.
+- Improved movie and episode playback selection, IINA replacement reliability,
+  Remote capability handling, and user-visible playback state.
+- Made keyboard navigation deterministic across pushed detail routes and compact
+  windows, including continuous focus-following scroll progression.
 
 ## Install
 

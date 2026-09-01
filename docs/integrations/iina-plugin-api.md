@@ -50,6 +50,14 @@ The API does not expose a dedicated method to destroy one managed player from
 the global controller. Plugin cleanup closes and shuts down all instances it
 created.
 
+Managed-player teardown cancels JavaScript timers and quiesces the global
+transport before IINA releases the player-owned plugin context. An already
+active authenticated command long poll may wake that context when it receives a
+new `player.play`. If CineLark has replaced the gateway and therefore destroyed
+that poll, recovery is explicit through the plugin's **Reconnect CineLark
+Bridge** menu action; background timers must not be reintroduced across this
+teardown boundary.
+
 ## 2. Playback control
 
 `iina.core` exposes:
@@ -72,6 +80,12 @@ getVersion()
 
 CineLark needs only URL open, transport, seek, and version checks. History and
 recent-document APIs must not be used because tokenized URLs are sensitive.
+
+Immediately before each managed `core.open`, CineLark maps the descriptor's
+ephemeral HTTP headers to one native string per header and writes the array to
+`file-local-options/http-header-fields`. File-local scope prevents credentials
+from leaking into a later media load; the native array preserves header
+boundaries and must not be replaced by a global comma-delimited string.
 
 ### Status
 
@@ -312,7 +326,7 @@ the timer callback's native plugin owner during hot reload or application
 termination. A retained callback can later call an API whose weak
 `pluginInstance` is already nil, causing a process-level trap in
 `JavascriptAPIHttp.request`. CineLark never updates or repairs its plugin while
-IINA is running. Plugin 0.1.17 also registers every player/global timeout and
+IINA is running. Plugin 0.1.19 also registers every player/global timeout and
 interval. A managed player synchronously signals the global entry from
 `iina.window-will-close`; both entries cancel their timers, and callbacks racing
 cancellation become pure no-ops. Only an authenticated play response already in

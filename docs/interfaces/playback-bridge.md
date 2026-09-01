@@ -48,7 +48,8 @@ cannot be stopped through JavaScript.
 1. Every connection is unauthorized until mutual authentication succeeds.
 2. Every accepted message is integrity-protected and replay-resistant.
 3. Pairing secrets are random, revocable, and stored in Keychain by both sides.
-4. Provider credentials never cross the bridge.
+4. Provider credentials cross only inside authenticated, ephemeral playback
+   commands and are never retained by the broker or player.
 5. Playback URLs are redacted before any log formatting.
 6. Unauthorized peers receive no player state, URL, title, or diagnostic detail.
 7. Authentication failure closes or quarantines the connection and is
@@ -111,7 +112,10 @@ Keychain-provisioned pairing key through both request and envelope HMACs.
 ```json
 {
   "playbackID": "f630df0d-d980-4a18-97de-277a59f82bd8",
-  "url": "https://media.example/play/video/example?token=<redacted>",
+  "url": "https://media.example/Videos/example/stream?static=true&MediaSourceId=source-example",
+  "httpHeaders": {
+    "X-Emby-Token": "<redacted>"
+  },
   "title": "Example Title",
   "startPositionSeconds": 123.5,
   "presentation": {
@@ -120,13 +124,29 @@ Keychain-provisioned pairing key through both request and envelope HMACs.
 }
 ```
 
-The URL is opaque to the plugin. The player acknowledges receipt, opens it,
-applies resume only after the matching file-loaded event, and enters fullscreen
-by default. Automatic continuation sends `player.stop` for the completed
+The URL and headers are opaque to the plugin. Account headers are transported
+through `httpHeaders`; a validated provider-issued query capability may remain
+inside the opaque playback URL for player compatibility. Immediately before
+opening the URL, the player maps each header to one native array entry in
+`file-local-options/http-header-fields`. This preserves header boundaries and
+scopes provider credentials to that file instead of global mpv state. The
+player acknowledges receipt, applies headers before opening the URL, applies
+resume only after the matching file-loaded event, and enters fullscreen by
+default. Automatic continuation sends `player.stop` for the completed
 session, then posts the new `player.play` to the same managed player ID and
 replaces its content through `core.open`. A replacement is not terminal-eligible
 until its own `player.fileLoaded`, and an acknowledgement timeout must not create
-a second player window. Actual URLs must never appear in fixtures or logs.
+a second player window. Actual URLs, headers, and credentials must never appear
+in fixtures or logs.
+
+The coordinator may enqueue the authenticated `player.play` envelope before it
+has observed `bridge.ready`. The broker retains the command, allowing an active
+long poll that was safely quiesced during managed-player teardown to wake and
+create the replacement player. UI state remains `preparing` until
+`player.fileLoaded`; if that matching event does not arrive within 20 seconds,
+the coordinator clears phantom active playback and surfaces a retryable failure.
+A bridge timeout independently discards the broker instead of advertising
+phantom playback.
 
 ### `player.enqueue`
 
@@ -140,7 +160,7 @@ longer sends this command for episode continuation; it sends a replacement
 
 | Type | Payload |
 | --- | --- |
-| `player.enqueue` | `{ "playbackID": UUID, "url": string, "title": string, "startPositionSeconds": number }` |
+| `player.enqueue` | `{ "playbackID": UUID, "url": string, "httpHeaders": object?, "title": string, "startPositionSeconds": number }` |
 | `player.pause` | `{}` |
 | `player.resume` | `{}` |
 | `player.stop` | `{}` |
@@ -213,6 +233,7 @@ play command. A failed stopped request does none of those UI-success actions.
 | --- | --- |
 | Create managed player | `global.createPlayerInstance(options)` |
 | Open or replace content | `core.open(url)` or managed-player `url` option |
+| Per-file HTTP headers | `mpv.set("file-local-options/http-header-fields", string[])` |
 | Preserve player at EOF | `mpv.set("keep-open", "yes")` |
 | Compatibility enqueue | `playlist.add(url, -1)`; not used by current continuation |
 | Pause/resume/stop | `core.pause/resume/stop()` |

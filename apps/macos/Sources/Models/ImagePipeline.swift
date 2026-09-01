@@ -92,6 +92,12 @@ enum ArtworkRequestPolicy {
         }
     }
 
+    static func allowsRedirect(from sourceURL: URL, to destinationURL: URL) -> Bool {
+        isSafe(sourceURL)
+            && isSafe(destinationURL)
+            && sameOrigin(sourceURL, destinationURL)
+    }
+
     private static func sameOrigin(_ lhs: URL, _ rhs: URL) -> Bool {
         origin(lhs) == origin(rhs)
     }
@@ -140,14 +146,20 @@ struct ArtworkRequestModifier: AsyncImageDownloadRequestModifier {
 }
 
 struct ArtworkRedirectHandler: ImageDownloadRedirectHandler {
-    let rejectsRedirects: Bool
+    let enforcesSameOrigin: Bool
 
     func handleHTTPRedirection(
         for task: SessionDataTask,
         response: HTTPURLResponse,
         newRequest: URLRequest
     ) async -> URLRequest? {
-        rejectsRedirects ? nil : newRequest
+        guard enforcesSameOrigin else { return newRequest }
+        guard
+            let sourceURL = response.url,
+            let destinationURL = newRequest.url,
+            ArtworkRequestPolicy.allowsRedirect(from: sourceURL, to: destinationURL)
+        else { return nil }
+        return newRequest
     }
 }
 

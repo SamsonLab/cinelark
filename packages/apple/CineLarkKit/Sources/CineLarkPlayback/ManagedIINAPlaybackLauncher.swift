@@ -7,7 +7,7 @@ import CineLarkDomain
 public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
     public let events: AsyncStream<PlaybackEvent>
 
-    private static let minimumPluginVersion = "0.1.17"
+    private static let minimumPluginVersion = "0.1.19"
     private static let logger = Logger(
         subsystem: "com.samsonlab.cinelark",
         category: "PlaybackBridge"
@@ -86,7 +86,6 @@ public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
         }
         try await ensureBridgeStarted(secret: secret)
         try await launchIINA(at: iinaURL)
-        try await waitForPlugin()
         let envelope = playbackEnvelope(
             type: "player.play",
             descriptor: descriptor,
@@ -94,6 +93,13 @@ public final class ManagedIINAPlaybackLauncher: PlaybackLaunching {
             secret: secret
         )
         try await client.send(envelope)
+        do {
+            try await waitForPlugin()
+        } catch {
+            await client.stop()
+            isBridgeReady = false
+            throw error
+        }
         Self.logger.info(
             "Queued player.play session=\(descriptor.id.uuidString, privacy: .public)"
         )

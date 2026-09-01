@@ -18,7 +18,9 @@ SECRET_PATTERNS = {
     "GitHub token": re.compile(r"gh[opusr]_[A-Za-z0-9_]{20,}"),
     "AWS access key": re.compile(r"AKIA[0-9A-Z]{16}"),
     "private key": re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
-    "local user path": re.compile(re.escape("/" + "Users/") + r"[^/\s]+/"),
+    "local user path": re.compile(
+        r"(?<![A-Za-z0-9}])" + re.escape("/" + "Users/") + r"[^/\s]+/"
+    ),
 }
 
 

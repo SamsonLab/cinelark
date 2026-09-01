@@ -144,7 +144,7 @@ plugins, playback, and gateway lifetimes from reducer state.
 The main sidebar is a content information architecture: Home, Movies, Series,
 Favorites, Search, and Viewing Insights. Configuration does not add sidebar
 destinations or one toolbar button per subsystem. The system Settings scene
-composes General, Profiles & Sources, Remote, and Storage categories from the
+composes General, Viewing & Sources, Remote, and Storage categories from the
 same root Store.
 Transient Settings-window presentation is owned by SwiftUI; only profile/source
 selection intent and its playback-stop confirmation enter `AppFeature` state.

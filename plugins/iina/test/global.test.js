@@ -296,3 +296,88 @@ test('player teardown quiesces pending global callbacks before IINA releases the
   await harness.run(timerRacingWithTeardown);
   assert.equal(httpGets, 0);
 });
+
+test('an authenticated play command wakes the quiesced active broker poll', async () => {
+  const secret = Array.from({ length: 32 }, (_, index) => index);
+  const sessionID = '6f55936d-5950-44fd-a696-f989d41785cc';
+  const command = protocol.createEnvelope({
+    type: 'player.play',
+    sequence: 1,
+    sessionID,
+    secret,
+    payload: {
+      playbackID: sessionID,
+      url: currentEpisode.asset.playbackURL,
+      title: currentEpisode.title,
+      startPositionSeconds: 0,
+    },
+  });
+  const harness = timerHarness();
+  const messageHandlers = new Map();
+  const calls = [];
+  let resolvePoll;
+  let didDeliverCommand = false;
+  const context = {
+    iina: {
+      global: {
+        createPlayerInstance: (options) => {
+          harness.assertMain();
+          calls.push(['createPlayerInstance', options]);
+          return 31;
+        },
+        postMessage: (target, name, data) => {
+          harness.assertMain();
+          calls.push(['postMessage', target, name, data]);
+        },
+        onMessage: (name, callback) => messageHandlers.set(name, callback),
+      },
+      http: {
+        get: (url) => {
+          harness.assertMain();
+          if (url.endsWith('/v1/health')) {
+            return Promise.resolve({
+              statusCode: 200,
+              data: { protocolVersion: protocol.PROTOCOL_VERSION },
+            });
+          }
+          if (url.includes('/v1/plugin/commands?')) {
+            if (didDeliverCommand) return new Promise(() => {});
+            return new Promise((resolve) => { resolvePoll = resolve; });
+          }
+          return Promise.reject(new Error('Unexpected GET'));
+        },
+        post: () => {
+          harness.assertMain();
+          return Promise.resolve({
+            statusCode: 200,
+            data: { protocolVersion: protocol.PROTOCOL_VERSION },
+          });
+        },
+      },
+      menu: { item: (_title, action) => action, addItem: () => {} },
+      utils: {
+        keychainRead: () => protocol.base64UrlEncode(secret),
+      },
+    },
+    require: () => protocol,
+    setTimeout: harness.setTimeout,
+    clearTimeout: harness.clearTimeout,
+    Promise,
+    Date,
+    Math,
+  };
+
+  vm.runInNewContext(globalSource, context, { filename: 'global.js' });
+  harness.finishInitialTurn();
+  await harness.drainImmediate();
+  assert.equal(typeof resolvePoll, 'function');
+
+  messageHandlers.get('cinelark.player-will-close')();
+  didDeliverCommand = true;
+  resolvePoll({ statusCode: 200, data: { commands: [command] } });
+  await settlePromises();
+  await harness.drainImmediate();
+
+  assert.equal(calls.filter(([name]) => name === 'createPlayerInstance').length, 1);
+  assert.deepEqual(calls.at(-1).slice(0, 3), ['postMessage', 31, 'cinelark.command']);
+});

@@ -44,8 +44,12 @@ compact immutable `ViewingInsightsSnapshot`.
 - Results are capped to ten titles and ten values per affinity dimension.
 - Recommendations use all-time facts through the reference instant, independent
   of the currently selected summary period.
-- Session duration and completion plus active favorites contribute bounded
-  genre weights. Ranking then uses score, rating, title, and locator identity.
+- Session evidence uses watched hours capped at two hours per session, a `1.5`
+  completion bonus, and a 180-day half-life. Active favorites contribute a
+  durable `2.5` weight. Very short sessions receive no synthetic minimum.
+- A candidate's strongest matching genre is counted fully; at most two
+  secondary matches receive `0.35` weight each. Ranking then uses score,
+  rating, title, and locator identity, so tag count cannot dominate affinity.
 - Episodes, consumed/completed locators, active favorites, and candidates with
   no matching genre evidence are excluded.
 

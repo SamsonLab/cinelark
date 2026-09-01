@@ -6,8 +6,9 @@
 ## Decision
 
 CineLark's durable user value is a source-independent personal viewing memory.
-An iCloud private database is the synchronization scope, not an application
-identity. It may contain multiple CineLark Profiles.
+An iCloud private database is the synchronization scope. Each private database
+owns one canonical CineLark Personal Profile; the stable `ProfileID` is safe
+across Apple IDs because private databases are isolated.
 
 Media servers and accounts are replaceable sources. Their playback, favorite,
 and watched state remains an independent remote record. CineLark may explicitly
@@ -40,19 +41,18 @@ and does not replace domain merge rules.
 
 ## Bootstrap semantics
 
-A fresh installation creates a local `ClientID` and provisional Profile before
-network access. It must not publish that Profile until CloudKit is confirmed
-empty or the user chooses to keep it separate. Existing cloud Profiles expose a
-small manifest so the user can attach, merge, or keep separate histories.
-
-Selecting or merging a Profile changes the local Profile binding. It never
-changes the client identity.
+A fresh installation creates a local `ClientID` and a canonical provisional
+Personal Profile before network access. Pending CloudKit import never blocks
+local use. Once the private replica is available, bootstrap automatically
+promotes the provisional graph and consolidates any legacy Profile IDs into the
+canonical identity with idempotent merge markers. This never changes the client
+identity.
 
 ## Consequences
 
 - Replacing a media server does not erase CineLark history.
-- Multiple Profiles can coexist in one iCloud account without becoming the
-  default first-run product surface.
+- Legacy Profile records may remain as hidden merge evidence, but only one
+  visible Personal Profile is active per iCloud account.
 - Signed multi-device testing is a release requirement because CloudKit import
   timing and conflict behavior cannot be proven by in-memory tests.
 - Recommendations and period insights can be rebuilt from user-owned viewing

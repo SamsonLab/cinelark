@@ -42,6 +42,73 @@ public struct SourcePlaybackDescriptor: Codable, Hashable, Sendable {
     }
 }
 
+public struct PlaybackVariant: Codable, Hashable, Identifiable, Sendable {
+    public let id: String
+    public let displayName: String
+    public let container: String?
+    public let durationSeconds: Double?
+    public let fileSize: Int64?
+    public let bitRate: Int64?
+    public let width: Int?
+    public let height: Int?
+    public let videoCodec: String?
+    public let videoProfile: String?
+    public let videoBitRate: Int64?
+    public let pixelFormat: String?
+    public let frameRate: Double?
+    public let colorSpace: String?
+    public let colorTransfer: String?
+    public let colorPrimaries: String?
+    public let videoRange: String?
+    public let audioTracks: [AudioTrack]
+    public let subtitleTracks: [SubtitleTrack]
+    public let isPreferred: Bool
+
+    public init(
+        id: String,
+        displayName: String,
+        container: String? = nil,
+        durationSeconds: Double? = nil,
+        fileSize: Int64? = nil,
+        bitRate: Int64? = nil,
+        width: Int? = nil,
+        height: Int? = nil,
+        videoCodec: String? = nil,
+        videoProfile: String? = nil,
+        videoBitRate: Int64? = nil,
+        pixelFormat: String? = nil,
+        frameRate: Double? = nil,
+        colorSpace: String? = nil,
+        colorTransfer: String? = nil,
+        colorPrimaries: String? = nil,
+        videoRange: String? = nil,
+        audioTracks: [AudioTrack] = [],
+        subtitleTracks: [SubtitleTrack] = [],
+        isPreferred: Bool = false
+    ) {
+        self.id = id
+        self.displayName = displayName
+        self.container = container
+        self.durationSeconds = durationSeconds
+        self.fileSize = fileSize
+        self.bitRate = bitRate
+        self.width = width
+        self.height = height
+        self.videoCodec = videoCodec
+        self.videoProfile = videoProfile
+        self.videoBitRate = videoBitRate
+        self.pixelFormat = pixelFormat
+        self.frameRate = frameRate
+        self.colorSpace = colorSpace
+        self.colorTransfer = colorTransfer
+        self.colorPrimaries = colorPrimaries
+        self.videoRange = videoRange
+        self.audioTracks = audioTracks
+        self.subtitleTracks = subtitleTracks
+        self.isPreferred = isPreferred
+    }
+}
+
 public enum MediaSourceChange: Codable, Hashable, Sendable {
     case invalidated
     case itemsChanged(Set<MediaLocatorID>)
@@ -118,6 +185,7 @@ public struct HierarchyClient: Sendable {
     public var resume: @Sendable (MediaQuery) async throws -> MediaPage
     public var detail: @Sendable (MediaLocatorID, MediaSummary) async throws -> MediaDetail
     public var seasons: @Sendable (MediaLocatorID) async throws -> [Season]
+    public var seriesPlayback: @Sendable (MediaLocatorID) async throws -> SeriesPlaybackState
     public var episodes: @Sendable (
         MediaLocatorID,
         String,
@@ -132,6 +200,9 @@ public struct HierarchyClient: Sendable {
         resume: @escaping @Sendable (MediaQuery) async throws -> MediaPage,
         detail: @escaping @Sendable (MediaLocatorID, MediaSummary) async throws -> MediaDetail,
         seasons: @escaping @Sendable (MediaLocatorID) async throws -> [Season],
+        seriesPlayback: @escaping @Sendable (MediaLocatorID) async throws -> SeriesPlaybackState = { _ in
+            SeriesPlaybackState(resume: nil, nextUp: nil)
+        },
         episodes: @escaping @Sendable (
             MediaLocatorID,
             String,
@@ -145,6 +216,7 @@ public struct HierarchyClient: Sendable {
         self.resume = resume
         self.detail = detail
         self.seasons = seasons
+        self.seriesPlayback = seriesPlayback
         self.episodes = episodes
         self.person = person
         self.works = works
@@ -169,9 +241,31 @@ public struct ArtworkDescriptor: Codable, Hashable, Sendable {
 }
 
 public struct PlaybackResolutionClient: Sendable {
+    public var variants: @Sendable (MediaLocatorID) async throws -> [PlaybackVariant]
     public var resolve: @Sendable (MediaLocatorID) async throws -> SourcePlaybackDescriptor
-    public init(resolve: @escaping @Sendable (MediaLocatorID) async throws -> SourcePlaybackDescriptor) {
+    public var resolveVariant: @Sendable (
+        MediaLocatorID,
+        String?
+    ) async throws -> SourcePlaybackDescriptor
+
+    public init(
+        variants: @escaping @Sendable (MediaLocatorID) async throws -> [PlaybackVariant],
+        resolve: @escaping @Sendable (
+            MediaLocatorID,
+            String?
+        ) async throws -> SourcePlaybackDescriptor
+    ) {
+        self.variants = variants
+        self.resolve = { try await resolve($0, nil) }
+        self.resolveVariant = resolve
+    }
+
+    public init(
+        resolve: @escaping @Sendable (MediaLocatorID) async throws -> SourcePlaybackDescriptor
+    ) {
+        self.variants = { _ in [] }
         self.resolve = resolve
+        self.resolveVariant = { locator, _ in try await resolve(locator) }
     }
 }
 

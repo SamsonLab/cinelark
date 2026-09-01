@@ -285,6 +285,7 @@ struct PosterGrid: View {
     let canLoadMore: Bool
     let autoFocusFirst: Bool
     let topContentInset: CGFloat
+    let navigationLevel: CineLarkNavigationSurfaceLevel
     private let pointerSelectedLeadingActionID: String?
     private let preferredLeadingKeyboardID: String?
     private let leadingKeyboardActions: [PosterGridLeadingKeyboardAction]
@@ -317,6 +318,7 @@ struct PosterGrid: View {
         canLoadMore: Bool = false,
         autoFocusFirst: Bool = true,
         topContentInset: CGFloat = 34,
+        navigationLevel: CineLarkNavigationSurfaceLevel = .page,
         pointerSelectedLeadingActionID: String? = nil,
         preferredLeadingKeyboardID: String? = nil,
         leadingKeyboardActions: [PosterGridLeadingKeyboardAction] = [],
@@ -328,6 +330,7 @@ struct PosterGrid: View {
         self.canLoadMore = canLoadMore
         self.autoFocusFirst = autoFocusFirst
         self.topContentInset = topContentInset
+        self.navigationLevel = navigationLevel
         self.pointerSelectedLeadingActionID = pointerSelectedLeadingActionID
         self.preferredLeadingKeyboardID = preferredLeadingKeyboardID
         self.leadingKeyboardActions = leadingKeyboardActions
@@ -497,6 +500,7 @@ struct PosterGrid: View {
         let leadingActions = leadingKeyboardActions
         shortcuts.setNavigationSurface(
             owner: focusOwner,
+            level: navigationLevel,
             handoffToKeyboard: {
                 if let pointerItemID = pointerItemSelection.wrappedValue,
                    itemIDs.contains(pointerItemID) {

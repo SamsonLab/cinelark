@@ -69,7 +69,7 @@ struct CineLarkApp: App {
         }
         UserDefaults.standard.set(clientID.description, forKey: clientIDKey)
         let embyFactory = EmbyPluginFactory(
-            device: EmbyDeviceIdentity(id: clientID.description, appVersion: "0.1.10"),
+            device: EmbyDeviceIdentity(id: clientID.description, appVersion: "0.1.11"),
             tokenVault: EmbyTokenVault(
                 load: { sourceID in
                     try await sourceSecrets.load(account: sourceID.rawValue.uuidString)

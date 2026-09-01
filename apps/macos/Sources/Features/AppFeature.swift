@@ -8,14 +8,13 @@ struct AppFeature {
     enum BootstrapState: Equatable {
         case idle
         case loading
-        case waitingForCloud
-        case resolvingProfile
         case ready
     }
 
     @ObservableState
     struct State: Equatable {
         var bootstrap: BootstrapState = .idle
+        var bootstrapPerformanceInterval: CineLarkPerformanceInterval?
         var pendingSelection: ActiveProfileSelection?
         var pendingBootstrapSelection: ActiveProfileSelection?
         var navigation = NavigationFeature.State()
@@ -27,6 +26,21 @@ struct AppFeature {
         var playback = PlaybackFeature.State()
         var remote = RemoteFeature.State()
         var cache = CacheFeature.State()
+
+        static func == (lhs: Self, rhs: Self) -> Bool {
+            lhs.bootstrap == rhs.bootstrap
+                && lhs.pendingSelection == rhs.pendingSelection
+                && lhs.pendingBootstrapSelection == rhs.pendingBootstrapSelection
+                && lhs.navigation == rhs.navigation
+                && lhs.profile == rhs.profile
+                && lhs.source == rhs.source
+                && lhs.library == rhs.library
+                && lhs.search == rhs.search
+                && lhs.insights == rhs.insights
+                && lhs.playback == rhs.playback
+                && lhs.remote == rhs.remote
+                && lhs.cache == rhs.cache
+        }
     }
 
     enum Action {
@@ -55,6 +69,7 @@ struct AppFeature {
     }
 
     @Dependency(\.profiles) private var profiles
+    @Dependency(\.performance) private var performance
 
     var body: some ReducerOf<Self> {
         Reduce { state, action in
@@ -62,6 +77,7 @@ struct AppFeature {
             case .view(.appeared):
                 guard state.bootstrap == .idle else { return .none }
                 state.bootstrap = .loading
+                state.bootstrapPerformanceInterval = performance.start(.appBootstrap)
                 return .merge(
                     .send(.source(.view(.loadAvailablePlugins))),
                     .send(.profile(.view(.appeared))),
@@ -89,25 +105,24 @@ struct AppFeature {
                 return .none
 
             case let .profile(.internal(.loaded(.success(bootstrap)))):
-                switch bootstrap.resolution {
-                case .waitingForCloud:
-                    state.bootstrap = .waitingForCloud
-                    return .none
-                case .promoteProvisional:
-                    state.bootstrap = .loading
-                    return .none
-                case .requiresChoice:
-                    state.bootstrap = .resolvingProfile
-                    return .none
-                case .localOnly, .synchronize:
-                    state.pendingBootstrapSelection = bootstrap.selection
-                    return .send(.source(.internal(.restoreSources(bootstrap.sources))))
-                }
+                state.pendingBootstrapSelection = bootstrap.selection
+                return .send(.source(.internal(.restoreSources(bootstrap.sources))))
 
-            case let .source(.internal(.sourcesRestored(installedSourceIDs, _, _))):
+            case .profile(.internal(.loaded(.failure))):
+                if let interval = state.bootstrapPerformanceInterval {
+                    performance.finish(interval, .failure)
+                    state.bootstrapPerformanceInterval = nil
+                }
+                return .none
+
+            case let .source(.internal(.sourcesRestored(installedSourceIDs, _, failure))):
                 guard let selection = state.pendingBootstrapSelection else { return .none }
                 state.pendingBootstrapSelection = nil
                 state.bootstrap = .ready
+                if let interval = state.bootstrapPerformanceInterval {
+                    performance.finish(interval, failure == nil ? .success : .failure)
+                    state.bootstrapPerformanceInterval = nil
+                }
                 if let sourceID = selection.sourceID, !installedSourceIDs.contains(sourceID) {
                     return .send(.profile(.internal(.commitSelection(
                         ActiveProfileSelection(
@@ -117,17 +132,6 @@ struct AppFeature {
                     ))))
                 }
                 return applyContext(selection)
-
-            case let .profile(.delegate(.profileSelectionRequested(profileID))):
-                let selection = ActiveProfileSelection(
-                    profileID: profileID,
-                    sourceID: state.profile.activeSourceID
-                )
-                if state.playback.active != nil {
-                    state.pendingSelection = selection
-                    return .none
-                }
-                return .send(.profile(.internal(.commitSelection(selection))))
 
             case let .profile(.delegate(.sourceSelectionRequested(sourceID))):
                 let selection = ActiveProfileSelection(
@@ -142,12 +146,6 @@ struct AppFeature {
 
             case let .profile(.delegate(.selectionChanged(selection))):
                 state.pendingBootstrapSelection = nil
-                if state.bootstrap == .waitingForCloud {
-                    state.pendingBootstrapSelection = selection
-                    return .send(.source(.internal(.restoreSources(
-                        state.profile.sources
-                    ))))
-                }
                 return applyContext(selection)
 
             case let .profile(.internal(.repositoryChanged(.userState(profileID)))):
@@ -183,7 +181,8 @@ struct AppFeature {
                 kind,
                 artworkURL,
                 metadata,
-                startPosition
+                startPosition,
+                variantID
             ))):
                 return .send(.playback(.view(.play(
                     locator: locator,
@@ -191,7 +190,25 @@ struct AppFeature {
                     kind: kind,
                     artworkURL: artworkURL,
                     metadata: metadata,
-                    startPositionSeconds: startPosition
+                    startPositionSeconds: startPosition,
+                    variantID: variantID
+                ))))
+
+            case let .library(.delegate(.play(
+                locator,
+                title,
+                kind,
+                artworkURL,
+                startPosition
+            ))):
+                return .send(.playback(.view(.play(
+                    locator: locator,
+                    title: title,
+                    kind: kind,
+                    artworkURL: artworkURL,
+                    metadata: nil,
+                    startPositionSeconds: startPosition,
+                    variantID: nil
                 ))))
 
             case let .source(.delegate(.sourceSaved(source))):

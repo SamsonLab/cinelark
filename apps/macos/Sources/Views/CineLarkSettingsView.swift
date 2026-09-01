@@ -21,7 +21,7 @@ struct CineLarkSettingsView: View {
                 sourceStore: store.scope(state: \.source, action: \.source)
             )
             .tabItem {
-                Label("Profiles & Sources", systemImage: "person.2.crop.square.stack")
+                Label("Viewing & Sources", systemImage: "person.crop.circle")
             }
 
             RemoteSettingsView(
@@ -46,7 +46,8 @@ struct CineLarkSettingsView: View {
                 Label("Storage", systemImage: "internaldrive")
             }
         }
-        .frame(width: 720, height: 640)
+        .frame(width: 800, height: 680)
+        .background(CineLarkPageBackground())
         .alert(
             "Stop Playback?",
             isPresented: Binding(
@@ -61,7 +62,7 @@ struct CineLarkSettingsView: View {
                 store.send(.view(.confirmSelectionChange))
             }
         } message: {
-            Text("Changing the active profile or source stops the current playback session.")
+            Text("Changing the active source stops the current playback session.")
         }
     }
 }
@@ -73,27 +74,48 @@ private struct GeneralSettingsView: View {
     let updater: SPUUpdater
 
     var body: some View {
-        Form {
-            Section("Language") {
-                Picker("Application language", selection: $storedLanguage) {
-                    ForEach(AppLanguage.allCases) { option in
-                        Text(language.displayName(for: option))
-                            .tag(option.rawValue)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                CineLarkSettingsPageHeader(
+                    title: "General",
+                    subtitle: "Language, updates, and application information.",
+                    systemImage: "gearshape"
+                )
+
+                CineLarkSettingsCard(
+                    "Language",
+                    subtitle: "Choose the language used throughout CineLark.",
+                    systemImage: "character.bubble"
+                ) {
+                    Picker("Application language", selection: $storedLanguage) {
+                        ForEach(AppLanguage.allCases) { option in
+                            Text(language.displayName(for: option))
+                                .tag(option.rawValue)
+                        }
                     }
+                    .labelsHidden()
+                    .frame(maxWidth: 260, alignment: .leading)
+                }
+
+                CineLarkSettingsCard(
+                    "Software Update",
+                    subtitle: "Keep the app and bundled integrations current.",
+                    systemImage: "arrow.triangle.2.circlepath"
+                ) {
+                    LabeledContent("Current version", value: versionLabel)
+                    Divider()
+                    SparkleMenuUpdateButton(updater: updater)
+                }
+
+                CineLarkSettingsCard("About", systemImage: "info.circle") {
+                    LabeledContent("Application", value: "CineLark")
+                    Divider()
+                    LabeledContent("Bundle identifier", value: bundleIdentifier)
                 }
             }
-
-            Section("Software Update") {
-                LabeledContent("Current version", value: versionLabel)
-                SparkleMenuUpdateButton(updater: updater)
-            }
-
-            Section("About") {
-                LabeledContent("Application", value: "CineLark")
-                LabeledContent("Bundle identifier", value: bundleIdentifier)
-            }
+            .padding(28)
         }
-        .formStyle(.grouped)
+        .background(CineLarkPageBackground())
     }
 
     private var versionLabel: String {

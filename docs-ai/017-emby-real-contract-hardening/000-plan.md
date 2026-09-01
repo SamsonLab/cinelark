@@ -4,7 +4,7 @@
 | --- | --- |
 | **Status** | Implemented |
 | **Anchor date** | 2026-08-27 |
-| **Primary refs** | [`001-action.md`](001-action.md), [`../../docs/integrations/emby.md`](../../docs/integrations/emby.md) |
+| **Primary refs** | [`001-action.md`](001-action.md), [Remote setup follow-up](002-remote-server-setup.md), [`../../docs/integrations/emby.md`](../../docs/integrations/emby.md) |
 | **Related** | [Media source platform](../011-media-source-platform/000-plan.md), [Emby source unification](../016-emby-source-unification/000-plan.md), [`docs/integrations/emby.md`](../../docs/integrations/emby.md), [`SECURITY.md`](../../SECURITY.md) |
 
 ## Background
@@ -32,8 +32,9 @@ real account, viewing-history, server, filesystem, or credential data.
 - Guarantee paginated imports terminate if a provider repeats a cursor.
 - Resolve absolute, root-relative, and base-path-relative direct-stream URLs
   without corrupting their path or query.
-- Remove credential-bearing query parameters from playback descriptors and
-  authenticate playback through `X-Emby-Authorization` only.
+- Remove credential-bearing query parameters from playback descriptors. Use
+  `X-Emby-Authorization` for standard Emby streams and move a same-origin
+  provider `token` capability into the ephemeral `Authorization` header.
 - Add small synthetic fixtures shaped after the observed responses and cover
   the regressions deterministically.
 
@@ -82,7 +83,9 @@ The Emby runtime owns direct-stream URL normalization:
    `api_key`, `api-key`, `token`, and `x-emby-token`;
 5. reject non-HTTP(S), cross-origin, or malformed results before attaching an
    account authorization header;
-6. return the normal Emby authorization header separately.
+6. return the normal Emby authorization header separately;
+7. when a same-origin direct-stream reference contains a `token`, remove it
+   from the URL and forward its validated raw value only as `Authorization`.
 
 The live service was verified to accept a ranged playback request after its
 `api_key` query item was removed, using only `X-Emby-Authorization`. The test
@@ -106,12 +109,28 @@ verbatim from the private response collection.
   playback semantics, and viewing-insight classification.
 - **Advance by normalized item count:** rejected because normalization and
   provider pagination are independent contracts.
-- **Keep `api_key` in the stream URL:** rejected because playback URLs are
-  capability-bearing and can escape through logs, history, or player state.
+- **Keep `api_key` in the stream URL:** initially rejected because playback
+  URLs are capability-bearing and can escape through logs, history, or player
+  state. Superseded for ephemeral IINA playback by amendment 028.006 after
+  header-only delivery failed in the real player.
 - **Use the private response collection as a fixture:** rejected by repository
   security policy and because broad snapshots are brittle regression tests.
 
 ## Amendments
+
+- Updated 2026-08-29: A validated provider-issued query capability is preserved
+  only on the ephemeral IINA playback URL while remaining excluded from state,
+  persistence, caches, and diagnostics — see
+  [028.006 provider query capability](../028-playback-and-interaction-fidelity/006-provider-query-capability.md).
+
+- Updated 2026-08-28: Hardened manual remote-server URL normalization and made
+  the advertised authentication contract match the implemented setup flow —
+  see [002-remote-server-setup.md](002-remote-server-setup.md).
+
+- Updated 2026-08-28: Real `/play/video/{asset}` delivery rejects
+  `X-Emby-Authorization` and consumes the direct-stream `token` through the raw
+  `Authorization` header. The token remains absent from the URL, logs, Catalog,
+  Profile, and TCA state; cross-origin forwarding remains rejected.
 
 - Updated 2026-08-27: the optional metadata work deferred here was completed in
   [Emby metadata fidelity](../018-emby-metadata-fidelity/000-plan.md).

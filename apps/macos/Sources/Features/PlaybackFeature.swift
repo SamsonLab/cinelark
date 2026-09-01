@@ -7,6 +7,16 @@ import CineLarkProfile
 
 @Reducer
 struct PlaybackFeature {
+    struct Request: Equatable {
+        let locator: MediaLocatorID
+        let title: String
+        let kind: MediaKind
+        let artworkURL: URL?
+        let metadata: ProfileMediaMetadataSnapshot?
+        let startPositionSeconds: Double
+        let variantID: String?
+    }
+
     struct Active: Equatable {
         let id: UUID
         let locator: MediaLocatorID
@@ -33,6 +43,12 @@ struct PlaybackFeature {
 
     enum Failure: Error, Equatable {
         case unavailable(String)
+
+        var message: String {
+            switch self {
+            case let .unavailable(message): message
+            }
+        }
     }
 
     @ObservableState
@@ -40,8 +56,23 @@ struct PlaybackFeature {
         var profileID: ProfileID?
         var active: Active?
         var pendingRequestID: UUID?
+        var performanceInterval: CineLarkPerformanceInterval?
+        var lastRequest: Request?
         var isStarting = false
         var failure: Failure?
+
+        var canRetry: Bool {
+            failure != nil && lastRequest != nil && active == nil && !isStarting
+        }
+
+        static func == (lhs: Self, rhs: Self) -> Bool {
+            lhs.profileID == rhs.profileID
+                && lhs.active == rhs.active
+                && lhs.pendingRequestID == rhs.pendingRequestID
+                && lhs.lastRequest == rhs.lastRequest
+                && lhs.isStarting == rhs.isStarting
+                && lhs.failure == rhs.failure
+        }
     }
 
     enum Action: Equatable {
@@ -58,9 +89,12 @@ struct PlaybackFeature {
                 kind: MediaKind,
                 artworkURL: URL?,
                 metadata: ProfileMediaMetadataSnapshot?,
-                startPositionSeconds: Double
+                startPositionSeconds: Double,
+                variantID: String?
             )
             case control(PlaybackControlCommand)
+            case retry
+            case dismissFailure
             case stop
         }
 
@@ -76,6 +110,7 @@ struct PlaybackFeature {
                 Result<SourcePlaybackDescriptor, Failure>
             )
             case openCompleted(UUID, Result<Bool, Failure>)
+            case startupTimedOut(UUID)
             case controlFailed(UUID, Failure)
             case engineEvent(CineLarkPlayback.PlaybackEvent)
             case progressTick
@@ -90,6 +125,7 @@ struct PlaybackFeature {
         case resolution
         case events
         case progress
+        case startup
     }
 
     @Dependency(\.mediaPlatform) private var mediaPlatform
@@ -98,6 +134,7 @@ struct PlaybackFeature {
     @Dependency(\.continuousClock) private var clock
     @Dependency(\.date.now) private var now
     @Dependency(\.uuid) private var uuid
+    @Dependency(\.performance) private var performance
 
     var body: some ReducerOf<Self> {
         Reduce { state, action in
@@ -114,38 +151,58 @@ struct PlaybackFeature {
                 state.profileID = profileID
                 return .none
 
-            case let .view(.play(locator, title, kind, artworkURL, metadata, startPosition)):
+            case let .view(.play(
+                locator,
+                title,
+                kind,
+                artworkURL,
+                metadata,
+                startPosition,
+                variantID
+            )):
+                let request = Request(
+                    locator: locator,
+                    title: title,
+                    kind: kind,
+                    artworkURL: artworkURL,
+                    metadata: metadata,
+                    startPositionSeconds: startPosition,
+                    variantID: variantID
+                )
+                state.lastRequest = request
                 state.isStarting = true
                 state.failure = nil
+                if let interval = state.performanceInterval {
+                    performance.finish(interval, .cancelled)
+                }
+                state.performanceInterval = performance.start(.playbackFileLoad)
                 let requestID = uuid()
                 state.pendingRequestID = requestID
-                return .run { send in
-                    do {
-                        let descriptor = try await mediaPlatform.resolvePlayback(locator)
-                        await send(.internal(.descriptorResolved(
-                            requestID: requestID,
-                            locator: locator,
-                            title: title,
-                            kind: kind,
-                            artworkURL: artworkURL,
-                            metadata: metadata,
-                            startPositionSeconds: startPosition,
-                            .success(descriptor)
-                        )))
-                    } catch {
-                        await send(.internal(.descriptorResolved(
-                            requestID: requestID,
-                            locator: locator,
-                            title: title,
-                            kind: kind,
-                            artworkURL: artworkURL,
-                            metadata: metadata,
-                            startPositionSeconds: startPosition,
-                            .failure(Self.normalize(error))
-                        )))
-                    }
+                return .merge(
+                    .cancel(id: CancelID.startup),
+                    resolve(request, requestID: requestID)
+                        .cancellable(id: CancelID.resolution, cancelInFlight: true)
+                )
+
+            case .view(.retry):
+                guard let request = state.lastRequest, !state.isStarting else { return .none }
+                state.isStarting = true
+                state.failure = nil
+                if let interval = state.performanceInterval {
+                    performance.finish(interval, .cancelled)
                 }
-                .cancellable(id: CancelID.resolution, cancelInFlight: true)
+                state.performanceInterval = performance.start(.playbackFileLoad)
+                let requestID = uuid()
+                state.pendingRequestID = requestID
+                return .merge(
+                    .cancel(id: CancelID.startup),
+                    resolve(request, requestID: requestID)
+                        .cancellable(id: CancelID.resolution, cancelInFlight: true)
+                )
+
+            case .view(.dismissFailure):
+                state.failure = nil
+                return .none
 
             case let .internal(.descriptorResolved(
                 requestID,
@@ -189,18 +246,35 @@ struct PlaybackFeature {
                 state.pendingRequestID = nil
                 state.isStarting = false
                 state.failure = failure
+                finishPerformance(&state, outcome: .failure)
                 return .none
 
             case let .internal(.openCompleted(id, .success)):
                 guard state.active?.id == id else { return .none }
-                state.isStarting = false
-                return .none
+                return .run { send in
+                    try await clock.sleep(for: .seconds(20))
+                    await send(.internal(.startupTimedOut(id)))
+                }
+                .cancellable(id: CancelID.startup, cancelInFlight: true)
 
             case let .internal(.openCompleted(id, .failure(failure))):
                 guard state.active?.id == id else { return .none }
                 state.isStarting = false
                 state.active = nil
                 state.failure = failure
+                finishPerformance(&state, outcome: .failure)
+                return .none
+
+            case let .internal(.startupTimedOut(id)):
+                guard state.isStarting,
+                      state.active?.id == id,
+                      state.active?.didReportStarted == false else { return .none }
+                state.isStarting = false
+                state.active = nil
+                state.failure = .unavailable(
+                    "IINA did not load the media in time. Reconnect the CineLark Bridge, then retry."
+                )
+                finishPerformance(&state, outcome: .failure)
                 return .none
 
             case let .internal(.controlFailed(id, failure)):
@@ -210,6 +284,9 @@ struct PlaybackFeature {
 
             case let .internal(.engineEvent(.fileLoaded(playbackID, resumedAt))):
                 guard state.active?.id == playbackID, var active = state.active else { return .none }
+                state.lastRequest = nil
+                state.isStarting = false
+                finishPerformance(&state, outcome: .success)
                 active.positionSeconds = resumedAt
                 active.didReportStarted = true
                 active.sessionStartedAt = now
@@ -217,6 +294,7 @@ struct PlaybackFeature {
                 active.lastAccountedPositionSeconds = resumedAt
                 state.active = active
                 return .merge(
+                    .cancel(id: CancelID.startup),
                     report(
                         .started(locator: active.locator, positionSeconds: resumedAt),
                         active: active,
@@ -277,6 +355,11 @@ struct PlaybackFeature {
                 return finish(active: active, reachedEOF: false, profileID: state.profileID)
 
             case .internal(.engineEvent(.bridgeError(_, let message))):
+                if state.isStarting, state.active?.didReportStarted != true {
+                    state.active = nil
+                    state.isStarting = false
+                    finishPerformance(&state, outcome: .failure)
+                }
                 state.failure = .unavailable(message)
                 return .none
 
@@ -309,10 +392,13 @@ struct PlaybackFeature {
 
             case .view(.stop):
                 state.pendingRequestID = nil
+                state.lastRequest = nil
                 state.isStarting = false
+                finishPerformance(&state, outcome: .cancelled)
                 guard var active = state.active else {
                     return .concatenate(
                         .cancel(id: CancelID.resolution),
+                        .cancel(id: CancelID.startup),
                         .send(.delegate(.stopped))
                     )
                 }
@@ -321,6 +407,7 @@ struct PlaybackFeature {
                 state.active = nil
                 return .concatenate(
                     .cancel(id: CancelID.resolution),
+                    .cancel(id: CancelID.startup),
                     .cancel(id: CancelID.progress),
                     .run { _ in try? await engine.send(.stop, stoppedPlayback.id) },
                     finish(
@@ -334,6 +421,47 @@ struct PlaybackFeature {
                 return .none
             }
         }
+    }
+
+    private func resolve(_ request: Request, requestID: UUID) -> Effect<Action> {
+        .run { send in
+            do {
+                let descriptor = try await mediaPlatform.resolvePlaybackVariant(
+                    request.locator,
+                    request.variantID
+                )
+                await send(.internal(.descriptorResolved(
+                    requestID: requestID,
+                    locator: request.locator,
+                    title: request.title,
+                    kind: request.kind,
+                    artworkURL: request.artworkURL,
+                    metadata: request.metadata,
+                    startPositionSeconds: request.startPositionSeconds,
+                    .success(descriptor)
+                )))
+            } catch {
+                await send(.internal(.descriptorResolved(
+                    requestID: requestID,
+                    locator: request.locator,
+                    title: request.title,
+                    kind: request.kind,
+                    artworkURL: request.artworkURL,
+                    metadata: request.metadata,
+                    startPositionSeconds: request.startPositionSeconds,
+                    .failure(Self.normalize(error))
+                )))
+            }
+        }
+    }
+
+    private func finishPerformance(
+        _ state: inout State,
+        outcome: CineLarkPerformanceOutcome
+    ) {
+        guard let interval = state.performanceInterval else { return }
+        performance.finish(interval, outcome)
+        state.performanceInterval = nil
     }
 
     private func progressTimer() -> Effect<Action> {
@@ -352,6 +480,7 @@ struct PlaybackFeature {
     ) -> Effect<Action> {
         let endedAt = now
         return .concatenate(
+            .cancel(id: CancelID.startup),
             .cancel(id: CancelID.progress),
             report(
                 .stopped(
@@ -518,6 +647,9 @@ struct PlaybackFeature {
     }
 
     private static func normalize(_ error: Error) -> Failure {
-        .unavailable(String(describing: error))
+        .unavailable(
+            (error as? LocalizedError)?.errorDescription
+                ?? error.localizedDescription
+        )
     }
 }

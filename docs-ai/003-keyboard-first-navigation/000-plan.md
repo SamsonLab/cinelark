@@ -193,3 +193,12 @@ heading instead of the card body — see
   collection grids restore a stable selected anchor across navigation and
   geometry changes — see
   [016-global-sidebar-and-grid-restoration.md](016-global-sidebar-and-grid-restoration.md).
+
+- Updated 2026-09-01: Detail routes must retain active navigation-surface
+  ownership across route transitions and SwiftUI reconstruction — see
+  [017-detail-route-surface-ownership.md](017-detail-route-surface-ownership.md).
+
+- Updated 2026-09-01: Compact detail viewports preserve semantic keyboard
+  progression while programmatic scrolling catches up, without removing the
+  visible-boundary rebase used after pointer scrolling — see
+  [018-compact-detail-scroll-progression.md](018-compact-detail-scroll-progression.md).

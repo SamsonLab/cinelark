@@ -27,7 +27,7 @@ boundaries established for media plugins.
 - Use a stable, credential-free cache identity scoped by Source, provider item,
   artwork kind, and sanitized fallback URL.
 - Reject credential-bearing or cross-origin descriptor URLs before attaching
-  headers, and reject redirects for capability-resolved artwork in v1.
+  headers, and restrict capability-resolved redirects to safe same-origin URLs.
 - Cover library/detail posters and persisted top-title artwork in Insights.
 - Add deterministic tests for request mutation, unsafe descriptor rejection,
   cache-key redaction, platform capability routing, and locator projection.
@@ -66,7 +66,8 @@ The request modifier applies these rules:
    known token query item;
 5. a descriptor carrying headers must remain on the fallback URL's origin;
 6. descriptor headers are attached only to the ephemeral request;
-7. redirects are rejected for capability-resolved artwork.
+7. redirects are accepted only when each destination remains a safe same-origin
+   URL; cross-origin and credential-bearing redirects are rejected.
 
 The Kingfisher cache key contains Source ID, provider item ID, artwork kind, and
 a sanitized URL with user info, query, and fragment removed. Tokens and headers
@@ -91,12 +92,14 @@ headers and descriptors do not.
   Kingfisher knows whether the image is cached.
 - **Let `ArtworkView` call a dependency in `.task`:** rejected because it would
   put business-capability orchestration in the View and duplicate cancellation.
-- **Allow redirects and trust URLSession header behavior:** rejected because a
-  custom authorization header has no safe generic redirect scope.
+- **Allow redirects without validating each destination:** rejected because a
+  custom authorization header has no safe generic cross-origin scope.
 - **Key cache entries by URL only:** rejected because identical server paths can
   represent different account-bound Sources and reconfiguration needs a stable
   source-aware boundary.
 
 ## Amendments
 
-- None.
+- Updated 2026-08-28: Safe same-origin redirects replaced the original blanket
+  rejection after the configured Emby service adopted immutable image
+  redirects — see [provider content restoration](../026-provider-content-restoration/000-plan.md).

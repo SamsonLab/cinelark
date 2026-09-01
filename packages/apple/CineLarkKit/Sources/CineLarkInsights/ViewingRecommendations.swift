@@ -27,6 +27,36 @@ public struct ViewingRecommendation: Codable, Hashable, Sendable, Identifiable {
     }
 }
 
+public struct ViewingRecommendationWeights: Equatable, Sendable {
+    public var watchHourWeight: Double
+    public var maximumWatchHoursPerSession: Double
+    public var completionWeight: Double
+    public var favoriteWeight: Double
+    public var sessionHalfLifeDays: Double
+    public var secondaryGenreWeight: Double
+    public var maximumMatchedGenres: Int
+
+    public init(
+        watchHourWeight: Double = 1,
+        maximumWatchHoursPerSession: Double = 2,
+        completionWeight: Double = 1.5,
+        favoriteWeight: Double = 2.5,
+        sessionHalfLifeDays: Double = 180,
+        secondaryGenreWeight: Double = 0.35,
+        maximumMatchedGenres: Int = 3
+    ) {
+        self.watchHourWeight = max(watchHourWeight, 0)
+        self.maximumWatchHoursPerSession = max(maximumWatchHoursPerSession, 0)
+        self.completionWeight = max(completionWeight, 0)
+        self.favoriteWeight = max(favoriteWeight, 0)
+        self.sessionHalfLifeDays = max(sessionHalfLifeDays, 1)
+        self.secondaryGenreWeight = max(secondaryGenreWeight, 0)
+        self.maximumMatchedGenres = max(maximumMatchedGenres, 1)
+    }
+
+    public static let `default` = Self()
+}
+
 public enum ViewingRecommendationProjector {
     public static let defaultLimit = 12
 
@@ -36,7 +66,8 @@ public enum ViewingRecommendationProjector {
         snapshots: [ProfileMediaKey: ProfileMediaSnapshot],
         candidates: [LocatedMediaItem],
         referenceDate: Date,
-        limit: Int = defaultLimit
+        limit: Int = defaultLimit,
+        weights: ViewingRecommendationWeights = .default
     ) -> [ViewingRecommendation] {
         guard limit > 0 else { return [] }
         let includedSessions = sessions.filter { session in
@@ -53,17 +84,31 @@ public enum ViewingRecommendationProjector {
 
         for session in includedSessions {
             guard let metadata = snapshots[session.mediaKey]?.metadata else { continue }
-            let durationWeight = max(session.watchedSeconds / 3_600, 0.25)
-            let completionWeight = session.status == .completed ? 1.0 : 0
+            let watchedHours = min(
+                max(session.watchedSeconds / 3_600, 0),
+                weights.maximumWatchHoursPerSession
+            )
+            let durationWeight = watchedHours * weights.watchHourWeight
+            let completionWeight = session.status == .completed
+                ? weights.completionWeight
+                : 0
+            let activityDate = session.endedAt ?? session.modifiedAt
+            let age = max(referenceDate.timeIntervalSince(activityDate), 0)
+            let halfLife = weights.sessionHalfLifeDays * 86_400
+            let recencyWeight = pow(0.5, age / halfLife)
             add(
                 metadata.genres.map(\.name),
-                weight: durationWeight + completionWeight,
+                weight: (durationWeight + completionWeight) * recencyWeight,
                 to: &affinities
             )
         }
         for favorite in activeFavorites {
             guard let metadata = snapshots[favorite.mediaKey]?.metadata else { continue }
-            add(metadata.genres.map(\.name), weight: 2, to: &affinities)
+            add(
+                metadata.genres.map(\.name),
+                weight: weights.favoriteWeight,
+                to: &affinities
+            )
         }
 
         let values = candidates.compactMap { candidate -> ViewingRecommendation? in
@@ -78,7 +123,12 @@ public enum ViewingRecommendationProjector {
                 if $0.weight != $1.weight { return $0.weight > $1.weight }
                 return $0.name < $1.name
             }
-            let score = matches.reduce(0) { $0 + $1.weight }
+            guard let strongest = matches.first else { return nil }
+            let secondary = matches
+                .dropFirst()
+                .prefix(weights.maximumMatchedGenres - 1)
+                .reduce(0) { $0 + $1.weight * weights.secondaryGenreWeight }
+            let score = strongest.weight + secondary
             guard score > 0 else { return nil }
             return ViewingRecommendation(
                 locator: candidate.locator,

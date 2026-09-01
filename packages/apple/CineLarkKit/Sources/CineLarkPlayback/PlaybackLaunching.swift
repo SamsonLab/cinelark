@@ -145,7 +145,7 @@ public enum PlaybackLaunchError: Error, LocalizedError {
         case .pluginInstallationFailed:
             "CineLark could not safely install the bundled IINA Bridge. Reinstall CineLark, then try again."
         case .pluginUnavailable:
-            "The CineLark IINA Bridge is not enabled. Enable it in IINA, then try again."
+            "The CineLark IINA Bridge did not connect. In IINA, choose Plugins > CineLark Bridge > Reconnect CineLark Bridge, then retry."
         case .helperUnavailable:
             "CineLark could not start its bundled playback helper."
         case .bridgeAuthenticationFailed:

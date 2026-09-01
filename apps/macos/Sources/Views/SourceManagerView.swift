@@ -8,181 +8,216 @@ struct SourceManagerView: View {
     @Bindable var sourceStore: StoreOf<SourceFeature>
     @State private var username = ""
     @State private var password = ""
-    @State private var newProfileName = ""
 
     var body: some View {
-        Form {
-            Section("Profile") {
-                Picker("Active profile", selection: activeProfile) {
-                    ForEach(profileStore.profiles) { profile in
-                        Text(profile.name).tag(Optional(profile.id))
-                    }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                CineLarkSettingsPageHeader(
+                    title: "Viewing & Sources",
+                    subtitle: "One personal Profile, private iCloud sync, and media servers.",
+                    systemImage: "person.crop.circle"
+                )
+
+                personalViewingCard
+                syncCard
+                mediaSourcesCard
+
+                if activeSourceSupportsRemoteState {
+                    remoteStateCard
                 }
-                if let manifest = activeManifest {
-                    Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 5) {
-                        GridRow {
-                            Text("Last activity")
-                                .foregroundStyle(.secondary)
-                            Text((manifest.lastActivityAt ?? manifest.profile.modifiedAt).formatted(
-                                date: .abbreviated,
-                                time: .shortened
-                            ))
-                        }
-                        GridRow {
-                            Text("Last device")
-                                .foregroundStyle(.secondary)
-                            Text(manifest.lastDeviceName ?? "This device")
-                        }
-                        GridRow {
-                            Text("Saved data")
-                                .foregroundStyle(.secondary)
-                            Text(
-                                "\(manifest.titleCount) titles · "
-                                    + "\(manifest.viewingSessionCount) sessions · "
-                                    + "\(manifest.favoriteCount) favorites"
-                            )
-                        }
-                        GridRow {
-                            Text("Watch time")
-                                .foregroundStyle(.secondary)
-                            Text(formattedWatchTime(manifest.totalWatchSeconds))
-                        }
-                    }
-                    .font(.caption)
-                }
-                HStack {
-                    TextField("New profile name", text: $newProfileName)
-                    Button("Create") {
-                        profileStore.send(.view(.createProfile(newProfileName)))
-                        newProfileName = ""
-                    }
-                    .disabled(newProfileName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                if let setup = sourceStore.setup {
+                    setupSection(setup)
                 }
             }
+            .padding(28)
+        }
+        .background(CineLarkPageBackground())
+        .onDisappear {
+            sourceStore.send(.view(.cancelSetup))
+        }
+    }
 
-            Section("iCloud Sync") {
-                LabeledContent("Status") {
-                    Label(syncStatusTitle, systemImage: syncStatusSymbol)
-                        .foregroundStyle(syncStatusColor)
-                }
-
-                if !profileStore.cloudSyncStatus.activeOperations.isEmpty {
-                    LabeledContent(
-                        "Activity",
-                        value: syncActivityDescription
-                    )
-                }
-
-                if let lastSuccessfulAt = profileStore.cloudSyncStatus.lastSuccessfulAt {
-                    LabeledContent(
-                        "Last successful event",
-                        value: lastSuccessfulAt.formatted(
+    private var personalViewingCard: some View {
+        CineLarkSettingsCard(
+            "Personal Viewing",
+            subtitle: "One private viewing history is used for this iCloud account.",
+            systemImage: "person.fill"
+        ) {
+            if let manifest = activeManifest {
+                Grid(alignment: .leading, horizontalSpacing: 24, verticalSpacing: 9) {
+                    GridRow {
+                        Text("Last activity").foregroundStyle(.secondary)
+                        Text((manifest.lastActivityAt ?? manifest.profile.modifiedAt).formatted(
                             date: .abbreviated,
                             time: .shortened
+                        ))
+                    }
+                    GridRow {
+                        Text("Last device").foregroundStyle(.secondary)
+                        Text(manifest.lastDeviceName ?? "This device")
+                    }
+                    GridRow {
+                        Text("Saved data").foregroundStyle(.secondary)
+                        Text(
+                            "\(manifest.titleCount) titles · "
+                                + "\(manifest.viewingSessionCount) sessions · "
+                                + "\(manifest.favoriteCount) favorites"
                         )
-                    )
-                }
-
-                Text(syncStatusDetail)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-
-                if profileStore.cloudSyncStatus.phase == .failed,
-                   let failure = profileStore.cloudSyncStatus.failureDescription {
-                    Text(failure)
-                        .font(.callout)
-                        .foregroundStyle(.red)
-                }
-
-                Button {
-                    profileStore.send(.view(.refreshCloudSyncStatus))
-                } label: {
-                    if profileStore.isRefreshingCloudSyncStatus {
-                        ProgressView()
-                            .controlSize(.small)
-                    } else {
-                        Label("Recheck iCloud", systemImage: "arrow.clockwise")
+                    }
+                    GridRow {
+                        Text("Watch time").foregroundStyle(.secondary)
+                        Text(formattedWatchTime(manifest.totalWatchSeconds))
                     }
                 }
-                .disabled(profileStore.isRefreshingCloudSyncStatus)
+                .font(.callout)
+            } else {
+                ProgressView("Preparing personal viewing history…")
+                    .controlSize(.small)
+            }
+        }
+    }
+
+    private var syncCard: some View {
+        CineLarkSettingsCard(
+            "iCloud Sync",
+            subtitle: "Viewing state remains local-first and synchronizes automatically.",
+            systemImage: syncStatusSymbol
+        ) {
+            LabeledContent("Status") {
+                Label(syncStatusTitle, systemImage: syncStatusSymbol)
+                    .foregroundStyle(syncStatusColor)
             }
 
-            Section("Media Sources") {
-                if sourceStore.persistedSources.isEmpty {
-                    emptySources
+            if !profileStore.cloudSyncStatus.activeOperations.isEmpty {
+                Divider()
+                LabeledContent("Activity", value: syncActivityDescription)
+            }
+
+            if let lastSuccessfulAt = profileStore.cloudSyncStatus.lastSuccessfulAt {
+                Divider()
+                LabeledContent(
+                    "Last successful event",
+                    value: lastSuccessfulAt.formatted(date: .abbreviated, time: .shortened)
+                )
+            }
+
+            Text(syncStatusDetail)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+
+            if profileStore.cloudSyncStatus.phase == .failed,
+               let failure = profileStore.cloudSyncStatus.failureDescription {
+                Text(failure)
+                    .font(.callout)
+                    .foregroundStyle(.red)
+            }
+
+            Button {
+                profileStore.send(.view(.refreshCloudSyncStatus))
+            } label: {
+                if profileStore.isRefreshingCloudSyncStatus {
+                    ProgressView().controlSize(.small)
                 } else {
-                    ForEach(sourceStore.persistedSources) { source in
-                        let migration = sourceStore.migrationProposals[source.id]
-                        Button {
-                            if migration != nil {
-                                sourceStore.send(.view(.beginMigration(source.id)))
-                            } else {
-                                profileStore.send(.view(.selectSource(source.id)))
+                    Label("Recheck iCloud", systemImage: "arrow.clockwise")
+                }
+            }
+            .buttonStyle(.glass)
+            .disabled(profileStore.isRefreshingCloudSyncStatus)
+        }
+    }
+
+    private var mediaSourcesCard: some View {
+        CineLarkSettingsCard(
+            "Media Sources",
+            subtitle: "Choose the active server or connect another Emby service.",
+            systemImage: "externaldrive.connected.to.line.below"
+        ) {
+            if sourceStore.persistedSources.isEmpty {
+                emptySources
+            } else {
+                ForEach(sourceStore.persistedSources) { source in
+                    let migration = sourceStore.migrationProposals[source.id]
+                    Button {
+                        if migration != nil {
+                            sourceStore.send(.view(.beginMigration(source.id)))
+                        } else {
+                            profileStore.send(.view(.selectSource(source.id)))
+                        }
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "server.rack")
+                                .font(.title3)
+                                .frame(width: 34)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(source.configuration.displayName)
+                                    .font(.headline)
+                                Text(source.configuration.baseURL.absoluteString)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
                             }
-                        } label: {
-                            HStack {
-                                VStack(alignment: .leading) {
-                                    Text(source.configuration.displayName)
-                                    Text(source.configuration.baseURL.absoluteString)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                                Spacer()
-                                if migration != nil {
-                                    Label("Reconnect as Emby", systemImage: "exclamationmark.triangle.fill")
-                                        .font(.caption)
-                                        .foregroundStyle(.orange)
-                                } else if profileStore.activeSourceID == source.id {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .foregroundStyle(.green)
-                                }
+                            Spacer()
+                            if migration != nil {
+                                Label(
+                                    "Reconnect as Emby",
+                                    systemImage: "exclamationmark.triangle.fill"
+                                )
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                            } else if profileStore.activeSourceID == source.id {
+                                Label("Active", systemImage: "checkmark.circle.fill")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.green)
                             }
                         }
-                        .buttonStyle(.plain)
+                        .padding(12)
                     }
+                    .buttonStyle(.plain)
+                    .cineLarkHoverSurface(cornerRadius: 14)
                 }
             }
 
-            Section("Add Source") {
+            Divider()
+
+            HStack {
                 ForEach(sourceStore.availablePlugins, id: \.id) { plugin in
                     Button {
                         sourceStore.send(.view(.beginSetup(plugin.id)))
                     } label: {
-                        Label(plugin.displayName, systemImage: "plus.circle")
+                        Label("Add \(plugin.displayName)", systemImage: "plus.circle")
                     }
+                    .buttonStyle(.glass)
                 }
-            }
-
-            if activeSourceSupportsRemoteState {
-                Section("Remote User State") {
-                    Toggle(
-                        "Mirror local changes to this Emby user",
-                        isOn: Binding(
-                            get: { profileStore.activeBinding?.mirrorsRemoteState == true },
-                            set: { profileStore.send(.view(.setRemoteMirrorEnabled($0))) }
-                        )
-                    )
-                    Button("Import Favorites & Playback Once") {
-                        profileStore.send(.view(.importRemoteState))
-                    }
-                    .disabled(profileStore.isImportingRemoteState)
-                    if profileStore.isImportingRemoteState {
-                        ProgressView("Importing remote state…")
-                    } else if let applied = profileStore.lastImportApplied {
-                        Text(applied ? "Remote state imported." : "This remote state was already imported.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-
-            if let setup = sourceStore.setup {
-                setupSection(setup)
             }
         }
-        .formStyle(.grouped)
-        .onDisappear {
-            sourceStore.send(.view(.cancelSetup))
+    }
+
+    private var remoteStateCard: some View {
+        CineLarkSettingsCard(
+            "Emby User State",
+            subtitle: "Optional compatibility with the selected Emby user.",
+            systemImage: "arrow.triangle.2.circlepath.icloud"
+        ) {
+            Toggle(
+                "Mirror local changes to this Emby user",
+                isOn: Binding(
+                    get: { profileStore.activeBinding?.mirrorsRemoteState == true },
+                    set: { profileStore.send(.view(.setRemoteMirrorEnabled($0))) }
+                )
+            )
+            Button("Import Favorites & Playback Once") {
+                profileStore.send(.view(.importRemoteState))
+            }
+            .buttonStyle(.glass)
+            .disabled(profileStore.isImportingRemoteState)
+            if profileStore.isImportingRemoteState {
+                ProgressView("Importing remote state…")
+            } else if let applied = profileStore.lastImportApplied {
+                Text(applied ? "Remote state imported." : "This remote state was already imported.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -210,9 +245,14 @@ struct SourceManagerView: View {
 
     @ViewBuilder
     private func setupSection(_ setup: SourceFeature.SetupState) -> some View {
-        Section(setup.legacyPluginID == nil
-            ? "Set Up \(pluginName(setup.pluginID))"
-            : "Reconnect \(setup.displayName) as \(pluginName(setup.pluginID))"
+        CineLarkSettingsCard(
+            setup.legacyPluginID == nil
+                ? "Set Up \(pluginName(setup.pluginID))"
+                : "Reconnect \(setup.displayName) as \(pluginName(setup.pluginID))",
+            subtitle: setup.validatedConfiguration == nil
+                ? "Verify the server before entering account credentials."
+                : "Server verified. Sign in to finish configuration.",
+            systemImage: "server.rack"
         ) {
             if setup.legacyPluginID != nil {
                 Text(
@@ -233,6 +273,7 @@ struct SourceManagerView: View {
                         Label("Find Servers on Local Network", systemImage: "dot.radiowaves.left.and.right")
                     }
                 }
+                .buttonStyle(.glass)
                 .disabled(setup.isDiscovering)
 
                 ForEach(setup.discovered, id: \.self) { source in
@@ -245,28 +286,38 @@ struct SourceManagerView: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(10)
                     }
+                    .buttonStyle(.plain)
+                    .cineLarkHoverSurface(cornerRadius: 12)
                 }
             }
 
             TextField("Server URL", text: setupBinding(\.baseURL, action: SourceFeature.Action.View.updateBaseURL))
                 .textContentType(.URL)
+                .textFieldStyle(.roundedBorder)
             TextField("Display name", text: setupBinding(\.displayName, action: SourceFeature.Action.View.updateDisplayName))
+                .textFieldStyle(.roundedBorder)
 
             if setup.validatedConfiguration == nil {
                 Button("Verify Server") {
                     sourceStore.send(.view(.validate))
                 }
+                .buttonStyle(.glassProminent)
                 .disabled(setup.baseURL.isEmpty || setup.isValidating)
             } else {
                 TextField("Username", text: $username)
+                    .textFieldStyle(.roundedBorder)
                 SecureField("Password", text: $password)
+                    .textFieldStyle(.roundedBorder)
                 Button("Sign In & Save") {
                     sourceStore.send(
                         .view(.authenticate(username: username, password: password))
                     )
                     password = ""
                 }
+                .buttonStyle(.glassProminent)
                 .disabled(username.isEmpty || password.isEmpty || setup.isAuthenticating)
             }
 
@@ -281,21 +332,12 @@ struct SourceManagerView: View {
             Button("Cancel", role: .cancel) {
                 sourceStore.send(.view(.cancelSetup))
             }
+            .buttonStyle(.glass)
         }
     }
 
-    private var activeProfile: Binding<ProfileID?> {
-        Binding(
-            get: { profileStore.activeProfileID },
-            set: { id in
-                if let id { profileStore.send(.view(.selectProfile(id))) }
-            }
-        )
-    }
-
     private var activeManifest: ProfileManifest? {
-        guard let activeProfileID = profileStore.activeProfileID else { return nil }
-        return profileStore.manifests.first { $0.id == activeProfileID }
+        profileStore.manifest
     }
 
     private var syncStatusTitle: String {
@@ -307,7 +349,7 @@ struct SourceManagerView: View {
         case .synchronizing:
             return "Synchronizing"
         case .upToDate:
-            return "Available"
+            return "Up to Date"
         case .failed:
             return "Needs Attention"
         }
@@ -344,7 +386,7 @@ struct SourceManagerView: View {
     private var syncStatusDetail: String {
         switch profileStore.cloudSyncStatus.phase {
         case .localOnly:
-            return "Viewing history remains available on this Mac. Sign in to iCloud to synchronize Profiles."
+            return "Personal viewing history remains available on this Mac. Sign in to iCloud to synchronize it."
         case .checking:
             return "CineLark is waiting for the initial iCloud import. Local viewing history remains usable."
         case .synchronizing:

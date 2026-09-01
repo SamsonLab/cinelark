@@ -4,7 +4,7 @@
 | --- | --- |
 | **Status** | Implemented locally — signed physical convergence remains a release gate |
 | **Anchor date** | 2026-08-27 |
-| **Primary refs** | [`005-action.md`](005-action.md), [`../021-profile-onboarding-and-sync-health/001-action.md`](../021-profile-onboarding-and-sync-health/001-action.md), [`../023-cloudkit-convergence-validation/001-action.md`](../023-cloudkit-convergence-validation/001-action.md), [`../024-local-recommendations/001-action.md`](../024-local-recommendations/001-action.md) |
+| **Primary refs** | [`005-action.md`](005-action.md), [`../021-profile-onboarding-and-sync-health/001-action.md`](../021-profile-onboarding-and-sync-health/001-action.md), [`../023-cloudkit-convergence-validation/001-action.md`](../023-cloudkit-convergence-validation/001-action.md), [`../024-local-recommendations/001-action.md`](../024-local-recommendations/001-action.md), [`../025-single-personal-profile/001-action.md`](../025-single-personal-profile/001-action.md) |
 | **Related** | [`../../docs/decisions/0011-personal-viewing-memory.md`](../../docs/decisions/0011-personal-viewing-memory.md), [`../../docs/interfaces/profile-cloudkit-schema.md`](../../docs/interfaces/profile-cloudkit-schema.md), [`../011-media-source-platform/000-plan.md`](../011-media-source-platform/000-plan.md) |
 
 ## Background
@@ -105,6 +105,10 @@ independent remote playback record.
 - A signed two-device CloudKit smoke test remains required before release.
 
 ## Amendments
+
+- Updated 2026-08-28: Product ownership was narrowed to one stable personal
+  Profile per private iCloud account; fact-level convergence remains unchanged —
+  see [025 — Single personal Profile](../025-single-personal-profile/000-plan.md).
 
 - Updated 2026-08-28: Sync recovery, deterministic audit capture/comparison,
   cached historical enrichment, and private local recommendations are
